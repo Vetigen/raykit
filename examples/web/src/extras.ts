@@ -94,26 +94,53 @@ export function extras(viewer: RaykitViewer): void {
       render: { window: state.window, invert: state.inverse !== viewport.frame?.display?.inverse } });
   })().catch(report);
 
+  const preview = byId('series-preview');
+  let seriesScope: AbortController | undefined;
   byId('open-dicomweb').onclick = () => void (async () => {
+    seriesScope?.abort();
+    const scope = seriesScope = new AbortController();
+    const revision = 'synthetic-1';
     const dicom = new Dicomweb(new URL(`${import.meta.env.BASE_URL}dicomweb/`, location.href));
-    const [first, ...later] = await dicom.listInstances('2.25.100', '2.25.901');
+    const [[first, ...later], manifest, thumbnail] = await Promise.all([
+      dicom.listInstances('2.25.100', '2.25.901', { signal: scope.signal }),
+      fetch(`${import.meta.env.BASE_URL}manifest.json`, { signal: scope.signal }).then(response => response.json() as Promise<Record<string, { sha256: string; bytes: number }>>),
+      fixture('classic-ct-preview.jpg', scope.signal),
+    ]);
     if (!first) return;
-    const dataset = new ProgressiveSeries();
-    const member = (instance: typeof first) => ({ instanceUid: instance.instanceUid, revision: 'synthetic-1',
-      source: dicom.instance(instance.studyUid, instance.seriesUid, instance.instanceUid) });
-    const initial = member(first);
-    dataset.append({ sequence: 1, manifestRevision: 'synthetic-1', expected: later.length + 1, members: [initial] });
-    await viewer.open(initial.source, { revision: initial.revision });
-    const opened = viewer.viewport?.session;
-    if (!opened) return;
-    for (const [index, item] of later.entries()) {
-      const additional = member(item);
-      dataset.append({ sequence: index + 2, manifestRevision: 'synthetic-1', members: [additional] });
-      await opened.addVolumeSource(additional.source);
-      if (opened !== viewer.viewport?.session) return;
+    const dataset = new ProgressiveSeries(revision);
+    const member = (instance: typeof first) => {
+      const index = Number(instance.instanceUid.slice(-3)) - 911;
+      const expected = manifest[`classic-ct-${index}.dcm`];
+      if (!expected) throw new Error('Synthetic series member is missing from the manifest.');
+      return { instanceUid: instance.instanceUid, revision,
+        sha256: expected.sha256, byteLength: expected.bytes,
+        source: dicom.instance(instance.studyUid, instance.seriesUid, instance.instanceUid) };
+    };
+    const initial = { ...member(first), preview: thumbnail };
+    dataset.append({ sequence: 1, manifestRevision: revision, expected: later.length + 1, members: [initial] });
+    const url = URL.createObjectURL(dataset.preview(initial)!.document);
+    const image = preview.querySelector('img')!;
+    image.src = url; preview.hidden = false;
+    try {
+      await viewer.open(initial.source, { revision, expected_sha256: initial.sha256, expected_size: initial.byteLength, signal: scope.signal });
+      const opened = viewer.viewport?.session;
+      if (!opened || opened.revision !== revision || opened.inspection.content_sha256 !== initial.sha256) return;
+      image.removeAttribute('src'); preview.hidden = true;
       status.value = `${dataset.progress.available}/${dataset.progress.expected} original instances available.`;
+      for (const [index, item] of later.entries()) {
+        const additional = member(item);
+        await opened.addVolumeSource(additional.source, {
+          expected_sha256: additional.sha256, expected_size: additional.byteLength, signal: scope.signal,
+        });
+        if (opened !== viewer.viewport?.session) return;
+        dataset.append({ sequence: index + 2, manifestRevision: revision, members: [additional] });
+        status.value = `${dataset.progress.available}/${dataset.progress.expected} original instances available.`;
+      }
+    } finally {
+      URL.revokeObjectURL(url);
+      if (seriesScope === scope) { image.removeAttribute('src'); preview.hidden = true; }
     }
-  })().catch(report);
+  })().catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) report(error); });
 
   const shared = byId('shared');
   let second: RaykitViewport | undefined;
@@ -163,11 +190,11 @@ export function extras(viewer: RaykitViewer): void {
       }
     } }).catch(report);
   };
-  window.addEventListener('pagehide', () => { live.close(); for (const peer of peers) peer.close(); second?.dispose(); });
+  window.addEventListener('pagehide', () => { seriesScope?.abort(); live.close(); for (const peer of peers) peer.close(); second?.dispose(); });
 }
 
-async function fixture(file: string): Promise<Blob> {
-  const response = await fetch(`${import.meta.env.BASE_URL}${file}`);
+async function fixture(file: string, signal?: AbortSignal): Promise<Blob> {
+  const response = await fetch(`${import.meta.env.BASE_URL}${file}`, { signal });
   if (!response.ok) throw new Error('Synthetic fixture is unavailable.');
   return response.blob();
 }

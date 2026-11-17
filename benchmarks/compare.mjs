@@ -38,7 +38,7 @@ async function browserMemory(cdp) {
   return byteCounts;
 }
 
-async function run(browser, cdp, backend, fixture, full) {
+async function run(browser, cdp, backend, fixture, checkReference) {
   const page = await browser.newPage({ viewport: { width: 640, height: 512 }, deviceScaleFactor: 1 });
   let peak = {};
   let timer;
@@ -54,14 +54,14 @@ async function run(browser, cdp, backend, fixture, full) {
     poll = setInterval(() => void sample(), 50);
     await page.goto(service.url);
     await page.waitForFunction(() => typeof window.runRaykitBenchmark === 'function');
-    const result = await Promise.race([page.evaluate(async ({ backend, fixture, manifest, full }) => {
-      const cold = await window.runRaykitBenchmark(backend, fixture, manifest, { full });
+    const result = await Promise.race([page.evaluate(async ({ backend, fixture, manifest }) => {
+      const cold = await window.runRaykitBenchmark(backend, fixture, manifest, { full: true });
       const warm = cold.opened ? await window.runRaykitBenchmark(backend, fixture, manifest, { full: false }) : undefined;
       return { cold, warm };
-    }, { backend, fixture, manifest: manifest[fixture], full }), new Promise(resolve => {
+    }, { backend, fixture, manifest: manifest[fixture] }), new Promise(resolve => {
       timer = setTimeout(() => resolve({ cold: { opened: false, error: 'Scenario exceeded 45-second run limit' } }), 45_000);
     })]).catch(error => ({ cold: { opened: false, error: crashed ? 'Chromium page crashed during the scenario' : error.message } }));
-    const quality = result.cold.opened && backend === 'raykit' && fixture.startsWith('benchmark-') && full
+    const quality = result.cold.opened && backend === 'raykit' && fixture.startsWith('benchmark-') && checkReference
       ? await page.evaluate(() => window.verifyRaykitGpu()) : undefined;
     await sample();
     return { backend, fixture, quality, baseline_rss_bytes: baseline, sampled_peak_rss_bytes: peak, ...result };
@@ -81,12 +81,12 @@ try {
         try {
           const cdp = await browser.newBrowserCDPSession();
           const result = await run(browser, cdp, backend, fixture, i === 0);
-          raw.push(result);
-          process.stdout.write(`${backend} ${fixture} ${i + 1}/${count} ${result.cold.opened ? 'completed' : result.cold.error}\n`);
           if (result.quality) {
             assert.ok(result.quality.maximum <= 1);
             assert.ok(result.quality.interpolation.every(({ expected, actual }) => Math.abs(expected - actual) <= 1));
           }
+          raw.push(result);
+          process.stdout.write(`${backend} ${fixture} ${i + 1}/${count} ${result.cold.opened ? 'completed' : result.cold.error}\n`);
         } catch (error) {
           raw.push({ backend, fixture, cold: { opened: false, error: error.message } });
           process.stdout.write(`${backend} ${fixture} ${i + 1}/${count} failed: ${error.message}\n`);
@@ -108,6 +108,9 @@ for (const backend of selected) for (const fixture of ['benchmark-signed12.dcm',
     if (rows.length) interactions[kind] = { input_ms: metrics(rows.flatMap(r => r.input_latency_ms)),
       interval_ms: metrics(rows.flatMap(r => r.present_interval_ms)), missed_60hz: rows.reduce((n, r) => n + r.estimated_missed_60hz, 0) };
   }
+  const playback = completed.flatMap(r => r.cold.interaction?.cine ?? []);
+  if (playback.length) interactions.cine = { shown: metrics(playback.map(r => r.shown)), dropped: metrics(playback.map(r => r.dropped)),
+    interval_ms: metrics(playback.flatMap(r => r.intervals_ms)) };
   summary.push({ backend, fixture, successful: completed.length, attempts: results.length,
     cold_present_ms: metrics(all('cold', 'first_ms')), warm_present_ms: metrics(all('warm', 'first_ms')),
     cold_module_ms: metrics(all('cold', 'module_ms')), cold_open_ms: metrics(all('cold', 'frame_open_ms')),
@@ -117,7 +120,7 @@ for (const backend of selected) for (const fixture of ['benchmark-signed12.dcm',
     interactions, failures: [...new Set(results.flatMap(r => r.cold.error ?? []))] });
 }
 const assetSizes = [];
-for (const name of await readdir('benchmarks/dist/assets')) {
+for (const name of await readdir('benchmarks/dist/assets', { recursive: true })) {
   const path = `benchmarks/dist/assets/${name}`;
   if (!(await stat(path)).isFile()) continue;
   const bytes = await readFile(path);
@@ -126,7 +129,9 @@ for (const name of await readdir('benchmarks/dist/assets')) {
 const revision = (() => { try { return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return 'working tree before first commit'; } })();
 const result = { profile: { revision, platform: platform(), release: release(), cpu: cpus()[0]?.model, totalMemory: totalmem(),
   chromeVersion, flags: args, viewport_px: [640, 512], deviceScaleFactor: 1, repeats: repetitions, cineRepeats: cineRepetitions,
-  versions: { dwv: '0.36.4', cornerstone3d: '5.19.4', jpeg_decoder: '0.3.2' }, isolated: false },
+  versions: { dwv: '0.36.4', cornerstone3d: '5.19.4', jpeg_decoder: '0.3.2',
+    oxiarc_jpeg: '0.4.2', pure_jpegls: '2.1.0', openjpeg2_pure_rs: '0.1.1' },
+  wasmVariant: process.env.RAYKIT_WASM_VARIANT ?? 'full', isolated: false },
   fixture_hashes: Object.fromEntries(['benchmark-signed12.dcm', 'cine-350.dcm'].map(f => [f, manifest[f].sha256])),
   assetSizes, summary, raw };
 await mkdir('benchmarks/results', { recursive: true });

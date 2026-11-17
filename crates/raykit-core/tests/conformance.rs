@@ -167,6 +167,33 @@ fn bounds_input_and_inflated_source() {
     ));
 }
 
+#[test]
+fn rejects_excessive_sequences_and_fragment_indexes() {
+    let mut item = Dataset::new(EXPLICIT_LE);
+    for _ in 0..25 {
+        let mut parent = Dataset::new(EXPLICIT_LE);
+        parent.sequence(8, 0x1140, &[item]);
+        item = parent;
+    }
+    assert!(matches!(
+        Session::open(
+            part10(CR, XRAY_UID, EXPLICIT_LE, item.bytes),
+            Limits::default()
+        ),
+        Err(Error::Limit("dataset nesting depth"))
+    ));
+    assert!(matches!(
+        Session::open(
+            cine([64, 48], 5, Offsets::Empty, true),
+            Limits {
+                fragments: 1,
+                ..Default::default()
+            }
+        ),
+        Err(Error::Limit(_))
+    ));
+}
+
 #[cfg(feature = "advanced-codecs")]
 #[test]
 fn advanced_profiles_decode_analytic_samples_at_full_precision() {
@@ -263,6 +290,21 @@ fn oblique_classic_ct_and_enhanced_temporal_volumes_use_patient_geometry() {
             &["dorsal", "rostral", "right"]
         );
     }
+}
+
+#[test]
+fn classic_mr_forms_a_patient_space_volume() {
+    use raykit_core::{geometry::PatientPoint, volume::Volume};
+
+    let mut sources =
+        [2, 0, 1].map(|slice| Session::open(classic_mr_slice(slice), Limits::default()).unwrap());
+    let mut references = sources.iter_mut().collect::<Vec<_>>();
+    let volume = Volume::build(&mut references, 0).unwrap();
+    assert_eq!(volume.metadata.frames[0].instance_uid, "2.25.961");
+    assert_eq!(
+        volume.sample(PatientPoint(phantom_point(3.0, 2.0, 1.0))),
+        Some(136.0)
+    );
 }
 
 #[test]

@@ -4,7 +4,7 @@ use std::{
     ptr, slice,
     sync::{
         Arc, Mutex, OnceLock,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
@@ -29,6 +29,7 @@ impl From<Vec<u8>> for RaykitBuffer {
         }
         let boxed = bytes.into_boxed_slice();
         let len = boxed.len();
+        LIVE_BUFFERS.fetch_add(1, Ordering::Relaxed);
         Self {
             data: Box::into_raw(boxed).cast(),
             len,
@@ -54,6 +55,7 @@ struct Registry {
 }
 
 static HANDLES: OnceLock<Mutex<Registry>> = OnceLock::new();
+static LIVE_BUFFERS: AtomicUsize = AtomicUsize::new(0);
 
 fn handles() -> &'static Mutex<Registry> {
     HANDLES.get_or_init(|| {
@@ -231,6 +233,7 @@ pub unsafe extern "C" fn raykit_v1_free(data: *mut u8, len: usize) {
     if !data.is_null() {
         // The pointer and length reconstruct the boxed slice from the response.
         unsafe { drop(Box::from_raw(ptr::slice_from_raw_parts_mut(data, len))) };
+        LIVE_BUFFERS.fetch_sub(1, Ordering::Relaxed);
     }
 }
 
@@ -239,4 +242,9 @@ pub extern "C" fn raykit_v1_live_sessions() -> usize {
     handles()
         .lock()
         .map_or(0, |registry| registry.handles.len())
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn raykit_v1_live_buffers() -> usize {
+    LIVE_BUFFERS.load(Ordering::Relaxed)
 }

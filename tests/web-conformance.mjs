@@ -54,14 +54,22 @@ try {
     return canvas.getContext('2d').getImageData(Math.round(x), Math.round(y), 1, 1).data[3] === 135;
   });
 
-  await page.locator('#open-dicomweb').click();
+  const releaseOriginal = Promise.withResolvers();
+  await page.route('**/instances/2.25.913', async route => { await releaseOriginal.promise; await route.continue(); });
+  try {
+    await page.locator('#open-dicomweb').click();
+    await page.locator('#series-preview').waitFor({ state: 'visible' });
+    await page.waitForFunction(() => document.querySelector('#series-preview img').naturalWidth === 4);
+    assert.equal(await viewer.evaluate(viewer => viewer.viewport.session), undefined);
+  } finally { releaseOriginal.resolve(); }
   await page.waitForFunction(() => document.querySelector('#volume-status').value === '3/3 original instances available.');
+  assert.equal(await page.locator('#series-preview').isHidden(), true);
   const series = await viewer.evaluate(async viewer => {
     const session = viewer.viewport.session;
     const result = await session.volumeCandidates();
-    return { source: session.inspection.instance_uid, positions: result.candidates[0].frames, available: result.candidates[0].available };
+    return { source: session.inspection.instance_uid, hash: session.inspection.content_sha256, positions: result.candidates[0].frames, available: result.candidates[0].available };
   });
-  assert.deepEqual(series, { source: '2.25.913', positions: 3, available: true });
+  assert.deepEqual(series, { source: '2.25.913', hash: manifest['classic-ct-2.dcm'].sha256, positions: 3, available: true });
 
   await page.locator('#share-view').click();
   await page.waitForFunction(() => Array.from(document.querySelector('#shared').querySelectorAll('canvas')).some(canvas => !canvas.hidden));

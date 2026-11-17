@@ -30,6 +30,7 @@ export async function create(host, file, expectedCount) {
       position[dim] = index;
       view.setCurrentIndex(new Index(position));
       if (expectedCount > 1 && view.getCurrentIndex().getValues()[dim] !== index) throw new Error('DWV frame index did not change');
+      await new Promise(requestAnimationFrame);
     },
     sample(index, row, col) {
       const start = ((index * rows + row) * cols + col) * components;

@@ -3,7 +3,8 @@ import { stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, resolve, sep } from 'node:path';
 
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json', '.dcm': 'application/dicom' };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json',
+  '.dcm': 'application/dicom', '.jpg': 'image/jpeg' };
 
 export async function serve(directory, middleware) {
   const root = resolve(directory);

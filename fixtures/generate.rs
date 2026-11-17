@@ -82,6 +82,11 @@ fn main() -> std::io::Result<()> {
             classic_slice(i, f64::from(i), false),
             json!({"slice":i,"origin":phantom_point(0.0, 0.0, f64::from(i))}),
         )?;
+        save(
+            &format!("classic-mr-{i}"),
+            classic_mr_slice(i),
+            json!({"slice":i,"origin":phantom_point(0.0, 0.0, f64::from(i))}),
+        )?;
     }
     save(
         "phantom-seg",
@@ -130,6 +135,19 @@ fn main() -> std::io::Result<()> {
             json!({"frames":350,"dimensions":[1260,910],"rgb_at_0_0":{"0":cine_color(0),"175":cine_color(175),"349":cine_color(349)},"tolerance":4}),
         )?;
     }
+    let mut preview = Vec::new();
+    let pixels: Vec<u8> = (0..3)
+        .flat_map(|y| (0..4).map(move |x| 20 + 20 * x + 6 * y))
+        .collect();
+    jpeg_encoder::Encoder::new(&mut preview, 90)
+        .encode(&pixels, 4, 3, jpeg_encoder::ColorType::Luma)
+        .expect("synthetic projection preview");
+    fs::write(output.join("classic-ct-preview.jpg"), &preview)?;
+    manifest.insert(
+        "classic-ct-preview.jpg".to_owned(),
+        json!({"bytes": preview.len(), "sha256": format!("{:x}", Sha256::digest(&preview)),
+            "expected": {"dimensions": [4, 3], "source_instance": "2.25.913", "sample_step": 2, "window_low": 180}}),
+    );
     fs::write(
         output.join("manifest.json"),
         serde_json::to_vec_pretty(&manifest)?,

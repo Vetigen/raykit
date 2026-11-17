@@ -14,7 +14,8 @@ export async function create(host, file, count) {
     const images = count === 1 ? [id] : Array.from({ length: count }, (_, i) => `${id}?frame=${i + 1}`);
     await view.setStack(images, 0);
     await paint(host, () => view.render());
-    const initial = view.getCamera();
+    const initialPan = view.getPan();
+    const initialZoom = view.getZoom();
     const readTimes = new Map();
     return {
       name: 'Cornerstone3D', count,
@@ -37,9 +38,9 @@ export async function create(host, file, count) {
         view.setProperties({ voiRange: { lower, upper: lower + width - 1 } }); view.render();
       }); },
       panZoom(x, y, zoom) { return paint(host, () => {
-        const focalPoint = initial.focalPoint.map((n, i) => n + (i === 0 ? x : i === 1 ? y : 0));
-        const position = initial.position.map((n, i) => n + (i === 0 ? x : i === 1 ? y : 0));
-        view.setCamera({ focalPoint, position, parallelScale: initial.parallelScale / zoom }); view.render();
+        view.setZoom(initialZoom * zoom);
+        view.setPan([initialPan[0] + x, initialPan[1] + y]);
+        view.render();
       }); },
       metrics() { return { cache_bytes: cache.getCacheSize() }; },
       close() { engine.destroy(); cache.purgeCache(); wadouri.fileManager.purge(); wadouri.dataSetCacheManager.purge(); host.replaceChildren(); },

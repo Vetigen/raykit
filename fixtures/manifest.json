@@ -148,6 +148,55 @@
     },
     "sha256": "e0a3a1998f0387d992300d1adff46d19b43642ad67a40a52341ba949cab464e0"
   },
+  "classic-ct-preview.jpg": {
+    "bytes": 413,
+    "expected": {
+      "dimensions": [
+        4,
+        3
+      ],
+      "sample_step": 2,
+      "source_instance": "2.25.913",
+      "window_low": 180
+    },
+    "sha256": "a55bed4b285fee14d22331d9d0f6c02ec540ebd81049814e806f04baea2aeb27"
+  },
+  "classic-mr-0.dcm": {
+    "bytes": 724,
+    "expected": {
+      "origin": [
+        -10.0,
+        6.0,
+        12.0
+      ],
+      "slice": 0
+    },
+    "sha256": "e455e8b3b9993636ad4c8853e7cb0f71a1824756ea63e5668de34cef071649ec"
+  },
+  "classic-mr-1.dcm": {
+    "bytes": 722,
+    "expected": {
+      "origin": [
+        -9.1,
+        4.8,
+        14.0
+      ],
+      "slice": 1
+    },
+    "sha256": "38e6d513de1c3daab13608bef45b90e74d3e5fa6805cea2989c5a64514810585"
+  },
+  "classic-mr-2.dcm": {
+    "bytes": 722,
+    "expected": {
+      "origin": [
+        -8.2,
+        3.6,
+        16.0
+      ],
+      "slice": 2
+    },
+    "sha256": "dc4e58e408a39db1fe8aeb972f62fba9cc10e0dd72ab01c10faf13d76a923600"
+  },
   "distance-sr.dcm": {
     "bytes": 2500,
     "expected": {

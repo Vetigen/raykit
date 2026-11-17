@@ -87,6 +87,9 @@ external void _free(Pointer<Uint8> bytes, int len);
 @Native<Size Function()>(symbol: 'raykit_v1_live_sessions', assetId: _asset)
 external int liveSessions();
 
+@Native<Size Function()>(symbol: 'raykit_v1_live_buffers', assetId: _asset)
+external int liveBuffers();
+
 typedef NativeReply = ({
   int status,
   int handle,

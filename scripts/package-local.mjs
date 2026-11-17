@@ -22,10 +22,9 @@ try {
   run(npm, ['run', 'build:web']);
   run(npm, ['pack', '--ignore-scripts', '--pack-destination', artifacts, './packages/web', './packages/web-component']);
   mkdirSync(flutter);
-  for (const name of ['lib', 'hook', 'pubspec.yaml']) {
+  for (const name of ['lib', 'hook', 'pubspec.yaml', 'README.md']) {
     cpSync(join(root, 'packages/flutter', name), join(flutter, name), { recursive: true });
   }
-  cpSync(join(root, 'README.md'), join(flutter, 'README.md'));
   const native = join(flutter, 'native');
   mkdirSync(native);
   for (const name of ['Cargo.toml', 'Cargo.lock', 'crates', 'fixtures/support.rs', 'fixtures/generate.rs', 'examples/measurements']) {

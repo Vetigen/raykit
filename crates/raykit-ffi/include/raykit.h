@@ -28,6 +28,7 @@ uint32_t raykit_v1_request(uint64_t handle, const uint8_t *command, size_t len, 
 void raykit_v1_close(uint64_t handle);
 void raykit_v1_free(uint8_t *data, size_t len);
 size_t raykit_v1_live_sessions(void);
+size_t raykit_v1_live_buffers(void);
 
 #ifdef __cplusplus
 }

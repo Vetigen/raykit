@@ -66,6 +66,19 @@ void main() {
           snapshot['revision'] as int,
         );
         expect(metadata['dimensions'], [8, 6, 3]);
+        final segment = await session.segmentation(
+          fixture('phantom-seg'),
+          0,
+          1,
+        );
+        expect(segment.mask[2 * 8 + 4], 1);
+        expect(
+          (await session.presentation(
+            fixture('phantom-gsps'),
+            0,
+          ))['quarter_turns'],
+          1,
+        );
         final patient = [-8.86, 7.98, 15.8];
         expect(await session.sampleVolume(patient), 136.0);
         final reslice = await session.reslice({
@@ -88,6 +101,7 @@ void main() {
     'native session preserves samples, calibration, windowing and exact source identity',
     () async {
       final baseline = native.liveSessions();
+      final buffers = native.liveBuffers();
       final session = await RayKitSession.open(fixture('signed12'));
       try {
         expect(session.inspection.frames, 1);
@@ -111,6 +125,11 @@ void main() {
           'unit': 'millimeter',
         });
         expect(await session.reopenMeasurement(record), record);
+        final sr = await session.importSr(fixture('distance-sr'));
+        expect(
+          (sr['values'] as List).single,
+          (record['values'] as List).single,
+        );
         final other = await RayKitSession.open(fixture('signed12-big-endian'));
         try {
           await expectLater(
@@ -130,6 +149,7 @@ void main() {
         await session.close();
       }
       expect(native.liveSessions(), baseline);
+      expect(native.liveBuffers(), buffers);
     },
   );
 
@@ -137,6 +157,7 @@ void main() {
     'racing seek, cancellation and close finish the native handle once',
     () async {
       final baseline = native.liveSessions();
+      final buffers = native.liveBuffers();
       final session = await RayKitSession.open(fixture('cine-350'));
       for (final index in [0, 175, 349]) {
         expect((await session.readFrame(index)).index, index);
@@ -174,6 +195,7 @@ void main() {
       await cancellation;
       await pending;
       expect(native.liveSessions(), baseline);
+      expect(native.liveBuffers(), buffers);
     },
   );
 
@@ -184,17 +206,17 @@ void main() {
       final source = fixture('signed12');
       final presented = <RayKitPresentedFrame>[];
       final baseline = native.liveSessions();
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: RayKitViewer(
-              source: source,
-              controller: controller,
-              onPresented: presented.add,
-            ),
+      final buffers = native.liveBuffers();
+      Widget app(RayKitSource source) => MaterialApp(
+        home: Scaffold(
+          body: RayKitViewer(
+            source: source,
+            controller: controller,
+            onPresented: presented.add,
           ),
         ),
       );
+      await tester.pumpWidget(app(source));
       await waitFor(tester, () => presented.isNotEmpty);
       expect(presented.single.source['frame'], 0);
       expect(find.textContaining('Original'), findsOneWidget);
@@ -204,8 +226,30 @@ void main() {
       await tester.runAsync(() => controller.restoreMeasurement(record!));
       await tester.pump();
       expect(find.textContaining('5.00 millimeter'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Rotate'));
+      await waitFor(tester, () => presented.last.view['quarter_turns'] == 1);
+      final revision = presented.last.revision;
+      final observations = presented.length;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await waitFor(tester, () => native.liveSessions() == baseline);
+      expect(presented.length, observations);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await waitFor(tester, () => presented.length > observations);
+      expect(presented.last.revision, revision);
+      expect(presented.last.view['quarter_turns'], 1);
+      expect(controller.measurements, [record]);
+
+      await tester.pumpWidget(app(fixture('signed12-big-endian')));
+      await waitFor(tester, () => presented.last.revision != revision);
+      expect(controller.measurements, isEmpty);
+      expect(presented.last.view['quarter_turns'], 0);
       await tester.pumpWidget(const SizedBox());
       await waitFor(tester, () => native.liveSessions() == baseline);
+      expect(native.liveBuffers(), buffers);
     },
   );
 }

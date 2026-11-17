@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { chromium } from 'playwright-core';
+import { chromium, firefox } from 'playwright-core';
 import { serve } from './static-server.mjs';
 
 const server = await serve('examples/web/dist');
+const engine = process.env.RAYKIT_BROWSER ?? 'chromium';
 let browser;
 try {
-  browser = await chromium.launch({ executablePath: process.env.RAYKIT_CHROMIUM,
-    args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'] });
+  browser = await { chromium, firefox }[engine].launch(engine === 'chromium'
+    ? { executablePath: process.env.RAYKIT_CHROMIUM, args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'] } : {});
   const page = await browser.newPage({ viewport: { width: 1050, height: 750 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -22,7 +23,7 @@ try {
   const first = await page.evaluate(() => window.presentedFrames.at(-1));
   assert.equal(first.source.frame, 0);
   assert.equal(first.quality, 'original');
-  assert.equal(first.renderer, 'webgl2');
+  assert.ok(['webgl2', 'cpu'].includes(first.renderer));
   assert.equal(await page.evaluate(() => crossOriginIsolated), false);
   const sample = await viewer.evaluate(viewer => viewer.viewport.session.sample(0, 10, 10));
   assert.deepEqual(sample, { kind: 'monochrome', stored: -1540, modality: -3180, padding: false });
@@ -89,14 +90,55 @@ try {
   assert.deepEqual(cine.seeks, ['cancelled', 'cancelled', 'cancelled', 'fulfilled']);
   assert.ok(cine.stats.session.cached_frames <= 2);
   assert.ok(cine.stats.wasm_linear_memory_bytes < 256 * 1024 * 1024);
-  await viewer.evaluate(viewer => {
-    const gl = viewer.viewport.surface.querySelector('canvas:not([hidden]):not(.overlay)').getContext('webgl2');
-    gl.getExtension('WEBGL_lose_context').loseContext();
-  });
+  if (first.renderer === 'webgl2') {
+    await viewer.evaluate(viewer => {
+      const gl = viewer.viewport.surface.querySelector('canvas:not([hidden]):not(.overlay)').getContext('webgl2');
+      gl.getExtension('WEBGL_lose_context').loseContext();
+    });
+  }
   await page.waitForFunction(() => window.presentedFrames.at(-1).renderer === 'cpu');
   assert.equal(await viewer.evaluate(viewer => viewer.viewport.presented.source.frame), 349);
+
+  for (const filename of ['signed12-deflated.dcm', 'cine-extended.dcm']) {
+    await viewer.locator('[data-action=new]').click();
+    await viewer.evaluate(async (viewer, filename) => viewer.open(await (await fetch(filename)).blob()), filename);
+  }
+  assert.equal(await viewer.locator('.surface').count(), 4);
+  assert.equal(await viewer.locator('[data-action=new]').isDisabled(), true);
+  const retired = await viewer.evaluate(async (viewer, sha256) => {
+    const prior = viewer.viewport.session;
+    const observations = window.presentedFrames.length;
+    let reading;
+    const started = new Promise(resolve => { reading = resolve; });
+    const abandoned = viewer.open({
+      read(signal) {
+        reading();
+        return new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('Reader aborted')), { once: true }));
+      },
+    }, { revision: 'cancelled-reader' }).then(() => 'opened', error => error.code);
+    await started;
+    const radiograph = await (await fetch('signed12.dcm')).blob();
+    const rejected = await viewer.open(radiograph, { expected_sha256: '0'.repeat(64) }).then(() => 'opened', error => error.code);
+    await viewer.open(radiograph, { expected_sha256: sha256, revision: 'original' });
+    return { cancelled: await abandoned, rejected, retained: viewer.viewport.presented.revision,
+      old: await prior.stats().then(() => 'open', error => error.code),
+      observedStale: window.presentedFrames.slice(observations).some(event => event.revision === 'cancelled-reader') };
+  }, JSON.parse(await readFile('fixtures/generated/manifest.json', 'utf8'))['signed12.dcm'].sha256);
+  assert.deepEqual(retired, { cancelled: 'cancelled', rejected: 'integrity', retained: 'original', old: 'closed', observedStale: false });
+  await viewer.evaluate(viewer => {
+    window.removedViewport = viewer.viewport;
+    window.removedSession = viewer.viewport.session;
+  });
   await viewer.locator('[data-action=close]').click();
+  assert.deepEqual(await page.evaluate(async () => ({
+    texture: window.removedViewport.textureBytes,
+    session: await window.removedSession.stats().then(() => 'open', error => error.code),
+  })), { texture: 0, session: 'closed' });
+  await viewer.locator('.surface').nth(1).focus();
+  assert.equal(await viewer.evaluate(viewer => viewer.viewport.presented.source.frame), 349);
+  await viewer.locator('.surface').first().focus();
   assert.deepEqual((await viewer.evaluate(viewer => viewer.measurements))[0], reopened);
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ browser: browser.version(), crossOriginIsolated: false, xray: first.renderer, measurement: record.values[0], cine }, null, 2));
+  console.log(JSON.stringify({ engine, browser: browser.version(), crossOriginIsolated: false, xray: first.renderer, measurement: record.values[0], cine,
+    four_panel_lifecycle: retired }, null, 2));
 } finally { await browser?.close(); server.close(); }

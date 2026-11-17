@@ -12,6 +12,7 @@ pub const IMPLICIT_LE: &str = "1.2.840.10008.1.2";
 pub const DEFLATED: &str = "1.2.840.10008.1.2.1.99";
 pub const RLE: &str = "1.2.840.10008.1.2.5";
 pub const CT: &str = "1.2.840.10008.5.1.4.1.1.2";
+pub const MR: &str = "1.2.840.10008.5.1.4.1.1.4";
 pub const ENHANCED_CT: &str = "1.2.840.10008.5.1.4.1.1.2.1";
 pub const ENHANCED_MR: &str = "1.2.840.10008.5.1.4.1.1.4.1";
 pub const SEG: &str = "1.2.840.10008.5.1.4.1.1.66.4";
@@ -500,7 +501,22 @@ fn physical_metadata(d: &mut Dataset) {
 }
 
 pub fn classic_slice(z: u16, at: f64, localizer: bool) -> Vec<u8> {
-    let instance = format!("2.25.{}", 911 + z);
+    classic_frame(z, at, localizer, CT, "CT", 911)
+}
+
+pub fn classic_mr_slice(z: u16) -> Vec<u8> {
+    classic_frame(z, f64::from(z), false, MR, "MR", 961)
+}
+
+fn classic_frame(
+    z: u16,
+    at: f64,
+    localizer: bool,
+    class: &str,
+    modality: &str,
+    first_instance: u16,
+) -> Vec<u8> {
+    let instance = format!("2.25.{}", first_instance + z);
     let mut d = Dataset::new(EXPLICIT_LE);
     d.text(
         8,
@@ -512,9 +528,9 @@ pub fn classic_slice(z: u16, at: f64, localizer: bool) -> Vec<u8> {
             "ORIGINAL\\PRIMARY\\AXIAL"
         },
     );
-    d.text(8, 0x16, "UI", CT);
+    d.text(8, 0x16, "UI", class);
     d.text(8, 0x18, "UI", &instance);
-    d.text(8, 0x60, "CS", "CT");
+    d.text(8, 0x60, "CS", modality);
     d.text(0x10, 0x2210, "CS", "QUADRUPED");
     d.text(0x18, 0x15, "CS", "THORAX");
     d.text(0x20, 0x0d, "UI", STUDY);
@@ -525,7 +541,7 @@ pub fn classic_slice(z: u16, at: f64, localizer: bool) -> Vec<u8> {
     pixel_module(&mut d, PHANTOM_SIZE, [16, 16, 15], 1, "MONOCHROME2", false);
     physical_metadata(&mut d);
     d.element(0x7fe0, 0x10, "OW", &pixels_for_slice(z));
-    part10(CT, &instance, EXPLICIT_LE, d.bytes)
+    part10(class, &instance, EXPLICIT_LE, d.bytes)
 }
 
 pub fn enhanced_volume(mr: bool) -> Vec<u8> {

@@ -112,7 +112,6 @@ export async function create(host, file, count) {
     const present = async () => {
       await new Promise(requestAnimationFrame);
       await engine.draw(mapping, window);
-      await new Promise(requestAnimationFrame);
     };
     await present();
     const verify = async () => {
@@ -125,7 +124,21 @@ export async function create(host, file, count) {
         let grayError = 0;
         for (let i = 0; i < gpu.length; i++) grayError = Math.max(grayError, Math.abs(gpu[i] - cpu[i]));
         if (grayError > 1) throw new Error(`WebGPU gray error ${grayError}`);
-        return grayError;
+        const large = document.createElement('canvas');
+        large.width = probe.width * 2; large.height = probe.height * 2;
+        const interpolator = new Candidate(device, large, frame);
+        try {
+          const window = { center: -3120, width: 140, function: 'linear_exact' };
+          const rgba = await interpolator.draw({ origin: { x: 1, y: 1 }, x_axis: [2, 0], y_axis: [0, 2] }, window, true);
+          const interpolation = [10, 21, 39].map(x => {
+            const raw = -2000 + (x + 0.25) * 40 + 10.25 * 6;
+            const expected = Math.round((1 - Math.max(0, Math.min(1, (2 * raw - 100 - window.center) / window.width + 0.5))) * 255);
+            const actual = rgba[(21 * large.width + 2 * x + 1) * 4];
+            if (Math.abs(expected - actual) > 1) throw new Error(`WebGPU interpolation ${actual} differs from ${expected}`);
+            return { expected, actual };
+          });
+          return { gray_error: grayError, interpolation };
+        } finally { interpolator.close(); }
       } finally { probeRenderer.close(); }
     };
     return {
@@ -134,7 +147,7 @@ export async function create(host, file, count) {
       async sample(index, row, col) { return (await session.sample(index, col, row)).stored; },
       window(center, width) { window = { center, width }; return present(); },
       async panZoom(x, y, zoom) { mapping = (await session.transform(0, { ...view, pan: [x, y], zoom })).transform; await present(); },
-      async metrics() { return { gray_error: await verify(), adapter: adapter.info?.description ?? '', ...(await session.stats()) }; },
+      async metrics() { return { ...(await verify()), adapter: adapter.info?.description ?? '', ...(await session.stats()) }; },
       close() { engine.close(); session.close(); device.destroy(); host.replaceChildren(); },
     };
   } catch (error) { engine?.close(); session.close(); device.destroy(); throw error; }
