@@ -1243,7 +1243,7 @@ class RayKitViewerState extends State<RayKitViewer> {
               Text('${(frame?.index ?? 0) + 1} / $count'),
               DropdownButton<double>(
                 value: _rate,
-                items: [0.5, 1.0, 2.0]
+                items: ({0.5, 1.0, 2.0, _rate}.toList()..sort())
                     .map((r) => DropdownMenuItem(value: r, child: Text('$r×')))
                     .toList(),
                 onChanged: (value) {
