@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
 import { serve } from './static-server.mjs';
@@ -34,12 +34,20 @@ function assertNotices(directory) {
   assert.ok(!inventory.some(crate => crate.name.startsWith('openjph') || crate.name === 'jpeg-encoder'));
 }
 
+function assertPortableBinary(path) {
+  const bytes = readFileSync(path);
+  for (const localPath of [homedir(), root, tree]) {
+    assert.ok(!bytes.includes(localPath), 'Binary preserved a local build path');
+  }
+}
+
 try {
   for (const path of ['tsconfig.base.json', 'examples/web/package.json', 'examples/web/tsconfig.json', 'examples/web/vite.config.mjs',
     'examples/web/dicomweb-fixture.mjs', 'examples/web/index.html', 'examples/web/src', 'fixtures/generated']) copy(path);
   run(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund',
     join(root, 'artifacts/raykit-web-0.1.0.tgz'), join(root, 'artifacts/raykit-web-component-0.1.0.tgz'), 'vite@7.3.1', 'typescript@5.9.3'], web);
   assertNotices(join(web, 'node_modules/@raykit/web/dist/notices'));
+  assertPortableBinary(join(web, 'node_modules/@raykit/web/dist/generated/raykit_wasm_bg.wasm'));
   run(npm, ['run', 'build'], web);
   const service = await serve(join(web, 'dist'));
   let browser;
@@ -77,5 +85,6 @@ try {
   assertNotices(join(tree, 'packages/flutter/notices'));
   run('flutter', ['pub', 'get'], flutter);
   run('flutter', ['test', '--no-pub', '--concurrency=1', 'test/example_test.dart'], flutter);
+  if (process.platform === 'linux') assertPortableBinary(join(flutter, 'build/native_assets/linux/libraykit_ffi.so'));
   console.log('Independent web and Flutter package consumers passed.');
 } finally { rmSync(tree, { recursive: true, force: true }); }

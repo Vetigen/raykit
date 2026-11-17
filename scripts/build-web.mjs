@@ -1,5 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeNotices } from './notices.mjs';
 
@@ -13,7 +15,11 @@ function run(command, args, env = process.env) {
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
-const rust = simd ? { ...process.env, RUSTFLAGS: [process.env.RUSTFLAGS, '-C target-feature=+simd128'].filter(Boolean).join(' ') } : process.env;
+const flags = process.env.CARGO_ENCODED_RUSTFLAGS?.split('\x1f') ?? process.env.RUSTFLAGS?.trim().split(/\s+/) ?? [];
+const cargo = resolve(process.env.CARGO_HOME ?? join(homedir(), '.cargo'));
+const rust = { ...process.env, CARGO_ENCODED_RUSTFLAGS: [...flags.filter(Boolean),
+  `--remap-path-prefix=${resolve(root)}=/raykit`, `--remap-path-prefix=${cargo}=/cargo`,
+  ...(simd ? ['-C', 'target-feature=+simd128'] : [])].join('\x1f') };
 run('cargo', ['build', '--locked', '--release', '-p', 'raykit-wasm', '--target', 'wasm32-unknown-unknown', ...(baseline ? ['--no-default-features'] : [])], rust);
 mkdirSync(new URL(`../${generated}/`, import.meta.url), { recursive: true });
 run('wasm-bindgen', ['--target', 'web', '--out-dir', generated, 'target/wasm32-unknown-unknown/release/raykit_wasm.wasm']);

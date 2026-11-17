@@ -174,6 +174,10 @@ void main() {
           );
         }
       }
+      expect(
+        (await session.stats())['session'],
+        containsPair('decoded_frames', 3),
+      );
       final cancel = RayKitCancellation();
       final active = session.readFrame(101, cancellation: cancel);
       final cancellation = expectLater(

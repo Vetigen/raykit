@@ -72,9 +72,13 @@ try {
     const session = vp.session;
     const data = [];
     for (const index of [0, 175, 349]) {
+      const initial = (await session.stats()).session.decoded_frames;
       const started = performance.now();
       await vp.showFrame(index, false);
-      data.push({ index: vp.presented.source.frame, milliseconds: performance.now() - started, sample: await session.sample(index, 0, 0) });
+      const milliseconds = performance.now() - started;
+      const sample = await session.sample(index, 0, 0);
+      data.push({ index: vp.presented.source.frame, milliseconds, sample,
+        decoded: (await session.stats()).session.decoded_frames - initial });
     }
     const pending = [5, 60, 8, 349].map(index => vp.showFrame(index, false));
     const seeks = (await Promise.allSettled(pending)).map(result => result.status === 'rejected' ? result.reason.code : result.status);
@@ -82,9 +86,10 @@ try {
       stats: await session.stats(), gpuTextureEstimate: vp.textureBytes, verifiedReference: reference };
   }, manifest.sha256);
   assert.equal(cine.hash, cine.verifiedReference);
-  for (const { index, sample } of cine.data) {
+  for (const { index, sample, decoded } of cine.data) {
     assert.equal(sample.kind, 'color');
     sample.values.forEach((v, i) => assert.ok(Math.abs(v - manifest.expected.rgb_at_0_0[index][i]) <= manifest.expected.tolerance));
+    assert.equal(decoded, index === 0 ? 0 : 1);
   }
   assert.equal(cine.latest, 349);
   assert.deepEqual(cine.seeks, ['cancelled', 'cancelled', 'cancelled', 'fulfilled']);
