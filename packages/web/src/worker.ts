@@ -33,8 +33,8 @@ worker.onmessage = async (event: MessageEvent<Message>) => {
     if (inFlight?.id === msg.id) inFlight.controller.abort();
     return;
   }
-  const controller = new AbortController();
-  inFlight = { id: msg.id, controller };
+  const controller = rangeSource ? new AbortController() : undefined;
+  if (controller) inFlight = { id: msg.id, controller };
   let reply: Reply;
   try {
     if (!await initialized) throw '{"code":"internal","detail":"WASM initialization failed"}';
@@ -77,7 +77,7 @@ worker.onmessage = async (event: MessageEvent<Message>) => {
         if (!session) throw '{"code":"closed"}';
         const bytes = new Uint8Array(msg.bytes);
         inputCopyBytes += bytes.byteLength;
-        const result = rangeSource
+        const result = controller
           ? await withRange(active => active.append(bytes, msg.options), controller.signal)
           : session.append(bytes, msg.options);
         try {
@@ -91,7 +91,7 @@ worker.onmessage = async (event: MessageEvent<Message>) => {
       case 'command': {
         if (!session) throw '{"code":"closed"}';
         const started = performance.now();
-        const result = rangeSource
+        const result = controller
           ? await withRange(active => active.request(msg.command), controller.signal)
           : session.request(msg.command);
         try {
@@ -111,7 +111,7 @@ worker.onmessage = async (event: MessageEvent<Message>) => {
       }
     }
   } catch (error) {
-    reply = { id: msg.id, error: controller.signal.aborted ? failure('cancelled') :
+    reply = { id: msg.id, error: controller?.signal.aborted ? failure('cancelled') :
       typeof error === 'string' ? error : failure('internal', 'Worker execution failed') };
   } finally {
     if (inFlight?.id === msg.id) inFlight = undefined;

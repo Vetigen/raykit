@@ -170,7 +170,10 @@ export class RaykitViewport extends EventTarget {
   }
 
   async redraw(): Promise<void> {
-    if (this.#seek) { this.#redrawRequested = true; return; }
+    if (this.#seek) {
+      if (this.#undrawn) this.#redrawRequested = true;
+      return;
+    }
     const frame = this.#undrawn ?? this.#frame;
     const session = this.#session;
     if (frame && session) await this.#draw(frame, session);
@@ -347,7 +350,6 @@ export class RaykitViewport extends EventTarget {
   }
 
   #redraw(): void {
-    if (this.#seek) { this.#redrawRequested = true; return; }
     void this.redraw().catch(error => this.#report(error));
   }
 
