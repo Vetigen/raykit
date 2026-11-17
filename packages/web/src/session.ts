@@ -1,7 +1,7 @@
 import { RaykitError } from './types.js';
-import type { EngineCapabilities, Frame, Inspection, MappedPoint, Measurement, MeasurementRequest,
+import type { EngineCapabilities, Frame, FrameIndex, IndexedSource, Inspection, MappedPoint, Measurement, MeasurementRequest,
   OpenOptions, Presentation, Reader, RenderOptions, Sample, ScreenPoint, SegmentationOverlay, SliceImage, SliceRequest, Source, SourceBytes, SrOptions,
-  Stats, Triple, View, Volume, VolumeCandidates, WindowLevel } from './types.js';
+  SliceOptions, Stats, Triple, View, Volume, VolumeCandidates, WindowLevel } from './types.js';
 import type { Message, Reply } from './worker.js';
 
 const sourceCeiling = 192 * 1024 * 1024;
@@ -76,7 +76,7 @@ function checkSourceSize(bytes: SourceBytes, ceiling: number, expectedSize?: num
   }
 }
 
-async function sourceBuffer(source: Source, ceiling: number, signal: AbortSignal, expectedSize?: number): Promise<ArrayBuffer> {
+async function sourceBuffer(source: SourceBytes | Reader, ceiling: number, signal: AbortSignal, expectedSize?: number): Promise<ArrayBuffer> {
   checkAbort(signal);
   try {
     const bytes = isSourceBytes(source) ? source : await withAbort(source.read(signal, ceiling), signal);
@@ -104,7 +104,7 @@ class Channel {
   #queue: Pending[] = [];
   #running?: Pending;
 
-  constructor(factory: () => Worker) {
+  constructor(factory: () => Worker, private readonly indexed = false) {
     this.#worker = factory();
     this.#worker.onmessage = (event: MessageEvent<Reply>) => {
       const pending = this.#running;
@@ -130,6 +130,7 @@ class Channel {
       const abort = () => {
         const i = this.#queue.indexOf(pending);
         if (i !== -1) this.#queue.splice(i, 1);
+        if (this.indexed && this.#running === pending) this.#worker.postMessage({ op: 'cancel', id: pending.id });
         reject(new RaykitError('cancelled'));
       };
       const pending: Pending = { id: this.#nextId++, task, transfer, resolve, reject,
@@ -166,6 +167,8 @@ function metadata<T>(reply: Reply): T {
 
 export class RaykitSession {
   readonly #lifetime = new AbortController();
+  #planeQueue = Promise.resolve();
+  #planeTicket = 0;
   constructor(readonly inspection: Inspection, readonly revision: string, private readonly channel: Channel) {}
 
   async readFrame(index: number, options: { output?: 'rgba' | 'stored'; signal?: AbortSignal } = {}): Promise<Frame> {
@@ -182,6 +185,12 @@ export class RaykitSession {
     const reply = await this.#request({ op: 'render', index, options }, signal);
     if (!reply.pixels) throw new RaykitError('internal', 'Missing rendered pixels');
     return reply.pixels;
+  }
+
+  async createFrameIndex(signal?: AbortSignal): Promise<FrameIndex> {
+    const reply = await this.#request({ op: 'create_frame_index' }, signal);
+    if (!reply.pixels) throw new RaykitError('internal', 'Missing frame index');
+    return { bytes: reply.pixels, sha256: metadata<{ sha256: string }>(reply).sha256 };
   }
 
   prefetch(index: number, signal?: AbortSignal): Promise<void> { return this.#value({ op: 'prefetch', index }, signal); }
@@ -214,6 +223,7 @@ export class RaykitSession {
   }
 
   async #append(source: Source, options: AppendOptions, attachment?: Record<string, unknown>): Promise<Reply> {
+    if ('frameIndex' in source) throw new RaykitError('unsupported', 'Appending a range source');
     const { signal, ...settings } = options;
     const scope = new AbortController();
     const abort = () => scope.abort();
@@ -235,10 +245,24 @@ export class RaykitSession {
   }
   sampleVolume(point: Triple, signal?: AbortSignal): Promise<number | null> { return this.#value({ op: 'volume_sample', point }, signal); }
 
-  async reslice(plane: SliceRequest, window?: WindowLevel, signal?: AbortSignal): Promise<SliceImage> {
-    const reply = await this.#request({ op: 'reslice', plane, window }, signal);
-    if (!reply.pixels) throw new RaykitError('internal', 'Missing reslice');
-    return { ...metadata<Omit<SliceImage, 'pixels'>>(reply), pixels: reply.pixels };
+  async reslice(plane: SliceRequest, window?: WindowLevel, signal?: AbortSignal, options: SliceOptions = {}): Promise<SliceImage> {
+    const ticket = this.#planeTicket = (this.#planeTicket + 1) >>> 0;
+    const command = { op: 'reslice_start', ticket, plane, window, ...options };
+    const work = this.#planeQueue.then(async () => {
+      checkAbort(signal);
+      try {
+        let reply = await this.#request(command, signal);
+        while (metadata(reply) === null) {
+          reply = await this.#request({ op: 'reslice_step', ticket }, signal);
+        }
+        if (!reply.pixels) throw new RaykitError('internal', 'Missing reslice');
+        return { ...metadata<Omit<SliceImage, 'pixels'>>(reply), pixels: reply.pixels };
+      } finally {
+        if (signal?.aborted) await this.#request({ op: 'reslice_cancel', ticket }).catch(() => {});
+      }
+    });
+    this.#planeQueue = work.then(() => {}, () => {});
+    return signal ? withAbort(work, signal) : work;
   }
 
   async document(signal?: AbortSignal): Promise<Blob> {
@@ -282,10 +306,19 @@ export async function open(source: Source, options: OpenOptions = {}): Promise<R
     if (!Number.isSafeInteger(max) || max < 0 || max > sourceCeiling) throw new RaykitError('limit', 'Source limit');
     checkAbort(scope.signal);
     if (isSourceBytes(source)) checkSourceSize(source, max, settings.expected_size);
-    channel = new Channel(workerFactory);
-    const bytes = await sourceBuffer(source, max, scope.signal, settings.expected_size);
-    checkAbort(scope.signal);
-    const reply = await channel.run({ op: 'open', bytes, options: JSON.stringify({ ...settings, ...sourceIdentity(source) }) }, scope.signal, [bytes]);
+    const indexed = 'frameIndex' in source;
+    channel = new Channel(workerFactory, indexed);
+    let reply: Reply;
+    if (indexed) {
+      const { bytes, sha256 } = source.frameIndex;
+      if (bytes.byteLength > 8 * 1024 * 1024 || !/^[a-f0-9]{64}$/i.test(sha256)) throw new RaykitError('integrity', 'Frame index size or SHA-256 pin');
+      const manifest = Uint8Array.from(bytes).buffer;
+      reply = await channel.run({ op: 'open_index', manifest, pin: sha256, range: source.range, options: JSON.stringify(settings) }, scope.signal, [manifest]);
+    } else {
+      const bytes = await sourceBuffer(source, max, scope.signal, settings.expected_size);
+      checkAbort(scope.signal);
+      reply = await channel.run({ op: 'open', bytes, options: JSON.stringify({ ...settings, ...sourceIdentity(source) }) }, scope.signal, [bytes]);
+    }
     checkAbort(scope.signal);
     const info = metadata<Inspection>(reply);
     return new RaykitSession(info, revision ?? info.content_sha256, channel);
@@ -293,6 +326,16 @@ export async function open(source: Source, options: OpenOptions = {}): Promise<R
     channel?.close();
     throw error;
   } finally { signal?.removeEventListener('abort', abort); }
+}
+
+export function indexedBlob(blob: Blob, frameIndex: FrameIndex): IndexedSource {
+  return { frameIndex, range: { kind: 'blob', blob } };
+}
+
+export function indexedHttp(url: string | URL, frameIndex: FrameIndex, options: { etag: string; headers?: Record<string, string> }): IndexedSource {
+  const endpoint = new URL(url, globalThis.location?.href);
+  if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password) throw new RaykitError('invalid_request', 'HTTP range source URL');
+  return { frameIndex, range: { kind: 'http', url: endpoint.href, etag: options.etag, headers: { ...options.headers } } };
 }
 
 function sourceIdentity(source: Source): Reader['expected'] {

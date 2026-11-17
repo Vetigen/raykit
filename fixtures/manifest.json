@@ -197,6 +197,59 @@
     },
     "sha256": "dc4e58e408a39db1fe8aeb972f62fba9cc10e0dd72ab01c10faf13d76a923600"
   },
+  "detail-signed12.dcm": {
+    "bytes": 8389122,
+    "expected": {
+      "dimensions": [
+        2048,
+        2048
+      ],
+      "gray_tolerance": 1,
+      "probes": [
+        [
+          0,
+          0,
+          -2048
+        ],
+        [
+          127,
+          10,
+          -1508
+        ],
+        [
+          128,
+          10,
+          -1507
+        ],
+        [
+          1000,
+          550,
+          -1501
+        ],
+        [
+          1001,
+          550,
+          -1499
+        ],
+        [
+          1023,
+          1600,
+          -1536
+        ],
+        [
+          1024,
+          1600,
+          -1472
+        ],
+        [
+          2047,
+          2047,
+          -2048
+        ]
+      ]
+    },
+    "sha256": "22c6e34aeb35e77e7bb4b5a48b705e868858c82c5f63865e34e97e999f0f9c5c"
+  },
   "distance-sr.dcm": {
     "bytes": 2500,
     "expected": {
@@ -3000,6 +3053,46 @@
     },
     "sha256": "7a3f21269e5f5e3d5187d76f97387fb5db0a12ac32d2b1757f70503594e52f70"
   },
+  "large-enhanced-ct.dcm": {
+    "bytes": 9896334,
+    "expected": {
+      "dimensions": [
+        512,
+        512,
+        300
+      ],
+      "frames": 300,
+      "modality_at_point": 448,
+      "patient_point": [
+        179.2,
+        204.8,
+        180.0
+      ],
+      "stored_at_256_256_150": 474,
+      "voxel_bytes": 314572800
+    },
+    "sha256": "186821af7da3ab392a266cfd7c4c2449b6a5c39074c07d13c135d963a66fa9b2"
+  },
+  "large-enhanced-mr.dcm": {
+    "bytes": 9896334,
+    "expected": {
+      "dimensions": [
+        512,
+        512,
+        300
+      ],
+      "frames": 300,
+      "modality_at_point": 448,
+      "patient_point": [
+        179.2,
+        204.8,
+        180.0
+      ],
+      "stored_at_256_256_150": 474,
+      "voxel_bytes": 314572800
+    },
+    "sha256": "ec8f57d3616790f13c854f010caf77329ec52b58566ea2589e5f42ad2ff07428"
+  },
   "phantom-gsps.dcm": {
     "bytes": 622,
     "expected": {
@@ -3144,5 +3237,34 @@
       ]
     },
     "sha256": "3b66858de4e8bd6994c4e59c16c6bb849c66379a3d95e0c3ede1691457c20cb7"
+  },
+  "us-ybr-422.dcm": {
+    "bytes": 470,
+    "expected": {
+      "rgb_tolerance": 1,
+      "stored_ybr": [
+        [
+          32,
+          180,
+          110
+        ],
+        [
+          96,
+          180,
+          110
+        ],
+        [
+          64,
+          90,
+          160
+        ],
+        [
+          200,
+          90,
+          160
+        ]
+      ]
+    },
+    "sha256": "461c8cf589db5be653073003843acf1a0c968ec1a12580c318523cec0a487750"
   }
 }

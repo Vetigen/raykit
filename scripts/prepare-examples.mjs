@@ -10,6 +10,6 @@ if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status ?? 1);
 const flutterAssets = new URL('examples/flutter/assets/raykit/', root);
 mkdirSync(flutterAssets, { recursive: true });
-for (const file of ['signed12.dcm', 'cine-350.dcm']) {
+for (const file of ['signed12.dcm', 'detail-signed12.dcm', 'cine-350.dcm', 'large-enhanced-ct.dcm', 'large-enhanced-mr.dcm', 'manifest.json']) {
   copyFileSync(new URL(`fixtures/generated/${file}`, root), new URL(file, flutterAssets));
 }

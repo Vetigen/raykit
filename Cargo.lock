@@ -379,6 +379,7 @@ dependencies = [
  "jpeg-decoder",
  "jpeg-encoder",
  "js-sys",
+ "libc",
  "openjpeg2-pure-rs",
  "openjph-core",
  "oxiarc-jpeg",

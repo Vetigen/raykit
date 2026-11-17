@@ -178,7 +178,7 @@ try {
         const last = () => window.sourceTest.workers.at(-1);
         const [small, cine] = await Promise.all(rows.map(async ({ name }) => (await fetch(name)).blob()));
         const outcome = work => work.then(() => 'opened', error => error.code);
-        const hash = await outcome(viewer.open(cine, { expected_sha256: '0'.repeat(64) }));
+        const hash = await outcome(viewer.open(cine, { expected_sha256: '0'.repeat(64), prepare_first_frame: true }));
         const badHash = { code: hash, drawn: present.length, closed: last().closed };
         const before = window.sourceTest.workers.length;
         const limit = await outcome(viewer.open(cine, { limits: { source_bytes: cine.size - 1 } }));
@@ -218,9 +218,10 @@ try {
           const abort = new AbortController();
           const before = present.length;
           window.sourceTest.holdDigest = true;
-          const opening = outcome(viewer.open(cine, { signal: abort.signal }));
+          const opening = outcome(viewer.open(cine, { signal: abort.signal, prepare_first_frame: true }));
           const worker = last();
           await window.sourceTest.waitFor(worker, 'digest');
+          if (present.length !== before) throw Error('A speculative frame was presented before hash validation');
           abort.abort();
           cancelledHash = { code: await opening, closed: worker.closed, drawn: present.length - before };
           window.sourceTest.holdDigest = false;

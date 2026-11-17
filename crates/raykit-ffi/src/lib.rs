@@ -8,7 +8,7 @@ use std::{
     },
 };
 
-use raykit_core::{Error, Limits, Result};
+use raykit_core::{Error, Limits, MAX_FRAME_INDEX_BYTES, NativeFile, Result};
 use raykit_protocol::{
     ABI_VERSION, BoundSession, MAX_COMMAND_BYTES, OpenOptions, Reply, error_json,
 };
@@ -64,6 +64,23 @@ fn handles() -> &'static Mutex<Registry> {
             handles: HashMap::new(),
         })
     })
+}
+
+fn register((session, reply): (BoundSession, Reply)) -> Result<(u64, Reply)> {
+    let mut registry = handles().lock().map_err(|_| Error::Internal)?;
+    if registry.handles.len() >= 16 {
+        return Err(Error::Limit("native session count"));
+    }
+    let id = registry.next;
+    registry.next = id.checked_add(1).ok_or(Error::Internal)?;
+    registry.handles.insert(
+        id,
+        Arc::new(Handle {
+            closed: AtomicBool::new(false),
+            session: Mutex::new(session),
+        }),
+    );
+    Ok((id, reply))
 }
 
 fn with_session(
@@ -156,21 +173,98 @@ pub unsafe extern "C" fn raykit_v1_open(
                     .min(Limits::default().source_bytes),
             )?
         };
-        let (session, reply) = BoundSession::open(source.to_vec(), options)?;
-        let mut registry = handles().lock().map_err(|_| Error::Internal)?;
-        if registry.handles.len() >= 16 {
-            return Err(Error::Limit("native session count"));
-        }
-        let id = registry.next;
-        registry.next = id.checked_add(1).ok_or(Error::Internal)?;
-        registry.handles.insert(
-            id,
-            Arc::new(Handle {
-                closed: AtomicBool::new(false),
-                session: Mutex::new(session),
-            }),
-        );
-        Ok((id, reply))
+        register(BoundSession::open(source.to_vec(), options)?)
+    })
+}
+
+fn file_source(path: &[u8]) -> Result<NativeFile> {
+    let path =
+        std::str::from_utf8(path).map_err(|_| Error::InvalidRequest("file path is not UTF-8"))?;
+    NativeFile::open(std::path::Path::new(path))
+}
+
+fn file_index<'a>(manifest: &'a [u8], pin: &'a [u8]) -> Result<Option<(&'a [u8], &'a str)>> {
+    if manifest.is_empty() && pin.is_empty() {
+        return Ok(None);
+    }
+    let pin = std::str::from_utf8(pin).map_err(|_| Error::InvalidRequest("frame index SHA-256"))?;
+    Ok(Some((manifest, pin)))
+}
+
+/// # Safety
+/// Input spans must be readable and `out` must be null or separate and writable.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn raykit_v1_open_file(
+    path: *const u8,
+    path_len: usize,
+    manifest: *const u8,
+    manifest_len: usize,
+    pin: *const u8,
+    pin_len: usize,
+    options: *const u8,
+    options_len: usize,
+    out: *mut RaykitResponse,
+) -> u32 {
+    guard(out, || {
+        let options =
+            OpenOptions::parse(unsafe { input(options, options_len, MAX_COMMAND_BYTES)? })?;
+        let source = file_source(unsafe { input(path, path_len, 4096)? })?;
+        let index = file_index(
+            unsafe { input(manifest, manifest_len, MAX_FRAME_INDEX_BYTES)? },
+            unsafe { input(pin, pin_len, 64)? },
+        )?;
+        register(BoundSession::open_file(source, index, options)?)
+    })
+}
+
+/// # Safety
+/// The caller keeps the Unix descriptor open through the call. Input spans must be
+/// readable and `out` must be null or separate and writable.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn raykit_v1_open_descriptor(
+    fd: i32,
+    manifest: *const u8,
+    manifest_len: usize,
+    pin: *const u8,
+    pin_len: usize,
+    options: *const u8,
+    options_len: usize,
+    out: *mut RaykitResponse,
+) -> u32 {
+    guard(out, || {
+        #[cfg(unix)]
+        let source = NativeFile::duplicate_descriptor(fd)?;
+        #[cfg(not(unix))]
+        let source: NativeFile = {
+            let _ = fd;
+            Err(Error::Unsupported("Unix file descriptor"))?
+        };
+        let options =
+            OpenOptions::parse(unsafe { input(options, options_len, MAX_COMMAND_BYTES)? })?;
+        let index = file_index(
+            unsafe { input(manifest, manifest_len, MAX_FRAME_INDEX_BYTES)? },
+            unsafe { input(pin, pin_len, 64)? },
+        )?;
+        register(BoundSession::open_file(source, index, options)?)
+    })
+}
+
+/// # Safety
+/// Input spans must be readable and `out` must be null or separate and writable.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn raykit_v1_append_file(
+    id: u64,
+    path: *const u8,
+    path_len: usize,
+    options: *const u8,
+    options_len: usize,
+    out: *mut RaykitResponse,
+) -> u32 {
+    guard(out, || {
+        let options =
+            OpenOptions::parse(unsafe { input(options, options_len, MAX_COMMAND_BYTES)? })?;
+        let file = file_source(unsafe { input(path, path_len, 4096)? })?;
+        with_session(id, |session| session.append_file(file, options))
     })
 }
 

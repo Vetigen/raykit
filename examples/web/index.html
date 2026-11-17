@@ -20,8 +20,12 @@
 <body>
   <header><h1>RayKit DICOM Viewer</h1><nav aria-label="Synthetic images">
     <button data-fixture="signed12.dcm">Open synthetic radiograph</button>
+    <button data-fixture="detail-signed12.dcm">Open 2048px detail chart</button>
     <button data-fixture="cine-350.dcm">Open 350-frame ultrasound</button>
+    <button id="open-indexed">Open indexed ultrasound</button>
     <button data-fixture="enhanced-ct-oblique.dcm">Open oblique CT</button>
+    <button data-fixture="large-enhanced-ct.dcm">Open 300-slice CT</button>
+    <button data-fixture="large-enhanced-mr.dcm">Open 300-slice MR</button>
     <button id="open-dicomweb">Open local DICOMweb series</button>
   </nav></header>
   <figure id="series-preview" hidden>
@@ -37,6 +41,9 @@
       <label>Plane <select id="volume-plane"><option>Axial</option><option>Coronal</option><option>Sagittal</option><option>Oblique</option></select></label>
       <label>Slab <select id="volume-slab"><option value="single">Single</option><option value="average">Average 5 mm</option><option value="maximum">MIP 5 mm</option></select></label>
       <label>Offset (mm) <input id="volume-offset" type="range" min="-6" max="6" step="0.1" value="0"></label>
+      <label>Center <input id="volume-center" type="number" step="any" value="200"></label>
+      <label>Width <input id="volume-width" type="number" min="1" step="any" value="400"></label>
+      <label>Palette <select id="volume-palette"><option value="gray">Gray</option><option value="hot">Hot</option></select></label>
       <button id="read-seg">Show synthetic SEG</button><button id="read-pr">Apply synthetic GSPS</button>
     </div>
     <output id="volume-status" aria-live="polite"></output>

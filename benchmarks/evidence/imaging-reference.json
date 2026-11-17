@@ -1,0 +1,43 @@
+{
+  "pydicom": "3.0.2",
+  "highdicom": "0.29.0",
+  "codec_deltas": {
+    "htj2k-lossless.dcm": 0,
+    "htj2k-rpcl.dcm": 0,
+    "htj2k.dcm": 0,
+    "jpeg-2000-lossless.dcm": 0,
+    "jpeg-2000.dcm": 0,
+    "jpeg-extended-12.dcm": 0,
+    "jpeg-lossless-sv1.dcm": 0,
+    "jpeg-lossless.dcm": 0,
+    "jpeg-ls-near.dcm": 2,
+    "jpeg-ls.dcm": 0
+  },
+  "pixel_signatures": {
+    "signed12": {
+      "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+      "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+    },
+    "signed12-implicit": {
+      "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+      "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+    },
+    "signed12-big-endian": {
+      "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+      "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+    },
+    "signed12-deflated": {
+      "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+      "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+    },
+    "detail-signed12": {
+      "stored_sha256": "479d401d3c43cd00d4d7a37de7fbdc9bb2d736fe754da12440c6a1a74fe7fdd8",
+      "rgba_sha256": "4b70ac63fbe7b37f79a51a0cd708826c964a47bff0f548a90c73881e968a7f9e"
+    }
+  },
+  "sr": {
+    "value": 5.0,
+    "unit": "mm"
+  },
+  "errors": []
+}

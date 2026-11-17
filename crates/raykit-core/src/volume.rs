@@ -1,4 +1,8 @@
-use std::collections::BTreeMap;
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, VecDeque},
+    sync::Arc,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -7,12 +11,13 @@ use crate::{
     dicom::{Dataset, File, uid},
     geometry::{PatientPlane, PatientPoint, PixelPoint, add, dot, scale, sub, valid_spacing},
     measurement::SourceReference,
-    pixel::{Samples, Window},
+    pixel::{Palette, Window, palette_rgb},
     source::{frame_geometry, groups},
 };
 
-const MAX_VOLUME_BYTES: usize = 128 * 1024 * 1024;
+const SLICE_CACHE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_MPR_WORK: usize = 32 * 1024 * 1024;
+const MAX_VOLUME_FRAMES: usize = 4096;
 const GEOMETRY_TOLERANCE_MM: f64 = 0.001;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -53,7 +58,27 @@ struct Slice {
 
 pub struct Volume {
     pub metadata: VolumeMetadata,
-    values: Vec<f32>,
+    id: Arc<()>,
+    sources: Vec<Session>,
+    slices: Vec<(usize, usize)>,
+    cache: RefCell<SliceCache>,
+}
+
+#[derive(Default)]
+struct SliceCache {
+    slices: VecDeque<(usize, Vec<f32>)>,
+    decoded: u64,
+    hits: u64,
+    peak: usize,
+}
+
+#[derive(Serialize)]
+pub struct VolumeMemory {
+    pub slice_cache_limit_bytes: usize,
+    pub slice_cache_bytes: usize,
+    pub peak_slice_cache_bytes: usize,
+    pub decoded_slices: u64,
+    pub slice_cache_hits: u64,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -82,6 +107,9 @@ fn candidates(sessions: &[&Session]) -> Result<BTreeMap<Acquisition, Vec<Slice>>
         let Some(format) = info.pixel_format.filter(|_| info.capabilities.frame_access) else {
             continue;
         };
+        if !format.photometric.is_monochrome() {
+            continue;
+        }
         let image_type = data.text(&file.bytes, (8, 8));
         if is_localizer(image_type) {
             continue;
@@ -226,6 +254,9 @@ fn geometric_order(slices: &mut [Slice]) -> Result<(PatientPlane, [f64; 3], usiz
     if slices.len() < 2 {
         return Err(Error::Geometry("at least two spatial slices are required"));
     }
+    if slices.len() > MAX_VOLUME_FRAMES {
+        return Err(Error::Limit("volume frames"));
+    }
     let normal = first.normal();
     for slice in slices.iter() {
         let plane = slice
@@ -253,7 +284,7 @@ fn geometric_order(slices: &mut [Slice]) -> Result<(PatientPlane, [f64; 3], usiz
     let second = slices[1].plane.expect("validated second slice");
     let step = sub(second.origin.0, first.origin.0);
     let normal_step = dot(step, normal);
-    if normal_step < GEOMETRY_TOLERANCE_MM {
+    if !normal_step.is_finite() || normal_step < GEOMETRY_TOLERANCE_MM {
         return Err(Error::Geometry("duplicate spatial plane"));
     }
     let tolerance = (normal_step * 0.01).max(GEOMETRY_TOLERANCE_MM);
@@ -263,7 +294,8 @@ fn geometric_order(slices: &mut [Slice]) -> Result<(PatientPlane, [f64; 3], usiz
             plane.origin.0,
             add(first.origin.0, scale(step, number as f64)),
         );
-        if dot(delta, delta).sqrt() > tolerance {
+        let distance = dot(delta, delta).sqrt();
+        if !distance.is_finite() || distance > tolerance {
             return Err(Error::Geometry(
                 "gap, duplicate or nonuniform slice position",
             ));
@@ -287,7 +319,6 @@ fn geometric_order(slices: &mut [Slice]) -> Result<(PatientPlane, [f64; 3], usiz
         .checked_mul(dimensions.1 as usize)
         .and_then(|n| n.checked_mul(slices.len()))
         .and_then(|n| n.checked_mul(size_of::<f32>()))
-        .filter(|n| *n <= MAX_VOLUME_BYTES)
         .ok_or(Error::Limit("volume voxel bytes"))?;
     Ok((first, step, bytes))
 }
@@ -319,27 +350,18 @@ impl Volume {
         let columns = slices[0].columns;
         let rows = slices[0].rows;
         let count = slices.len();
-        let mut values = Vec::new();
-        values
-            .try_reserve_exact(bytes / 4)
-            .map_err(|_| Error::Limit("volume voxel allocation"))?;
         let mut references = Vec::with_capacity(count);
+        let mut reader_indices = BTreeMap::new();
+        let mut sources = Vec::new();
+        let mut members = Vec::with_capacity(count);
         for slice in slices {
-            let session = &mut sessions[slice.source];
+            let session = &sessions[slice.source];
             references.push(session.source_reference(slice.index)?);
-            let frame = session.read_frame(slice.index)?;
-            let Samples::Monochrome(pixels) = &frame.samples else {
-                return Err(Error::Unsupported("color volume"));
-            };
-            let display = frame.display.as_ref().ok_or(Error::Internal)?;
-            values.extend(pixels.iter().map(|&value| {
-                if display.is_padding(value) {
-                    f32::NAN
-                } else {
-                    display.modality.at(value) as f32
-                }
-            }));
-            session.evict_frames();
+            let reader = *reader_indices.entry(slice.source).or_insert_with(|| {
+                sources.push(session.volume_reader());
+                sources.len() - 1
+            });
+            members.push((reader, slice.index));
         }
         let center = PatientPoint(add(
             plane
@@ -359,48 +381,153 @@ impl Volume {
             voxel_bytes: bytes,
             center,
         };
-        Ok(Self { metadata, values })
+        Ok(Self {
+            metadata,
+            id: Arc::new(()),
+            sources,
+            slices: members,
+            cache: RefCell::default(),
+        })
+    }
+
+    fn slice_bytes(&self) -> usize {
+        self.metadata.voxel_bytes / self.slices.len()
+    }
+
+    fn slice_slots(&self) -> usize {
+        (SLICE_CACHE_BYTES / self.slice_bytes())
+            .max(2)
+            .min(self.slices.len())
+    }
+
+    pub fn memory(&self) -> VolumeMemory {
+        let cache = self.cache.borrow();
+        let bytes = self.slice_bytes();
+        VolumeMemory {
+            slice_cache_limit_bytes: self.slice_slots() * bytes,
+            slice_cache_bytes: cache.slices.len() * bytes,
+            peak_slice_cache_bytes: cache.peak * bytes,
+            decoded_slices: cache.decoded,
+            slice_cache_hits: cache.hits,
+        }
+    }
+
+    pub fn evict(&self) {
+        self.cache.borrow_mut().slices.clear();
+    }
+
+    fn voxel_delta(&self, delta: [f64; 3]) -> [f64; 3] {
+        let first = self.metadata.plane;
+        let step = self.metadata.slice_step_mm;
+        let normal = first.normal();
+        let z = dot(delta, normal) / dot(step, normal);
+        let xy = sub(delta, scale(step, z));
+        [
+            dot(first.column_axis, xy) / first.spacing_xy[0],
+            dot(first.row_axis, xy) / first.spacing_xy[1],
+            z,
+        ]
     }
 
     /// Trilinear interpolation in the patient-space affine, returning modality values.
     pub fn sample(&self, point: PatientPoint) -> Option<f32> {
-        let first = self.metadata.plane;
-        let step = self.metadata.slice_step_mm;
-        let normal = first.normal();
-        let z = dot(sub(point.0, first.origin.0), normal) / dot(step, normal);
-        let (xy, _) = first.project(PatientPoint(sub(point.0, scale(step, z))));
-        let [columns, rows, slices] = self.metadata.dimensions;
-        let locate = |v: f64, n: u32| {
-            if !(-1e-6..=f64::from(n - 1) + 1e-6).contains(&v) {
-                return None;
+        self.try_sample(point).ok().flatten()
+    }
+
+    pub fn try_sample(&self, point: PatientPoint) -> Result<Option<f32>> {
+        let delta = sub(point.0, self.metadata.plane.origin.0);
+        self.sample_voxel(
+            self.voxel_delta(delta),
+            Sampling::Trilinear,
+            &mut self.cache.borrow_mut(),
+        )
+    }
+
+    fn read_slice<'a>(&self, at: usize, cache: &'a mut SliceCache) -> Result<&'a [f32]> {
+        let last = cache.slices.len().checked_sub(1);
+        if let Some(last) = last
+            && cache.slices[last].0 == at
+        {
+            cache.hits += 1;
+            return Ok(&cache.slices[last].1);
+        }
+        if let Some(pos) = cache.slices.iter().position(|(index, _)| *index == at) {
+            cache.hits += 1;
+            if cache.slices.len() == self.slices.len() {
+                return Ok(&cache.slices[pos].1);
             }
-            let v = v.clamp(0.0, f64::from(n - 1));
-            let base = v.floor() as usize;
-            let next = (base + 1).min(n as usize - 1);
-            let part = v.fract();
-            Some([(base, 1.0 - part), (next, part)])
+            let hit = cache.slices.remove(pos).ok_or(Error::Internal)?;
+            cache.slices.push_back(hit);
+        } else {
+            if cache.slices.len() == self.slice_slots() {
+                cache.slices.pop_front();
+            }
+            let (source, frame) = self.slices[at];
+            let values = self.sources[source].modality_slice(frame)?;
+            cache.slices.push_back((at, values));
+            cache.decoded += 1;
+            cache.peak = cache.peak.max(cache.slices.len());
+        }
+        Ok(&cache.slices.back().ok_or(Error::Internal)?.1)
+    }
+
+    fn sample_voxel(
+        &self,
+        position: [f64; 3],
+        sampling: Sampling,
+        cache: &mut SliceCache,
+    ) -> Result<Option<f32>> {
+        let max = self.metadata.dimensions.map(|n| f64::from(n - 1));
+        if position
+            .iter()
+            .zip(max)
+            .any(|(&value, end)| !(-1e-6..=end + 1e-6).contains(&value))
+        {
+            return Ok(None);
+        }
+        let [x, y, z] = std::array::from_fn(|axis| position[axis].clamp(0.0, max[axis]));
+        let columns = self.metadata.dimensions[0] as usize;
+        if sampling == Sampling::Nearest {
+            let slice = self.read_slice(z.round() as usize, cache)?;
+            let v = slice[y.round() as usize * columns + x.round() as usize];
+            return Ok(v.is_finite().then_some(v));
+        }
+        let neighbors = |v: f64| {
+            [
+                (v.floor() as usize, 1.0 - v.fract()),
+                (v.ceil() as usize, v.fract()),
+            ]
         };
         let mut result = 0.0;
-        for (sx, wx) in locate(xy.x, columns)? {
-            for (sy, wy) in locate(xy.y, rows)? {
-                for (sz, wz) in locate(z, slices)? {
+        for (sz, wz) in neighbors(z) {
+            if wz == 0.0 {
+                continue;
+            }
+            let slice = self.read_slice(sz, cache)?;
+            for (sx, wx) in neighbors(x) {
+                for (sy, wy) in neighbors(y) {
                     let weight = wx * wy * wz;
                     if weight == 0.0 {
                         continue;
                     }
-                    let i = (sz * rows as usize + sy) * columns as usize + sx;
-                    let v = self.values[i];
+                    let v = slice[sy * columns + sx];
                     if !v.is_finite() {
-                        return None;
+                        return Ok(None);
                     }
                     result += weight * f64::from(v);
                 }
             }
         }
-        Some(result as f32)
+        Ok(Some(result as f32))
     }
 
     pub fn reslice(&self, request: &Reslice) -> Result<Resliced> {
+        let mut work = self.start_reslice(request, Sampling::Trilinear)?;
+        while !self.advance_reslice(&mut work)? {}
+        work.finish()
+    }
+
+    pub fn start_reslice(&self, request: &Reslice, sampling: Sampling) -> Result<ResliceWork> {
         let [cols, rows] = request.dimensions;
         if !valid_spacing(request.spacing_xy) || cols == 0 || rows == 0 {
             return Err(Error::InvalidRequest("MPR size and pixel spacing"));
@@ -440,44 +567,138 @@ impl Volume {
                     .collect()
             }
         };
-        let mut values = Vec::with_capacity(count);
-        for y in 0..rows {
-            for x in 0..cols {
-                let origin = plane.at(PixelPoint {
-                    x: f64::from(x),
-                    y: f64::from(y),
-                });
-                let mut max = f32::NEG_INFINITY;
-                let mut sum = 0.0;
-                let mut valid = 0;
-                for &distance in &offsets {
-                    if let Some(v) =
-                        self.sample(PatientPoint(add(origin.0, scale(normal, distance))))
-                    {
-                        valid += 1;
-                        max = max.max(v);
-                        sum += f64::from(v);
-                    }
+        let origin = self.voxel_delta(sub(plane.origin.0, self.metadata.plane.origin.0));
+        let steps = [
+            self.voxel_delta(scale(plane.column_axis, plane.spacing_xy[0])),
+            self.voxel_delta(scale(plane.row_axis, plane.spacing_xy[1])),
+            self.voxel_delta(normal),
+        ];
+        let lengths = [cols as usize, rows as usize, offsets.len()];
+        let extent = |axis: usize| {
+            steps[axis][2]
+                * match axis {
+                    0 | 1 => (lengths[axis] - 1) as f64,
+                    _ => offsets[offsets.len() - 1] - offsets[0],
                 }
-                let value = if valid == 0 {
-                    f32::NAN
-                } else if matches!(request.slab, Slab::Maximum { .. }) {
-                    max
-                } else {
-                    (sum / f64::from(valid)) as f32
-                };
-                values.push(value);
+        };
+        let mut axes = [0, 1, 2];
+        axes.sort_by(|&a, &b| {
+            extent(b)
+                .abs()
+                .total_cmp(&extent(a).abs())
+                .then(lengths[b].cmp(&lengths[a]))
+        });
+        let mut lower = f64::INFINITY;
+        let mut upper = f64::NEG_INFINITY;
+        for x in [0, lengths[0] - 1] {
+            for y in [0, lengths[1] - 1] {
+                for offset in [offsets[0], offsets[offsets.len() - 1]] {
+                    let z = origin[2]
+                        + steps[0][2] * x as f64
+                        + steps[1][2] * y as f64
+                        + steps[2][2] * offset;
+                    if !z.is_finite() {
+                        return Err(Error::Geometry("MPR plane outside finite coordinates"));
+                    }
+                    lower = lower.min(z);
+                    upper = upper.max(z);
+                }
             }
         }
-        Ok(Resliced {
+        let last_slice = self.slices.len() - 1;
+        let band = lower.floor().clamp(0.0, last_slice as f64) as usize;
+        let end_band = if upper < -1e-6 || lower > last_slice as f64 + 1e-6 {
+            band
+        } else {
+            upper.floor().clamp(0.0, last_slice as f64) as usize + 1
+        };
+        let band_width = self.slice_slots() - 1;
+        let lines = lengths[axes[1]] * lengths[axes[2]];
+        if end_band
+            .saturating_sub(band)
+            .div_ceil(band_width)
+            .saturating_mul(lines)
+            > MAX_MPR_WORK
+        {
+            return Err(Error::Limit("MPR slice traversal work"));
+        }
+        Ok(ResliceWork {
+            id: Arc::clone(&self.id),
             plane,
             dimensions: request.dimensions,
-            values,
+            sampling,
+            origin,
+            steps,
+            offsets,
+            axes,
+            lengths,
+            band,
+            end_band,
+            band_width,
+            line: 0,
+            column: 0,
+            values: vec![f32::NAN; count],
+            average: matches!(request.slab, Slab::Average { .. })
+                .then(|| (vec![0.0; count], vec![0; count])),
         })
+    }
+
+    pub fn advance_reslice(&self, work: &mut ResliceWork) -> Result<bool> {
+        if !Arc::ptr_eq(&self.id, &work.id) {
+            return Err(Error::Integrity("reslice volume"));
+        }
+        let mut cache = self.cache.borrow_mut();
+        let mut remaining = 32_768usize;
+        let start_decodes = cache.decoded;
+        let [sweep, outer, inner] = work.axes;
+        let lines = work.lengths[outer] * work.lengths[inner];
+        while work.band < work.end_band && remaining > 0 && cache.decoded - start_decodes < 4 {
+            let end = (work.band + work.band_width).min(work.end_band);
+            let start_z = if work.band == 0 {
+                -1e-6
+            } else {
+                work.band as f64
+            };
+            let end_z = if end == self.slices.len() {
+                end as f64 - 1.0 + 2e-6
+            } else {
+                end as f64
+            };
+            let mut at = [0; 3];
+            at[outer] = work.line / work.lengths[inner];
+            at[inner] = work.line % work.lengths[inner];
+            let (first, last) = work.span(at, start_z, end_z);
+            let first = first.max(work.column);
+            let stop = last.min(first + remaining - 1);
+            for column in first..stop {
+                at[sweep] = column;
+                if let Some(value) = self.sample_voxel(work.voxel(at), work.sampling, &mut cache)? {
+                    let i = at[1] * work.lengths[0] + at[0];
+                    if let Some((sum, count)) = &mut work.average {
+                        sum[i] += f64::from(value);
+                        count[i] += 1;
+                    } else {
+                        work.values[i] = work.values[i].max(value);
+                    }
+                }
+            }
+            remaining -= stop.saturating_sub(first) + 1;
+            if stop < last {
+                work.column = stop;
+                break;
+            }
+            work.column = 0;
+            work.line += 1;
+            if work.line == lines {
+                work.line = 0;
+                work.band = end;
+            }
+        }
+        Ok(work.band == work.end_band)
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Orientation {
     Axial,
@@ -486,7 +707,7 @@ pub enum Orientation {
     Oblique { axes: [f64; 6] },
 }
 
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Slab {
     Single,
@@ -494,7 +715,7 @@ pub enum Slab {
     Maximum { thickness_mm: f64 },
 }
 
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Reslice {
     pub center: PatientPoint,
@@ -502,6 +723,95 @@ pub struct Reslice {
     pub dimensions: [u32; 2],
     pub spacing_xy: [f64; 2],
     pub slab: Slab,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Sampling {
+    #[default]
+    Trilinear,
+    Nearest,
+}
+
+// A sweep visits each sample once and puts both z neighbors in a single cache band.
+// A step yields between bounded pieces of work so callers can cancel or replace the request.
+pub struct ResliceWork {
+    id: Arc<()>,
+    plane: PatientPlane,
+    dimensions: [u32; 2],
+    sampling: Sampling,
+    origin: [f64; 3],
+    steps: [[f64; 3]; 3],
+    offsets: Vec<f64>,
+    axes: [usize; 3],
+    lengths: [usize; 3],
+    band: usize,
+    end_band: usize,
+    band_width: usize,
+    line: usize,
+    column: usize,
+    values: Vec<f32>,
+    average: Option<(Vec<f64>, Vec<u16>)>,
+}
+
+impl ResliceWork {
+    fn coordinate(&self, at: [usize; 3], axis: usize) -> f64 {
+        self.origin[axis]
+            + self.steps[0][axis] * at[0] as f64
+            + self.steps[1][axis] * at[1] as f64
+            + self.steps[2][axis] * self.offsets[at[2]]
+    }
+
+    fn voxel(&self, at: [usize; 3]) -> [f64; 3] {
+        std::array::from_fn(|axis| self.coordinate(at, axis))
+    }
+
+    fn span(&self, mut at: [usize; 3], start: f64, end: f64) -> (usize, usize) {
+        let sweep = self.axes[0];
+        let count = self.lengths[sweep];
+        let mut bound = |threshold: f64, descending: bool| {
+            let (mut left, mut right) = (0, count);
+            while left < right {
+                at[sweep] = left + (right - left) / 2;
+                if (self.coordinate(at, 2) < threshold) != descending {
+                    left = at[sweep] + 1;
+                } else {
+                    right = at[sweep];
+                }
+            }
+            left
+        };
+        if self.steps[sweep][2] < 0.0 {
+            (bound(end, true), bound(start, true))
+        } else {
+            (bound(start, false), bound(end, false))
+        }
+    }
+
+    pub fn bytes(&self) -> usize {
+        self.values.len() * size_of::<f32>()
+            + self.average.as_ref().map_or(0, |(sum, count)| {
+                sum.len() * size_of::<f64>() + count.len() * size_of::<u16>()
+            })
+    }
+
+    pub fn finish(mut self) -> Result<Resliced> {
+        if self.band != self.end_band {
+            return Err(Error::InvalidRequest("incomplete MPR plane"));
+        }
+        if let Some((sums, counts)) = self.average {
+            for ((value, sum), count) in self.values.iter_mut().zip(sums).zip(counts) {
+                if count > 0 {
+                    *value = (sum / f64::from(count)) as f32;
+                }
+            }
+        }
+        Ok(Resliced {
+            plane: self.plane,
+            dimensions: self.dimensions,
+            values: self.values,
+        })
+    }
 }
 
 pub struct Resliced {
@@ -512,17 +822,24 @@ pub struct Resliced {
 
 impl Resliced {
     pub fn rgba(&self, window: Window) -> Result<Vec<u8>> {
+        self.render(window, false, Palette::Gray)
+    }
+
+    pub fn render(&self, window: Window, invert: bool, palette: Palette) -> Result<Vec<u8>> {
         let window = window.validate()?;
         Ok(self
             .values
             .iter()
             .flat_map(|&value| {
                 let level = if value.is_nan() {
-                    0
+                    0.0
+                } else if invert {
+                    1.0 - window.at(f64::from(value))
                 } else {
-                    (255.0 * window.at(f64::from(value))).round() as u8
+                    window.at(f64::from(value))
                 };
-                [level, level, level, 255]
+                let [r, g, b] = palette_rgb(level, palette);
+                [r, g, b, 255]
             })
             .collect())
     }

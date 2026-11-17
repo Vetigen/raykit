@@ -15,7 +15,7 @@ npm run build:web
 npm run example:web
 ```
 
-Open the printed local URL. Choose a local file or a synthetic case. In the ultrasound, drag the frame slider to 350. In the oblique CT, click **Build volume**, then choose a plane or slab. The file picker can also open the generated `enhanced-mr-oblique.dcm`.
+Open the printed local URL. Choose a local file or a synthetic case. Drag the ultrasound slider and release at frame 350. **Open indexed ultrasound** verifies the bundled source and reopens it through its frame index. Open the 300-slice CT or MR, click **Build volume**, then choose a plane and slab. Change center, width or palette to rewindow the current plane.
 
 Select **Ruler**, mark two endpoints, and click **Calculate**. For a canine VHS record, select **VHS**, confirm the lateral projection and place the cardiac and vertebral landmarks shown in the tool. Export the measurements and import the JSON after reopening the same DICOM bytes. **Open local DICOMweb series** demonstrates a clearly labeled preview, verification of the original bytes and progressive series loading.
 
@@ -52,7 +52,7 @@ flutter pub get
 flutter run
 ```
 
-The Flutter example opens local files through the platform picker. It can also open the same synthetic radiograph and 350-frame ultrasound as the web example. Copy measurement JSON and paste it after opening the original file again. The Rust native asset is built by the Flutter package hook. Each source has one owning isolate. Closing the viewer cancels delivery and releases native resources after the last call.
+The Flutter example opens local files through the platform picker and native file reader. The bundled detail chart, indexed ultrasound and 300-slice CT/MR use the same synthetic inputs as web. Select **Volume** after opening a CT or MR. Copy measurement JSON and paste it after opening the original file again. The Rust native asset is built by the Flutter package hook. Each source has one owning isolate. Closing the viewer cancels delivery and releases native resources after the last call.
 
 ```dart
 import 'dart:io';
@@ -81,7 +81,7 @@ With the fixtures and archives built, run `node tests/packaged-workflows.mjs` fr
 
 ## Verification and scope
 
-Run `cargo test --workspace --locked` after changing the core. The generated corpus records SHA-256 and expected results. `tests/web-workflow.mjs` and `tests/web-conformance.mjs` exercise the built web package in a local browser. `packages/flutter/test/native_workflow_test.dart` exercises the Flutter package and native ABI on its host. `npm run benchmark:build` builds the local browser comparison with DWV and Cornerstone3D.
+Run `cargo test --workspace --locked` after changing the core. The generated corpus records SHA-256 and expected results. `tests/web-indexed.mjs` and `tests/web-imaging-quality.mjs` cover range integrity, image quality and measurement records. `packages/flutter/test/imaging_quality_test.dart` exercises the native equivalents. `npm run benchmark:build` builds the local browser comparison with DWV and Cornerstone3D. The standalone [device acceptance target](examples/flutter/README.md#profile-acceptance) uses the public viewer and session APIs.
 
 The [support matrix](docs/support.md) lists the tested profiles. The [API notes](docs/api.md) describe ownership, layout, interchange and desktop WebView embedding. The [measurement guide](docs/measurements.md) describes the landmark methods and the external Rust example. The [benchmark guide](benchmarks/README.md) contains the measured results and reproduction steps.
 

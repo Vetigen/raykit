@@ -29,9 +29,19 @@ export interface Reader {
   read(signal: AbortSignal, maxBytes: number): Promise<SourceBytes | ReadableStream<Uint8Array>>;
   readonly expected?: Readonly<{ expected_instance_uid: string; expected_study_uid: string; expected_series_uid: string }>;
 }
-export type Source = SourceBytes | Reader;
+export interface FrameIndex {
+  bytes: Uint8Array<ArrayBufferLike>;
+  /** Pin retained from a validated open or obtained from an authenticated publisher. */
+  sha256: string;
+}
+export type RangeSource = { kind: 'blob'; blob: Blob }
+  | { kind: 'http'; url: string; etag: string; headers?: Record<string, string> };
+export interface IndexedSource { readonly frameIndex: FrameIndex; readonly range: RangeSource }
+export type Source = SourceBytes | Reader | IndexedSource;
 
 export interface OpenOptions {
+  /** Opt in to preparing an independent JPEG frame while Web Crypto checks the source. */
+  prepare_first_frame?: boolean;
   limits?: Partial<Limits>;
   expected_sha256?: string;
   expected_size?: number;
@@ -76,6 +86,7 @@ export interface Geometry {
 }
 
 export interface Inspection {
+  verification: 'full_source' | 'pinned_frame_index';
   sop_class_uid: string;
   instance_uid: string;
   study_uid: string | null;
@@ -173,9 +184,21 @@ export interface Stats {
   output_copy_bytes: number;
   peak_output_bytes: number;
   active_pixel_bytes_upper_bound: number;
+  retained_dataset_bytes: number;
+  rendered_frames: number;
+  rendered_frame_bytes: number;
+  plane_cache_bytes: number;
+  plane_work_bytes: number;
+  planes_computed: number;
+  plane_cache_hits: number;
+  volume: { slice_cache_limit_bytes: number; slice_cache_bytes: number; peak_slice_cache_bytes: number;
+    decoded_slices: number; slice_cache_hits: number } | null;
   wasm_linear_memory_bytes: number;
   wasm_input_copy_bytes: number;
   wasm_output_copy_bytes: number;
+  indexed_range_read_bytes: number;
+  indexed_full_fallback_bytes: number;
+  range_requests: number;
 }
 export interface EngineCapabilities { abi: 1; limits: Limits; methods: Method[] }
 
@@ -207,6 +230,7 @@ export type SliceOrientation = { kind: 'axial' | 'coronal' | 'sagittal' }
   | { kind: 'oblique'; axes: readonly [number, number, number, number, number, number] };
 export type Slab = { kind: 'single' } | { kind: 'average' | 'maximum'; thickness_mm: number };
 export interface SliceRequest { center: Triple; orientation: SliceOrientation; dimensions: Pair; spacing_xy: Pair; slab: Slab }
+export interface SliceOptions { sampling?: 'trilinear' | 'nearest'; invert?: boolean; palette?: 'gray' | 'hot' }
 export interface SliceImage { plane: PatientPlane; dimensions: Pair; encoding: 'rgba8' | 'modality_f32_le'; pixels: Uint8Array<ArrayBuffer> }
 export interface SrOptions { instance_uid: string; series_uid: string; tracking_uid: string; observer_name: string; content_date: string; content_time: string }
 export interface SegmentationOverlay { source: SourceReference; segment: number; dimensions: Pair; mask: Uint8Array<ArrayBuffer> }

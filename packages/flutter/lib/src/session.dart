@@ -32,10 +32,46 @@ sealed class RayKitSource {
   const RayKitSource();
   const factory RayKitSource.bytes(Uint8List bytes) = _ByteSource;
   const factory RayKitSource.file(File file) = _FileSource;
+  const factory RayKitSource.indexedFile(File file, RayKitFrameIndex index) =
+      _IndexedFileSource;
+
+  /// Keep the borrowed descriptor open until `RayKitSession.open` returns.
+  /// RayKit owns its duplicate. Close the session when the host revokes access.
+  const factory RayKitSource.descriptor(int fd, {RayKitFrameIndex? index}) =
+      _DescriptorSource;
   const factory RayKitSource.reader(
     Stream<Uint8List> Function(RayKitCancellation) read,
   ) = _ReaderSource;
   Future<Uint8List> read(RayKitCancellation cancellation, int limit);
+}
+
+final class RayKitFrameIndex {
+  const RayKitFrameIndex(this.bytes, {required this.sha256});
+  final Uint8List bytes;
+
+  /// Pin obtained from a trusted publisher or a previously validated open.
+  final String sha256;
+}
+
+final class _IndexedFileSource extends RayKitSource {
+  const _IndexedFileSource(this.file, this.index);
+  final File file;
+  final RayKitFrameIndex index;
+  @override
+  Future<Uint8List> read(RayKitCancellation cancellation, int limit) async =>
+      throw const RayKitException('invalid_request', 'Use an indexed session');
+}
+
+final class _DescriptorSource extends RayKitSource {
+  const _DescriptorSource(this.fd, {this.index});
+  final int fd;
+  final RayKitFrameIndex? index;
+  @override
+  Future<Uint8List> read(RayKitCancellation cancellation, int limit) async =>
+      throw const RayKitException(
+        'invalid_request',
+        'Use a descriptor session',
+      );
 }
 
 final class _ByteSource extends RayKitSource {
@@ -151,6 +187,8 @@ final class RayKitSession {
   final _Channel _channel;
   final RayKitInspection inspection;
   final String revision;
+  Future<void> _planeQueue = Future.value();
+  int _planeTicket = 0;
 
   static Future<RayKitSession> open(
     RayKitSource source, {
@@ -162,9 +200,24 @@ final class RayKitSession {
     if (limit < 0 || limit > 192 * 1024 * 1024) {
       throw const RayKitException('limit', 'Source limit');
     }
-    final Uint8List bytes;
+    scope.check();
+    final local = switch (source) {
+      _FileSource(:final file) => (location: file.path, index: null),
+      _IndexedFileSource(:final file, :final index) => (
+        location: file.path,
+        index: index,
+      ),
+      _DescriptorSource(:final fd, :final index) => (
+        location: fd,
+        index: index,
+      ),
+      _ => null,
+    };
+    final Uint8List? bytes;
     try {
-      bytes = await _abortable(source.read(scope, limit), scope);
+      bytes = local == null
+          ? await _abortable(source.read(scope, limit), scope)
+          : null;
     } on RayKitException {
       rethrow;
     } catch (_) {
@@ -174,10 +227,20 @@ final class RayKitSession {
     final channel = await _Channel.start();
     try {
       scope.check();
-      final reply = await channel.send('open', [
-        TransferableTypedData.fromList([bytes]),
-        options.toJson(),
-      ], scope);
+      final reply = local != null
+          ? await _sendLocal(
+              channel,
+              'open_file',
+              local.location,
+              options.toJson(),
+              scope,
+              local.index,
+            )
+          : await channel.send('open', [
+              TransferableTypedData.fromList([bytes!]),
+              options.toJson(),
+            ], scope);
+      scope.check();
       final info = RayKitInspection(reply.metadata as Json);
       return RayKitSession._(
         channel,
@@ -185,9 +248,45 @@ final class RayKitSession {
         options.revision ?? info.contentSha256,
       );
     } catch (_) {
-      unawaited(channel.close());
+      await channel.close();
       rethrow;
     }
+  }
+
+  static Future<_Reply> _sendLocal(
+    _Channel channel,
+    String op,
+    Object location,
+    Json options,
+    RayKitCancellation token, [
+    RayKitFrameIndex? index,
+  ]) {
+    if (index != null &&
+        (index.bytes.length > 8 * 1024 * 1024 || index.sha256.length != 64)) {
+      throw const RayKitException(
+        'integrity',
+        'Frame index size or SHA-256 pin',
+      );
+    }
+    if (location is int && (location < 0 || location > 0x7fffffff)) {
+      throw const RayKitException('invalid_request', 'File descriptor');
+    }
+    return channel.send(op, [
+      location,
+      options,
+      index == null ? null : TransferableTypedData.fromList([index.bytes]),
+      index?.sha256,
+    ], token);
+  }
+
+  Future<RayKitFrameIndex> createFrameIndex({
+    RayKitCancellation? cancellation,
+  }) async {
+    final reply = await _command({'op': 'create_frame_index'}, cancellation);
+    return RayKitFrameIndex(
+      reply.bytes!,
+      sha256: (reply.metadata as Json)['sha256'] as String,
+    );
   }
 
   static Future<RayKitInspection> inspect(
@@ -219,12 +318,15 @@ final class RayKitSession {
   Future<RayKitFrame> readFrame(
     int index, {
     bool stored = true,
+    Json render = const {},
+    bool texture16 = false,
     RayKitCancellation? cancellation,
   }) async {
     final reply = await _command({
       'op': 'frame',
       'index': index,
-      'output': stored ? 'stored' : 'rgba',
+      'output': texture16 ? 'texture16' : (stored ? 'stored' : 'rgba'),
+      'options': render,
     }, cancellation);
     final frame = RayKitFrame(reply.metadata as Json, reply.bytes!, reply.id);
     if (frame.index != index ||
@@ -350,6 +452,12 @@ final class RayKitSession {
     final ceiling = attachment == null
         ? limit
         : limit.clamp(0, 64 * 1024 * 1024);
+    if (source case _FileSource(:final file)) {
+      return _sendLocal(_channel, 'append_file', file.path, {
+        ...options.toJson(),
+        'attachment': attachment,
+      }, token);
+    }
     final bytes = await _abortable(source.read(token, ceiling), token);
     return _channel.send('append', [
       TransferableTypedData.fromList([bytes]),
@@ -384,14 +492,43 @@ final class RayKitSession {
   Future<({Json geometry, Uint8List pixels})> reslice(
     Json plane, {
     Json? window,
+    String sampling = 'trilinear',
+    bool invert = false,
+    String palette = 'gray',
     RayKitCancellation? cancellation,
   }) async {
-    final reply = await _command({
-      'op': 'reslice',
-      'plane': plane,
-      'window': window,
-    }, cancellation);
-    return (geometry: reply.metadata as Json, pixels: reply.bytes!);
+    final ticket = _planeTicket = (_planeTicket + 1) & 0xffffffff;
+    final work = _planeQueue.then((_) async {
+      cancellation?.check();
+      try {
+        var reply = await _command({
+          'op': 'reslice_start',
+          'ticket': ticket,
+          'plane': plane,
+          'window': window,
+          'sampling': sampling,
+          'invert': invert,
+          'palette': palette,
+        }, cancellation);
+        while (reply.metadata == null) {
+          reply = await _command({
+            'op': 'reslice_step',
+            'ticket': ticket,
+          }, cancellation);
+        }
+        return (geometry: reply.metadata as Json, pixels: reply.bytes!);
+      } finally {
+        if (cancellation?.isCancelled ?? false) {
+          try {
+            await _command({'op': 'reslice_cancel', 'ticket': ticket}, null);
+          } on RayKitException catch (
+            _
+          ) {} // The session may already have closed.
+        }
+      }
+    });
+    _planeQueue = work.then<void>((_) {}, onError: (Object _) {});
+    return cancellation == null ? work : _abortable(work, cancellation);
   }
 
   Future<void> evict() async {
@@ -556,6 +693,8 @@ Future<void> _worker(SendPort parent) async {
   final mailbox = ReceivePort();
   parent.send(mailbox.sendPort);
   var handle = 0;
+  var inputCopies = 0;
+  var outputCopies = 0;
   try {
     await for (final List message in mailbox) {
       final id = message[0];
@@ -571,24 +710,40 @@ Future<void> _worker(SendPort parent) async {
           final bytes = (options[0] as TransferableTypedData)
               .materialize()
               .asUint8List();
+          inputCopies += bytes.length * 3;
           reply = native.openNative(
             bytes,
             options[1] as Json,
             handle: op == 'append' ? handle : null,
           );
           if (op == 'open') handle = reply.handle;
+        } else if (op == 'open_file' || op == 'append_file') {
+          final values = message[2] as List;
+          final index = (values[2] as TransferableTypedData?)
+              ?.materialize()
+              .asUint8List();
+          reply = native.openLocal(
+            values[0] as Object,
+            values[1] as Json,
+            handle: op == 'append_file' ? handle : null,
+            index: index,
+            sha256: values[3] as String?,
+          );
+          if (op == 'open_file') handle = reply.handle;
         } else if (op == 'capabilities') {
           reply = native.capabilitiesNative();
         } else {
           reply = native.requestNative(handle, message[2] as Json);
         }
-        final bytes = reply.bytes;
-        parent.send([
-          id,
-          reply.status,
-          reply.metadata,
-          bytes == null ? null : TransferableTypedData.fromList([bytes]),
-        ]);
+        outputCopies += reply.byteLength;
+        final metadata = reply.metadata;
+        if (metadata is Json &&
+            message[2] is Json &&
+            (message[2] as Json)['op'] == 'stats') {
+          metadata['native_input_copy_bytes'] = inputCopies;
+          metadata['native_output_copy_bytes'] = outputCopies;
+        }
+        parent.send([id, reply.status, metadata, reply.bytes]);
       } on RayKitException catch (error) {
         parent.send([
           id,

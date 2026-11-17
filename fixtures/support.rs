@@ -226,6 +226,61 @@ pub fn benchmark_xray() -> Vec<u8> {
     xray_bits(EXPLICIT_LE, 0)
 }
 
+pub fn detail_xray() -> Vec<u8> {
+    let mut data = Dataset::new(EXPLICIT_LE);
+    let instance = "2.25.104";
+    identify(&mut data, CR, instance, "CR");
+    pixel_module(
+        &mut data,
+        [2048, 2048],
+        [16, 12, 11],
+        1,
+        "MONOCHROME1",
+        true,
+    );
+    data.text(0x28, 0x30, "DS", "0.25\\0.5");
+    data.text(0x28, 0xa02, "CS", "FIDUCIAL");
+    data.text(0x28, 0x1050, "DS", "-1500");
+    data.text(0x28, 0x1051, "DS", "16");
+    data.element(0x28, 0x120, "SS", &(-2048i16).to_le_bytes());
+    let mut pixels = Vec::with_capacity(2048 * 2048 * 2);
+    for y in 0..2048i16 {
+        for x in 0..2048i16 {
+            let value = if x == 0 || x == 2047 || y == 0 || y == 2047 {
+                -2048
+            } else if y < 512 {
+                -1508 + x / 128
+            } else if y < 1536 {
+                -1501 + 2 * ((x / (1 + (y - 512) / 256)) % 2)
+            } else if x < 1024 {
+                -1536
+            } else {
+                -1472
+            };
+            pixels.extend(value.to_le_bytes());
+        }
+    }
+    data.element(0x7fe0, 0x10, "OW", &pixels);
+    part10(CR, instance, EXPLICIT_LE, data.bytes)
+}
+
+pub fn native_ybr422() -> Vec<u8> {
+    let mut data = Dataset::new(EXPLICIT_LE);
+    let instance = "2.25.839";
+    identify(&mut data, US, instance, "US");
+    data.us(0x28, 2, 3);
+    data.text(0x28, 4, "CS", "YBR_FULL_422");
+    data.us(0x28, 6, 0);
+    data.us(0x28, 0x10, 2);
+    data.us(0x28, 0x11, 2);
+    data.us(0x28, 0x100, 8);
+    data.us(0x28, 0x101, 8);
+    data.us(0x28, 0x102, 7);
+    data.us(0x28, 0x103, 0);
+    data.element(0x7fe0, 0x10, "OB", &[32, 96, 180, 110, 64, 200, 90, 160]);
+    part10(US, instance, EXPLICIT_LE, data.bytes)
+}
+
 fn xray_bits(syntax: &str, shift: u16) -> Vec<u8> {
     let mut d = Dataset::new(syntax);
     identify(&mut d, CR, XRAY_UID, "CR");
@@ -608,6 +663,79 @@ pub fn enhanced_volume(mr: bool) -> Vec<u8> {
     d.sequence(0x5200, 0x9230, &per_frame);
     d.element(0x7fe0, 0x10, "OW", &data);
     part10(class, uid, EXPLICIT_LE, d.bytes)
+}
+
+pub fn large_volume(mr: bool) -> Vec<u8> {
+    let (class, uid, modality) = if mr {
+        (ENHANCED_MR, "2.25.1951", "MR")
+    } else {
+        (ENHANCED_CT, "2.25.1950", "CT")
+    };
+    let mut d = Dataset::new(RLE);
+    identify(&mut d, class, uid, modality);
+    d.text(0x20, 0x52, "UI", "2.25.1999");
+    let mut pointer = Dataset::new(RLE);
+    pointer.at(0x20, 0x9165, [0x20, 0x9057]);
+    d.sequence(0x20, 0x9222, &[pointer]);
+    pixel_module(&mut d, [512, 512], [16, 16, 15], 300, "MONOCHROME2", false);
+    d.text(0x28, 0x1050, "DS", "500");
+    d.text(0x28, 0x1051, "DS", "1000");
+    d.us(0x28, 0x120, 65535);
+    let mut shared = Dataset::new(RLE);
+    let mut orientation = Dataset::new(RLE);
+    orientation.text(0x20, 0x37, "DS", "1\\0\\0\\0\\1\\0");
+    shared.sequence(0x20, 0x9116, &[orientation]);
+    let mut spacing = Dataset::new(RLE);
+    spacing.text(0x28, 0x30, "DS", "0.8\\0.7");
+    spacing.text(0x18, 0x50, "DS", "1.2");
+    spacing.text(0x18, 0x88, "DS", "1.2");
+    shared.sequence(0x28, 0x9110, &[spacing]);
+    d.sequence(0x5200, 0x9229, &[shared]);
+    let mut encoded = Vec::new();
+    let mut per_frame = Vec::new();
+    for z in 0..300u16 {
+        let mut frame = Dataset::new(RLE);
+        let mut location = Dataset::new(RLE);
+        location.text(
+            0x20,
+            0x32,
+            "DS",
+            &format!("0\\0\\{:.1}", f64::from(z) * 1.2),
+        );
+        frame.sequence(0x20, 0x9113, &[location]);
+        let mut content = Dataset::new(RLE);
+        content.text(0x20, 0x9056, "SH", "A");
+        content.ul(0x20, 0x9057, u32::from(z) + 1);
+        content.ul(0x20, 0x9157, u32::from(z) + 1);
+        frame.sequence(0x20, 0x9111, &[content]);
+        let mut transform = Dataset::new(RLE);
+        transform.text(0x28, 0x1053, "DS", "2");
+        transform.text(0x28, 0x1052, "DS", &format!("{}", -500 + i32::from(z % 2)));
+        frame.sequence(0x28, 0x9145, &[transform]);
+        per_frame.push(frame);
+
+        let mut packet = vec![0; 64];
+        packet[0] = 2;
+        packet[4] = 64;
+        let plane_bytes = 512 * 16 * 2u32;
+        packet[8..12].copy_from_slice(&(64 + plane_bytes).to_le_bytes());
+        for channel in [1, 0] {
+            for y in 0..512u16 {
+                for x in 0..16u16 {
+                    let sample = if x == 0 {
+                        65535
+                    } else {
+                        3 * z + x + 2 * (y / 32)
+                    };
+                    packet.extend([225, sample.to_le_bytes()[channel]]); // Repeat 32 samples.
+                }
+            }
+        }
+        encoded.push(vec![packet]);
+    }
+    d.sequence(0x5200, 0x9230, &per_frame);
+    d.encapsulated(&encoded, Offsets::Basic);
+    part10(class, uid, RLE, d.bytes)
 }
 
 pub fn segmentation() -> Vec<u8> {

@@ -1,0 +1,41 @@
+[
+  {
+    "id": "detail-length",
+    "method": "raykit:length",
+    "points": [[0, 0], [6, 16]],
+    "parameters": {"require_mm": true},
+    "values": [5],
+    "units": ["millimeter"]
+  },
+  {
+    "id": "detail-angle",
+    "method": "raykit:angle",
+    "points": [[10, 10], [0, 10], [0, 22]],
+    "values": [90],
+    "units": ["degree"]
+  },
+  {
+    "id": "detail-vhs",
+    "method": "raykit:canine-vhs",
+    "points": [[0, 2], [10, 2], [5, 0], [5, 8], [0, 20], [4, 20], [8, 20], [12, 20]],
+    "parameters": {"projection": "lateral_thorax"},
+    "values": [2.5, 1, 3.5],
+    "units": ["vertebra", "vertebra", "vertebra"]
+  },
+  {
+    "id": "detail-norberg",
+    "method": "raykit:norberg",
+    "points": [[10, 10], [20, 10], [10, 20], [20, 20]],
+    "parameters": {"projection": "ventrodorsal_extended_hips"},
+    "values": [90, 90],
+    "units": ["degree", "degree"]
+  },
+  {
+    "id": "detail-tplo",
+    "method": "raykit:tplo",
+    "points": [[10, 10], [20, 20], [15, 8], [15, 38], [15, 15]],
+    "parameters": {"projection": "mediolateral_stifle", "target_deg": 12, "radius_mm": 10},
+    "values": [26.56505117707799, 14.56505117707799, 2.535241775265989, 10],
+    "units": ["degree", "degree", "millimeter", "millimeter"]
+  }
+]

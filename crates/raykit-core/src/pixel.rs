@@ -228,15 +228,18 @@ impl Display {
     }
 
     pub fn rgb(&self, sample: i32, options: RenderOptions) -> [u8; 3] {
-        let v = self.luminance(sample, options);
-        match options.palette {
-            Palette::Gray => [quantize(v); 3],
-            Palette::Hot => [
-                quantize(v * 3.0),
-                quantize(v * 3.0 - 1.0),
-                quantize(v * 3.0 - 2.0),
-            ],
-        }
+        palette_rgb(self.luminance(sample, options), options.palette)
+    }
+}
+
+pub(crate) fn palette_rgb(v: f64, palette: Palette) -> [u8; 3] {
+    match palette {
+        Palette::Gray => [quantize(v); 3],
+        Palette::Hot => [
+            quantize(v * 3.0),
+            quantize(v * 3.0 - 1.0),
+            quantize(v * 3.0 - 2.0),
+        ],
     }
 }
 

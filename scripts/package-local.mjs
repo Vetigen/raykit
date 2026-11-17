@@ -22,7 +22,7 @@ try {
   run(npm, ['run', 'build:web']);
   run(npm, ['pack', '--ignore-scripts', '--pack-destination', artifacts, './packages/web', './packages/web-component']);
   mkdirSync(flutter);
-  for (const name of ['lib', 'hook', 'pubspec.yaml', 'README.md']) {
+  for (const name of ['lib', 'hook', 'shaders', 'pubspec.yaml', 'README.md']) {
     cpSync(join(root, 'packages/flutter', name), join(flutter, name), { recursive: true });
   }
   const native = join(flutter, 'native');

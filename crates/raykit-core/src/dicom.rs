@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, ops::Range};
+use std::{collections::BTreeMap, ops::Range, sync::Arc};
 
 use dicom_core::{DataDictionary, Tag, VR, dictionary::VirtualVr};
 use dicom_dictionary_std::StandardDataDictionary;
@@ -180,7 +180,7 @@ impl Dataset {
 }
 
 pub(crate) struct File {
-    pub(crate) bytes: Vec<u8>,
+    pub(crate) bytes: Arc<Vec<u8>>,
     pub(crate) dataset: Dataset,
     pub(crate) order: ByteOrder,
     pub(crate) syntax: TransferSyntax,
@@ -189,6 +189,7 @@ pub(crate) struct File {
     pub(crate) sha256: String,
     pub(crate) source_bytes: usize,
     pub(crate) elements: usize,
+    pub(crate) pixel_extent: Option<Range<usize>>,
 }
 
 impl File {
@@ -215,7 +216,7 @@ impl File {
         Self::parse_with_digest(bytes, limits, expected_sha256, digest)
     }
 
-    fn check_source_size(size: usize, limits: Limits) -> Result<()> {
+    pub(crate) fn check_source_size(size: usize, limits: Limits) -> Result<()> {
         limits.validate()?;
         if size > limits.source_bytes {
             return Err(Error::Limit("source bytes"));
@@ -224,7 +225,7 @@ impl File {
     }
 
     fn parse_with_digest(
-        mut bytes: Vec<u8>,
+        bytes: Vec<u8>,
         limits: Limits,
         expected_sha256: Option<&str>,
         digest: Output<Sha256>,
@@ -234,6 +235,24 @@ impl File {
             return Err(Error::Integrity("source SHA-256"));
         }
         let source_bytes = bytes.len();
+        Self::parse_dataset(bytes, limits, source_bytes, sha256)
+    }
+
+    pub(crate) fn parse_dataset(
+        bytes: Vec<u8>,
+        limits: Limits,
+        source_bytes: usize,
+        sha256: String,
+    ) -> Result<Self> {
+        Self::parse_shared(Arc::new(bytes), limits, source_bytes, sha256)
+    }
+
+    pub(crate) fn parse_shared(
+        mut bytes: Arc<Vec<u8>>,
+        limits: Limits,
+        source_bytes: usize,
+        sha256: String,
+    ) -> Result<Self> {
         if bytes.get(128..132) != Some(b"DICM") {
             return Err(Error::InvalidDicom("Part 10 signature"));
         }
@@ -273,7 +292,7 @@ impl File {
         let syntax = TransferSyntax::from_uid(uid(information.text(&bytes, (2, 0x10)))?)?;
         let encoding = Encoding::for_syntax(syntax);
         let start = if syntax == TransferSyntax::Deflated {
-            bytes = inflate_dataset(&bytes[offset..], limits.inflated_bytes)?;
+            bytes = Arc::new(inflate_dataset(&bytes[offset..], limits.inflated_bytes)?);
             0
         } else {
             offset
@@ -281,6 +300,7 @@ impl File {
         let mut parser = Parser::new(&bytes, start, encoding, limits);
         let dataset = parser.dataset(bytes.len(), None, 0)?;
         let elements = parser.elements;
+        let pixel_extent = parser.pixel_extent;
         if uid(dataset.text(&bytes, (8, 0x16)))? != class_uid
             || uid(dataset.text(&bytes, (8, 0x18)))? != instance_uid
         {
@@ -298,17 +318,18 @@ impl File {
             sha256,
             source_bytes,
             elements,
+            pixel_extent,
         })
     }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn source_digest(bytes: &[u8]) -> Output<Sha256> {
+pub(crate) fn source_digest(bytes: &[u8]) -> Output<Sha256> {
     Sha256::digest(bytes)
 }
 
 #[cfg(target_arch = "wasm32")]
-fn source_digest(bytes: &[u8]) -> Output<Sha256> {
+pub(crate) fn source_digest(bytes: &[u8]) -> Output<Sha256> {
     let mut hasher = Sha256::new();
     for chunk in bytes.chunks(16 * 1024) {
         hasher.update(chunk);
@@ -318,6 +339,11 @@ fn source_digest(bytes: &[u8]) -> Output<Sha256> {
 
 #[cfg(target_arch = "wasm32")]
 async fn web_crypto_digest(bytes: &[u8]) -> Option<Output<Sha256>> {
+    finish_web_digest(start_web_digest(bytes)?).await
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn start_web_digest(bytes: &[u8]) -> Option<js_sys::Promise> {
     use wasm_bindgen::JsCast;
 
     let worker: web_sys::WorkerGlobalScope = js_sys::global().unchecked_into();
@@ -327,13 +353,13 @@ async fn web_crypto_digest(bytes: &[u8]) -> Option<Output<Sha256>> {
         return None;
     }
     // Web Crypto snapshots a view of the parser's owned bytes before returning its promise.
-    let result = subtle
-        .digest_with_str_and_u8_array("SHA-256", bytes)
-        .ok()?
-        .await
-        .ok()?
-        .dyn_into::<js_sys::ArrayBuffer>()
-        .ok()?;
+    subtle.digest_with_str_and_u8_array("SHA-256", bytes).ok()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) async fn finish_web_digest(promise: js_sys::Promise) -> Option<Output<Sha256>> {
+    use wasm_bindgen::JsCast;
+    let result = promise.await.ok()?.dyn_into::<js_sys::ArrayBuffer>().ok()?;
     let result = js_sys::Uint8Array::new(&result);
     let mut digest = Output::<Sha256>::default();
     if result.length() as usize != digest.len() {
@@ -397,6 +423,7 @@ struct Parser<'a> {
     encoding: Encoding,
     limits: Limits,
     elements: usize,
+    pixel_extent: Option<Range<usize>>,
 }
 
 impl<'a> Parser<'a> {
@@ -407,6 +434,7 @@ impl<'a> Parser<'a> {
             encoding,
             limits,
             elements: 0,
+            pixel_extent: None,
         }
     }
 
@@ -484,6 +512,7 @@ impl<'a> Parser<'a> {
         }
         let mut out = Dataset::default();
         while self.pos < end {
+            let start = self.pos;
             self.end(8, end)?;
             let key = self.key()?;
             if Some(key) == stop && self.number()? == 0 {
@@ -493,6 +522,9 @@ impl<'a> Parser<'a> {
                 return Err(Error::InvalidDicom("unexpected item delimiter"));
             }
             let element = self.element(key, end, depth)?;
+            if depth == 0 && key == PIXEL_DATA {
+                self.pixel_extent = Some(start..self.pos);
+            }
             if out.elements.insert(key, element).is_some() {
                 return Err(Error::InvalidDicom("duplicate data element"));
             }

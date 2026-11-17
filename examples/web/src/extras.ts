@@ -9,6 +9,9 @@ export function extras(viewer: RaykitViewer): void {
   const status = byId<HTMLOutputElement>('volume-status');
   const acquisition = byId<HTMLSelectElement>('volume-acquisition');
   const canvas = byId<HTMLCanvasElement>('mpr');
+  const windowCenter = byId<HTMLInputElement>('volume-center');
+  const windowWidth = byId<HTMLInputElement>('volume-width');
+  const offsetInput = byId<HTMLInputElement>('volume-offset');
   let session: RaykitSession | undefined;
   let volume: Volume | undefined;
   let resliceScope: AbortController | undefined;
@@ -30,29 +33,36 @@ export function extras(viewer: RaykitViewer): void {
     if (!volume || !session || session !== viewer.viewport?.session) return;
     const selected = byId<HTMLSelectElement>('volume-plane').value.toLowerCase();
     const { column_axis: col, row_axis: row } = volume.plane;
-    const orientation = selected === 'oblique' ? { kind: 'oblique', axes: [...col, ...row] } as SliceOrientation : { kind: selected } as SliceOrientation;
+    const cross = (a: readonly number[], b: readonly number[]) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    const normal = cross(col, row);
+    const tilted: Triple = [(row[0] + normal[0]) * Math.SQRT1_2, (row[1] + normal[1]) * Math.SQRT1_2,
+      (row[2] + normal[2]) * Math.SQRT1_2];
+    const orientation: SliceOrientation = selected === 'oblique' ? { kind: 'oblique', axes: [...col, ...tilted] }
+      : { kind: selected as 'axial' | 'coronal' | 'sagittal' };
     const slabMode = byId<HTMLSelectElement>('volume-slab').value;
     const slab = (slabMode === 'single' ? { kind: 'single' } : { kind: slabMode, thickness_mm: 5 }) as Slab;
-    const offset = byId<HTMLInputElement>('volume-offset').valueAsNumber;
+    const offset = offsetInput.valueAsNumber;
     const direction = selected === 'axial' ? [0, 0, 1] : selected === 'coronal' ? [0, 1, 0] : selected === 'sagittal' ? [1, 0, 0]
-      : [col[1] * row[2] - col[2] * row[1], col[2] * row[0] - col[0] * row[2], col[0] * row[1] - col[1] * row[0]];
+      : cross(col, tilted);
     const center = volume.center.map((value, i) => value + offset * direction[i]) as unknown as Triple;
     resliceScope?.abort();
     const scope = resliceScope = new AbortController();
     const size = 256;
     const spacing = Math.max(...volume.dimensions.map((d, i) => d * (i < 2 ? volume!.plane.spacing_xy[i] : Math.hypot(...volume!.slice_step_mm)))) / 200;
-    const frame = viewer.viewport?.frame?.display;
-    const window = frame?.voi.kind === 'window' ? frame.voi.window : frame?.automatic_window ?? { center: 200, width: 400 };
-    const image = await session.reslice({ center, orientation, dimensions: [size, size], spacing_xy: [spacing, spacing], slab }, window, scope.signal);
-    if (scope.signal.aborted) return;
+    const window = { center: windowCenter.valueAsNumber, width: windowWidth.valueAsNumber, function: 'linear' } as const;
+    if (!Number.isFinite(window.center) || !(window.width >= 1)) return;
+    const palette = byId<HTMLSelectElement>('volume-palette').value === 'hot' ? 'hot' : 'gray';
+    const image = await session.reslice({ center, orientation, dimensions: [size, size], spacing_xy: [spacing, spacing], slab }, window, scope.signal, { palette });
+    if (scope.signal.aborted || session !== viewer.viewport?.session) return;
     canvas.getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(image.pixels.buffer), size, size), 0, 0);
-    status.value = `${selected} · ${volume.frames.length} source slices · center ${center.map(v => v.toFixed(2)).join(', ')} mm`;
+    status.value = `${selected} · ${slabMode} · ${volume.frames.length} source slices · center ${center.map(v => v.toFixed(2)).join(', ')} mm`;
   };
 
   const build = async () => {
     refresh();
     if (!session) return;
     buildScope?.abort();
+    resliceScope?.abort();
     const scope = buildScope = new AbortController();
     const candidate = Number(acquisition.value) || 0;
     const result = await session.volumeCandidates(scope.signal);
@@ -67,6 +77,11 @@ export function extras(viewer: RaykitViewer): void {
     const built = await session.buildVolume(candidate, result.revision, scope.signal);
     if (scope.signal.aborted) return;
     volume = built;
+    const display = viewer.viewport?.frame?.display;
+    const window = display?.voi.kind === 'window' ? display.voi.window : display?.automatic_window;
+    if (window) { windowCenter.valueAsNumber = window.center; windowWidth.valueAsNumber = Math.max(1, window.width); }
+    const span = Math.max(6, Math.ceil(Math.hypot(...built.slice_step_mm) * (built.dimensions[2] - 1) / 2));
+    offsetInput.min = String(-span); offsetInput.max = String(span); offsetInput.value = '0';
     await reslice();
   };
   const report = (error: unknown) => {
@@ -74,7 +89,9 @@ export function extras(viewer: RaykitViewer): void {
   };
   byId('build-volume').onclick = () => void build().catch(report);
   acquisition.onchange = () => void build().catch(report);
-  for (const id of ['volume-plane', 'volume-slab', 'volume-offset']) byId(id).oninput = () => void reslice().catch(report);
+  for (const id of ['volume-plane', 'volume-slab', 'volume-offset', 'volume-center', 'volume-width', 'volume-palette']) {
+    byId(id).oninput = () => void reslice().catch(report);
+  }
 
   byId('read-seg').onclick = () => void (async () => {
     const scope = viewer.viewport?.session;

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:ffi';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
@@ -40,6 +41,73 @@ external int _capabilities(Pointer<_Response> out);
 external int _open(
   Pointer<Uint8> input,
   int len,
+  Pointer<Uint8> options,
+  int optionsLen,
+  Pointer<_Response> out,
+);
+
+@Native<
+  Uint32 Function(
+    Pointer<Uint8>,
+    Size,
+    Pointer<Uint8>,
+    Size,
+    Pointer<Uint8>,
+    Size,
+    Pointer<Uint8>,
+    Size,
+    Pointer<_Response>,
+  )
+>(symbol: 'raykit_v1_open_file', assetId: _asset)
+external int _openFile(
+  Pointer<Uint8> path,
+  int pathLen,
+  Pointer<Uint8> index,
+  int indexLen,
+  Pointer<Uint8> pin,
+  int pinLen,
+  Pointer<Uint8> options,
+  int optionsLen,
+  Pointer<_Response> out,
+);
+
+@Native<
+  Uint32 Function(
+    Int32,
+    Pointer<Uint8>,
+    Size,
+    Pointer<Uint8>,
+    Size,
+    Pointer<Uint8>,
+    Size,
+    Pointer<_Response>,
+  )
+>(symbol: 'raykit_v1_open_descriptor', assetId: _asset)
+external int _openDescriptor(
+  int fd,
+  Pointer<Uint8> index,
+  int indexLen,
+  Pointer<Uint8> pin,
+  int pinLen,
+  Pointer<Uint8> options,
+  int optionsLen,
+  Pointer<_Response> out,
+);
+
+@Native<
+  Uint32 Function(
+    Uint64,
+    Pointer<Uint8>,
+    Size,
+    Pointer<Uint8>,
+    Size,
+    Pointer<_Response>,
+  )
+>(symbol: 'raykit_v1_append_file', assetId: _asset)
+external int _appendFile(
+  int handle,
+  Pointer<Uint8> path,
+  int pathLen,
   Pointer<Uint8> options,
   int optionsLen,
   Pointer<_Response> out,
@@ -94,7 +162,8 @@ typedef NativeReply = ({
   int status,
   int handle,
   Object? metadata,
-  Uint8List? bytes,
+  TransferableTypedData? bytes,
+  int byteLength,
 });
 
 NativeReply _call(int Function(Pointer<_Response>) invoke) {
@@ -109,12 +178,13 @@ NativeReply _call(int Function(Pointer<_Response>) invoke) {
         : jsonDecode(utf8.decode(meta.data.asTypedList(meta.length)));
     final bytes = data.length == 0
         ? null
-        : Uint8List.fromList(data.data.asTypedList(data.length));
+        : TransferableTypedData.fromList([data.data.asTypedList(data.length)]);
     return (
       status: status,
       handle: response.handle,
       metadata: metadata,
       bytes: bytes,
+      byteLength: data.length,
     );
   } finally {
     final response = pointer.ref;
@@ -159,6 +229,64 @@ NativeReply openNative(
   } finally {
     malloc.free(settingsPointer);
   }
+}
+
+NativeReply openLocal(
+  Object location,
+  Map<String, Object?> options, {
+  int? handle,
+  Uint8List? index,
+  String? sha256,
+}) {
+  return using((arena) {
+    Pointer<Uint8> copy(List<int> bytes) =>
+        bytes.isEmpty ? nullptr : arena<Uint8>(bytes.length)
+          ..asTypedList(bytes.length).setAll(0, bytes);
+    final settings = utf8.encode(jsonEncode(options));
+    final settingsPointer = copy(settings);
+    final manifest = index ?? Uint8List(0);
+    final manifestPointer = copy(manifest);
+    final pin = utf8.encode(sha256 ?? '');
+    final pinPointer = copy(pin);
+    if (location is int) {
+      return _call(
+        (out) => _openDescriptor(
+          location,
+          manifestPointer,
+          manifest.length,
+          pinPointer,
+          pin.length,
+          settingsPointer,
+          settings.length,
+          out,
+        ),
+      );
+    }
+    final path = utf8.encode(location as String);
+    final pointer = copy(path);
+    return _call(
+      (out) => handle == null
+          ? _openFile(
+              pointer,
+              path.length,
+              manifestPointer,
+              manifest.length,
+              pinPointer,
+              pin.length,
+              settingsPointer,
+              settings.length,
+              out,
+            )
+          : _appendFile(
+              handle,
+              pointer,
+              path.length,
+              settingsPointer,
+              settings.length,
+              out,
+            ),
+    );
+  });
 }
 
 NativeReply requestNative(int handle, Map<String, Object?> command) {

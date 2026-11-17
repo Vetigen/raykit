@@ -5,13 +5,14 @@ use jpeg_decoder::{ColorTransform, Decoder, PixelFormat as JpegFormat};
 use crate::{
     Error, Limits, Result, TransferSyntax,
     dicom::{ByteOrder, File, Fragment, PIXEL_DATA, Value},
+    frame_index::DetachedIndex,
     pixel::{ColorSpace, Photometric, PixelFormat, Samples},
 };
 
 #[cfg(feature = "advanced-codecs")]
 mod advanced;
 
-const MAX_ENCODED_FRAME_BYTES: usize = 32 * 1024 * 1024;
+pub(crate) const MAX_ENCODED_FRAME_BYTES: usize = 32 * 1024 * 1024;
 
 pub(crate) enum Index {
     Native {
@@ -23,6 +24,7 @@ pub(crate) enum Index {
         fragments: Vec<Fragment>,
         frames: Vec<Range<usize>>,
     },
+    Detached(DetachedIndex),
 }
 
 impl Index {
@@ -92,6 +94,7 @@ impl Index {
                 fragments.capacity() * size_of::<Fragment>()
                     + frames.capacity() * size_of::<Range<usize>>()
             }
+            Self::Detached(index) => index.bytes(),
         }
     }
 
@@ -154,7 +157,25 @@ impl Index {
                 };
                 Ok((samples, copied))
             }
+            Self::Detached(_) => Err(Error::FrameRange(frame)),
         }
+    }
+}
+
+pub(crate) fn read_indexed(
+    index: &DetachedIndex,
+    format: PixelFormat,
+    frame: usize,
+    bytes: &[u8],
+) -> Result<(Samples, usize)> {
+    if index.fragmented(frame) {
+        let data = index.joined(frame, bytes)?;
+        Ok((
+            decode_jpeg(&data, format, TransferSyntax::JpegBaseline)?,
+            data.len(),
+        ))
+    } else {
+        Ok((decode_jpeg(bytes, format, TransferSyntax::JpegBaseline)?, 0))
     }
 }
 

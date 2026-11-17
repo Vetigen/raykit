@@ -9,6 +9,199 @@ use raykit_core::{
     pixel::{RenderOptions, Window, WindowFunction},
 };
 
+#[cfg(unix)]
+#[test]
+fn borrowed_file_descriptor_reads_position_independently_and_checks_changes() {
+    use raykit_core::NativeFile;
+    use std::{
+        fs::OpenOptions,
+        io::{Seek, SeekFrom, Write},
+        os::fd::AsRawFd,
+    };
+    let path = std::env::temp_dir().join(format!("raykit-source-test-{}", std::process::id()));
+    let bytes = signed_xray(EXPLICIT_LE);
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .unwrap();
+    file.write_all(&bytes).unwrap();
+    file.seek(SeekFrom::Start(20)).unwrap();
+    let reader = NativeFile::duplicate_descriptor(file.as_raw_fd()).unwrap();
+    assert_eq!(reader.read(0, bytes.len()).unwrap(), bytes);
+    assert_eq!(file.stream_position().unwrap(), 20);
+    // The reader continues to own only its duplicate after the original is closed.
+    drop(file);
+    assert_eq!(reader.read(128, 4).unwrap(), b"DICM");
+    let mut changed = OpenOptions::new().append(true).open(&path).unwrap();
+    changed.write_all(&[0]).unwrap();
+    assert_eq!(
+        reader.read(128, 4).unwrap_err(),
+        Error::Integrity("source file changed")
+    );
+    drop(reader);
+    drop(changed);
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn detail_phantom_and_shared_chroma_preserve_original_samples() {
+    let mut detail = Session::open(detail_xray(), Limits::default()).unwrap();
+    let frame = detail.read_frame(0).unwrap();
+    for (x, y, expected) in [
+        (0, 0, -2048),
+        (127, 10, -1508),
+        (128, 10, -1507),
+        (1000, 550, -1501),
+        (1001, 550, -1499),
+        (1023, 1600, -1536),
+        (1024, 1600, -1472),
+    ] {
+        let Sample::Monochrome { stored, .. } = frame.sample(x, y).unwrap() else {
+            panic!()
+        };
+        assert_eq!(stored, expected);
+    }
+    let mut color = Session::open(native_ybr422(), Limits::default()).unwrap();
+    let frame = color.read_frame(0).unwrap();
+    let expected = [
+        [32, 180, 110],
+        [96, 180, 110],
+        [64, 90, 160],
+        [200, 90, 160],
+    ];
+    for (i, expected) in expected.into_iter().enumerate() {
+        let Sample::Color { space, values } = frame.sample((i % 2) as u32, (i / 2) as u32).unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(space, raykit_core::pixel::ColorSpace::YbrFull);
+        assert_eq!(values, expected);
+    }
+}
+
+#[test]
+fn pinned_cine_index_authenticates_each_frame_with_all_offset_table_shapes() {
+    for (offsets, split) in [
+        (Offsets::Basic, false),
+        (Offsets::Basic, true),
+        (Offsets::Extended, false),
+        (Offsets::Empty, true),
+    ] {
+        let bytes = cine([64, 48], 5, offsets, split);
+        let mut full = Session::open(bytes.clone(), Limits::default()).unwrap();
+        let manifest = full.create_frame_index().unwrap();
+        assert!(
+            Session::open_index(&manifest.bytes, &"0".repeat(64), Limits::default(), None).is_err()
+        );
+        assert!(
+            Session::open_index(
+                &manifest.bytes,
+                &manifest.sha256,
+                Limits::default(),
+                Some(&"0".repeat(64))
+            )
+            .is_err()
+        );
+        let mut partial = Session::open_index(
+            &manifest.bytes,
+            &manifest.sha256,
+            Limits::default(),
+            Some(&full.inspection().content_sha256),
+        )
+        .unwrap();
+        assert_eq!(partial.inspection().verification, "pinned_frame_index");
+        assert_eq!(
+            partial.inspection().frame_durations_ms,
+            full.inspection().frame_durations_ms
+        );
+        assert_eq!(partial.memory().source_read_bytes, 0);
+        for index in [0, 2, 4] {
+            assert_eq!(
+                partial.read_frame(index).unwrap_err(),
+                Error::FrameRange(index)
+            );
+            let span = partial.frame_range(index).unwrap();
+            let original = &bytes[span.start..span.end];
+            assert!(
+                partial
+                    .stage_range(index, original[..original.len() - 1].to_vec())
+                    .is_err()
+            );
+            let mut changed = original.to_vec();
+            changed[0] ^= 1;
+            assert!(partial.stage_range(index, changed).is_err());
+            assert_eq!(
+                partial.read_frame(index).unwrap_err(),
+                Error::FrameRange(index)
+            );
+            partial.stage_range(index, original.to_vec()).unwrap();
+            let checked = partial.read_frame(index).unwrap();
+            let expected = full.read_frame(index).unwrap();
+            assert_eq!(
+                partial.source_reference(index).unwrap(),
+                full.source_reference(index).unwrap()
+            );
+            assert_eq!(
+                checked.render_rgba(RenderOptions::default()).unwrap(),
+                expected.render_rgba(RenderOptions::default()).unwrap()
+            );
+        }
+    }
+}
+
+#[test]
+fn large_ct_and_mr_use_the_same_budgeted_patient_coordinate_path() {
+    use raykit_core::{
+        geometry::PatientPoint,
+        volume::{Orientation, Reslice, Slab, Volume},
+    };
+    for mr in [false, true] {
+        let mut source = Session::open(large_volume(mr), Limits::default()).unwrap();
+        let volume = Volume::build(&mut [&mut source], 0).unwrap();
+        assert_eq!(volume.metadata.dimensions, [512, 512, 300]);
+        assert_eq!(volume.metadata.voxel_bytes, 300 * 1024 * 1024);
+        assert_eq!(volume.memory().decoded_slices, 0);
+        let center = PatientPoint([179.2, 204.8, 180.0]);
+        assert_eq!(volume.try_sample(center).unwrap(), Some(448.0));
+        assert_eq!(
+            volume
+                .try_sample(PatientPoint([0.7, 204.8, 180.0]))
+                .unwrap(),
+            None
+        );
+        let mut request = Reslice {
+            center,
+            orientation: Orientation::Axial,
+            dimensions: [3, 3],
+            spacing_xy: [0.7, 0.8],
+            slab: Slab::Single,
+        };
+        let axial = volume.reslice(&request).unwrap();
+        assert_eq!(axial.values[4], 448.0);
+        request.orientation = Orientation::Coronal;
+        assert_eq!(volume.reslice(&request).unwrap().values[4], 448.0);
+        request.orientation = Orientation::Oblique {
+            axes: [
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                std::f64::consts::FRAC_1_SQRT_2,
+                std::f64::consts::FRAC_1_SQRT_2,
+            ],
+        };
+        request.slab = Slab::Average { thickness_mm: 12.0 };
+        let avg = volume.reslice(&request).unwrap();
+        request.slab = Slab::Maximum { thickness_mm: 12.0 };
+        let mip = volume.reslice(&request).unwrap();
+        assert!((440.0..456.0).contains(&avg.values[4]));
+        assert!(mip.values[4] > avg.values[4] + 15.0);
+        assert!(volume.memory().peak_slice_cache_bytes <= 16 * 1024 * 1024);
+    }
+}
+
 #[test]
 fn signed_packed_samples_and_presentation_across_encodings() {
     for syntax in [EXPLICIT_LE, IMPLICIT_LE, EXPLICIT_BE, DEFLATED] {

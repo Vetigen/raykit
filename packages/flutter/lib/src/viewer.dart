@@ -1,22 +1,84 @@
 import 'dart:async';
-import 'dart:typed_data';
-import 'dart:ui' as ui;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
+import 'display.dart';
 import 'session.dart';
 
 class RayKitViewerController {
   RayKitViewerState? _viewer;
   RayKitSession? get session => _viewer?._session;
+  RayKitPresentedFrame? get presented => _viewer?._presented;
   List<Json> get measurements =>
       List.unmodifiable(_viewer?._measurements ?? []);
+  Json get displayStats => _viewer?._displayStats ?? const {};
+
+  RayKitViewerState get _attached =>
+      _viewer ?? (throw const RayKitException('closed'));
 
   Future<void> seek(int index) async {
-    final viewer = _viewer;
-    if (viewer == null) throw const RayKitException('closed');
+    final viewer = _attached;
     viewer._pause();
     await viewer._showFrame(index);
+  }
+
+  Future<void> scrub(int index) async {
+    final viewer = _attached;
+    viewer._pause();
+    await viewer._showFrame(index, continuous: true);
+  }
+
+  Future<void> settle() async => _attached._settle();
+
+  Future<void> play({double? rate}) async {
+    final viewer = _attached;
+    if (rate != null) {
+      if (!rate.isFinite || rate < 0.1 || rate > 8) {
+        throw const RayKitException('invalid_request', 'Cine playback rate');
+      }
+    }
+    await viewer._play(rate);
+  }
+
+  Future<void> setRenderOptions(Json options) async {
+    final viewer = _attached;
+    viewer._render = {
+      ...options,
+      if (options['window'] case final Json window) 'window': Map.of(window),
+    };
+    await viewer._redraw();
+  }
+
+  Future<void> setView({
+    Offset pan = Offset.zero,
+    double zoom = 1,
+    int quarterTurns = 0,
+  }) async {
+    if (!zoom.isFinite || !pan.isFinite) {
+      throw const RayKitException('invalid_request', 'View transform');
+    }
+    final viewer = _attached;
+    viewer._pan = pan;
+    viewer._zoom = zoom.clamp(0.01, 128.0);
+    viewer._rotation = quarterTurns % 4;
+    await viewer._redraw();
+  }
+
+  Offset? mapPoint(Offset screen) => _attached._pixel(screen);
+
+  Future<Json> samplePresented(int x, int y) async {
+    final viewer = _attached;
+    final session = viewer._session;
+    final frame = viewer._presented;
+    if (session == null || frame == null) throw const RayKitException('closed');
+    final sample = await session.sample(frame.source['frame'] as int, x, y);
+    if (!identical(frame, viewer._presented) ||
+        !identical(session, viewer._session)) {
+      throw const RayKitException('cancelled');
+    }
+    return sample;
   }
 
   Future<Json> restoreMeasurement(Json measurement) async {
@@ -26,12 +88,18 @@ class RayKitViewerController {
   }
 }
 
+/// The shader path requires a successful precision probe. Automatic selection uses
+/// the CPU reference until device performance has been established by the host.
+enum RayKitDisplayMode { auto, cpu, shader }
+
 class RayKitViewer extends StatefulWidget {
   const RayKitViewer({
     super.key,
     required this.source,
     this.options = const RayKitOpenOptions(),
     this.controller,
+    this.showControls = true,
+    this.displayMode = RayKitDisplayMode.auto,
     this.onPresented,
     this.onMeasurement,
     this.onDocument,
@@ -39,6 +107,8 @@ class RayKitViewer extends StatefulWidget {
   final RayKitSource source;
   final RayKitOpenOptions options;
   final RayKitViewerController? controller;
+  final bool showControls;
+  final RayKitDisplayMode displayMode;
   final ValueChanged<RayKitPresentedFrame>? onPresented;
   final ValueChanged<Json>? onMeasurement;
   final ValueChanged<RayKitSession>? onDocument;
@@ -54,12 +124,14 @@ class RayKitPresentedFrame {
     required this.requestId,
     required this.view,
     required this.render,
+    this.renderer = 'cpu',
   });
   final Json source;
   final String revision;
   final int requestId;
   final Json view;
   final Json render;
+  final String renderer;
   String get quality => 'original';
 }
 
@@ -106,8 +178,26 @@ enum _Tool {
 class RayKitViewerState extends State<RayKitViewer> {
   RayKitSession? _session;
   RayKitFrame? _frame;
-  ui.Image? _image;
+  FrameRaster? _image;
+  MonochromeShader? _shader;
+  List<double>? _uniforms;
+  Json? _drawnRender;
   _Transform? _transform;
+  _Transform? _presentedTransform;
+  RayKitPresentedFrame? _presented;
+  (Size, Offset, double, int, int, int, double, double)? _mapping;
+  ({int index, Completer<void> done})? _pendingSeek;
+  int? _targetFrame;
+  double? _sliderTarget;
+  bool _redrawQueued = false;
+  int _preparedImages = 0;
+  int _uploadedBytes = 0;
+  int _imagePaints = 0;
+  int _presentations = 0;
+  int _cineSkipped = 0;
+  int _cineShown = 0;
+  int? _editIndex;
+  bool _movedLandmark = false;
   late final AppLifecycleListener _lifecycle;
   RayKitCancellation? _opening;
   RayKitCancellation? _seeking;
@@ -140,6 +230,19 @@ class RayKitViewerState extends State<RayKitViewer> {
   final _radius = TextEditingController();
   int _nextMeasurement = 0;
 
+  Json get _displayStats => {
+    'prepared_images': _preparedImages,
+    'image_upload_bytes': _uploadedBytes,
+    'image_paints': _imagePaints,
+    'presentations': _presentations,
+    'cine_shown': _cineShown,
+    'cine_skipped': _cineSkipped,
+    'image_bytes_estimate': _image?.bytes ?? 0,
+    'shader_texture_bytes_estimate': _image?.texture == true
+        ? _image!.bytes
+        : 0,
+  };
+
   @override
   void initState() {
     super.initState();
@@ -163,7 +266,8 @@ class RayKitViewerState extends State<RayKitViewer> {
       widget.controller?._viewer = this;
     }
     if (!identical(oldWidget.source, widget.source) ||
-        oldWidget.options != widget.options) {
+        oldWidget.options != widget.options ||
+        oldWidget.displayMode != widget.displayMode) {
       _resumeFrame = 0;
       _content = null;
       _run(_open());
@@ -202,16 +306,21 @@ class RayKitViewerState extends State<RayKitViewer> {
     });
     await retired;
     cancellation.check();
+    final shaderFuture = widget.displayMode == RayKitDisplayMode.shader
+        ? MonochromeShader.available()
+        : null;
     final session = await RayKitSession.open(
       widget.source,
       options: widget.options,
       cancellation: cancellation,
     );
+    final shader = await shaderFuture;
     if (!mounted || generation != _generation) {
       await session.close();
       return;
     }
     _session = session;
+    _shader = shader;
     if (_content != session.inspection.contentSha256) {
       _measurements.clear();
       _draft.clear();
@@ -226,7 +335,11 @@ class RayKitViewerState extends State<RayKitViewer> {
     _content = session.inspection.contentSha256;
     final capabilities = session.inspection.capabilities;
     if (capabilities['frame_access'] == true) {
-      await _showFrame(_resumeFrame.clamp(0, session.inspection.frames - 1));
+      await _showFrame(
+        _resumeFrame.clamp(0, session.inspection.frames - 1),
+        prefetch:
+            session.inspection.data['verification'] != 'pinned_frame_index',
+      );
     } else {
       setState(() {
         _loading = false;
@@ -240,36 +353,107 @@ class RayKitViewerState extends State<RayKitViewer> {
     }
   }
 
-  Future<void> _showFrame(int index, {bool prefetch = true}) async {
+  Future<void> _showFrame(
+    int index, {
+    bool prefetch = true,
+    bool continuous = false,
+  }) async {
+    final session = _session;
+    if (session == null) throw const RayKitException('closed');
+    if (index < 0 || index >= session.inspection.frames) {
+      throw const RayKitException('invalid_request', 'Frame index');
+    }
+    _targetFrame = index;
+    _cancelPendingSeek();
+    _prefetching?.cancel();
+    if (continuous) {
+      final done = Completer<void>();
+      _pendingSeek = (index: index, done: done);
+      _drainSeek();
+      return done.future;
+    }
+    return _prepareFrame(index, prefetch: prefetch);
+  }
+
+  void _cancelPendingSeek() {
+    _pendingSeek?.done.completeError(const RayKitException('cancelled'));
+    _pendingSeek = null;
+  }
+
+  void _drainSeek() {
+    final next = _pendingSeek;
+    if (_seeking != null || next == null) return;
+    _pendingSeek = null;
+    unawaited(
+      _prepareFrame(
+        next.index,
+        prefetch: false,
+      ).then(next.done.complete, onError: next.done.completeError),
+    );
+  }
+
+  Future<void> _prepareFrame(int index, {required bool prefetch}) async {
     final session = _session;
     if (session == null) throw const RayKitException('closed');
     _seeking?.cancel();
     _painting?.cancel();
-    _prefetching?.cancel();
     final cancellation = _seeking = RayKitCancellation();
-    final previous = _frame?.index ?? index;
-    final frame = await session.readFrame(
-      index,
-      stored: false,
-      cancellation: cancellation,
-    );
-    cancellation.check();
-    if (!identical(session, _session)) throw const RayKitException('cancelled');
-    final changed = _frame?.index != frame.index;
-    _frame = frame;
-    if (changed) {
-      _draft.clear();
-      _editing = null;
-    }
-    _resumeFrame = index;
-    await _redraw(rebuildImage: true);
-    cancellation.check();
-    final neighbor = index + (index < previous ? -1 : 1);
-    if (prefetch && neighbor >= 0 && neighbor < session.inspection.frames) {
-      final token = _prefetching = RayKitCancellation();
-      unawaited(
-        session.prefetch(neighbor, cancellation: token).catchError((_) {}),
+    FrameRaster? prepared;
+    try {
+      final previous = _frame?.index ?? index;
+      final settings = _render;
+      if (_presented?.source['frame'] == index &&
+          _frame?.index == index &&
+          identical(_drawnRender, settings)) {
+        return;
+      }
+      final frame = await session.readFrame(
+        index,
+        stored: false,
+        render: settings,
+        texture16: _shader != null,
+        cancellation: cancellation,
       );
+      cancellation.check();
+      final uniforms = frame.encoding == 'mono_u16_rg'
+          ? MonochromeShader.uniforms(frame, settings)
+          : null;
+      final pixels = frame.encoding == 'mono_u16_rg' && uniforms == null
+          ? await session.render(index, settings, cancellation: cancellation)
+          : frame.pixels;
+      cancellation.check();
+      prepared = await _rasterize(pixels, frame, texture: uniforms != null);
+      cancellation.check();
+      final metadata = RayKitFrame(frame.data, Uint8List(0), frame.requestId);
+      await _present(
+        session,
+        metadata,
+        prepared,
+        uniforms,
+        settings,
+        cancellation,
+      );
+      cancellation.check();
+      final neighbor = index + (index < previous ? -1 : 1);
+      if (prefetch &&
+          _pendingSeek == null &&
+          neighbor >= 0 &&
+          neighbor < session.inspection.frames) {
+        final token = _prefetching = RayKitCancellation();
+        unawaited(
+          session.prefetch(neighbor, cancellation: token).catchError((_) {}),
+        );
+      }
+    } finally {
+      if (!identical(_image, prepared)) prepared?.dispose();
+      if (identical(_seeking, cancellation)) {
+        _seeking = null;
+        _drainSeek();
+        if (_seeking == null && _redrawQueued) {
+          _redrawQueued = false;
+          _run(_redraw());
+        }
+      }
     }
   }
 
@@ -280,43 +464,103 @@ class RayKitViewerState extends State<RayKitViewer> {
     'quarter_turns': _rotation,
   };
 
-  Future<void> _redraw({bool rebuildImage = false}) async {
+  Future<FrameRaster> _rasterize(
+    Uint8List pixels,
+    RayKitFrame frame, {
+    bool texture = false,
+  }) async {
+    final image = await decodeRgba(pixels, frame.columns, frame.rows);
+    _preparedImages++;
+    _uploadedBytes += pixels.length;
+    return FrameRaster(image, texture: texture);
+  }
+
+  Future<void> _redraw() async {
     final session = _session;
     final frame = _frame;
-    if (frame == null || session == null || _size.isEmpty || _background) {
+    final image = _image;
+    if (_seeking != null) {
+      _redrawQueued = true;
+      return;
+    }
+    if (frame == null || session == null || image == null || _background) {
       return;
     }
     _painting?.cancel();
     final token = _painting = RayKitCancellation();
-    final view = _view;
     final settings = _render;
-    final transform = await session.transform(
-      frame.index,
-      view,
-      cancellation: token,
+    FrameRaster raster = image;
+    var uniforms = _uniforms;
+    try {
+      if (!identical(settings, _drawnRender)) {
+        uniforms = image.texture
+            ? MonochromeShader.uniforms(frame, settings)
+            : null;
+        if (uniforms == null) {
+          final pixels = await session.render(
+            frame.index,
+            settings,
+            cancellation: token,
+          );
+          token.check();
+          raster = await _rasterize(pixels, frame);
+        }
+      }
+      await _present(session, frame, raster, uniforms, settings, token);
+    } finally {
+      if (!identical(raster, image) && !identical(raster, _image)) {
+        raster.dispose();
+      }
+    }
+  }
+
+  Future<void> _present(
+    RayKitSession session,
+    RayKitFrame frame,
+    FrameRaster raster,
+    List<double>? uniforms,
+    Json settings,
+    RayKitCancellation token,
+  ) async {
+    final view = _view;
+    final spacing = _readPair(frame.geometry['display_spacing_xy'] as List);
+    final key = (
+      _size,
+      _pan,
+      _zoom,
+      _rotation,
+      frame.columns,
+      frame.rows,
+      spacing.dx,
+      spacing.dy,
     );
-    if (!mounted || token.isCancelled) return;
-    ui.Image? image;
-    if (rebuildImage ||
-        _image == null ||
-        _transform?.requestId != frame.requestId) {
-      final pixels = settings.isEmpty
-          ? frame.pixels
-          : await session.render(frame.index, settings, cancellation: token);
-      if (token.isCancelled) return;
-      image = await _decode(pixels, frame.columns, frame.rows);
-    }
-    if (!mounted || token.isCancelled) {
-      image?.dispose();
-      return;
-    }
-    final old = image != null ? _image : null;
-    setState(() {
-      if (image != null) _image = image;
-      _transform = _Transform.fromJson(
-        transform['transform'] as Json,
-        frame.requestId,
+    var transform = _mapping == key ? _transform : null;
+    if (transform == null && !_size.isEmpty) {
+      final mapped = await session.transform(
+        frame.index,
+        view,
+        cancellation: token,
       );
+      transform = _Transform.fromJson(mapped['transform'] as Json);
+    }
+    token.check();
+    if (!mounted || !identical(session, _session)) {
+      throw const RayKitException('cancelled');
+    }
+    final old = _image;
+    setState(() {
+      if (_frame?.index != frame.index) {
+        _draft.clear();
+        _editing = null;
+        _editIndex = null;
+        _value = '';
+      }
+      _frame = frame;
+      _image = raster;
+      _transform = transform;
+      _mapping = key;
+      _uniforms = uniforms;
+      _drawnRender = settings;
       _loading = false;
       final geometry = frame.geometry;
       final directions =
@@ -326,41 +570,44 @@ class RayKitViewerState extends State<RayKitViewer> {
       _status =
           'Original · ${frame.columns} × ${frame.rows}${directions ? '' : ' · Orientation unavailable'}${calibrated ? '' : ' · Physical calibration unavailable'}';
     });
+    if (!identical(old, raster)) old?.dispose();
+    if (transform == null) return;
+    final done = Completer<void>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      old?.dispose();
+      done.complete();
       if (!mounted ||
-          token.isCancelled ||
           session != _session ||
-          frame != _frame) {
+          frame != _frame ||
+          raster != _image ||
+          transform != _transform ||
+          !identical(settings, _drawnRender)) {
         return;
       }
-      widget.onPresented?.call(
-        RayKitPresentedFrame(
-          source: frame.source,
-          revision: session.revision,
-          requestId: frame.requestId,
-          view: view,
-          render: settings,
-        ),
+      _resumeFrame = frame.index;
+      _presentedTransform = transform;
+      final presented = _presented = RayKitPresentedFrame(
+        source: frame.source,
+        revision: session.revision,
+        requestId: frame.requestId,
+        view: view,
+        render: settings,
+        renderer: raster.texture ? 'shader' : 'cpu',
       );
+      _presentations++;
+      widget.onPresented?.call(presented);
     });
+    await Future.any([done.future, token.cancelled]);
   }
 
-  Future<Offset?> _pixel(Offset screen) async {
+  Offset? _pixel(Offset screen) {
     final frame = _frame;
-    final session = _session;
+    final transform = _presentedTransform;
     if (frame == null ||
-        session == null ||
-        _transform?.requestId != frame.requestId) {
+        transform == null ||
+        _presented?.requestId != frame.requestId) {
       return null;
     }
-    final mapped = await session.transform(
-      frame.index,
-      _view,
-      screenPoint: {'x': screen.dx, 'y': screen.dy},
-    );
-    if (!mounted || frame != _frame || session != _session) return null;
-    final value = _readPoint(mapped['pixel'] as Json);
+    final value = transform.unproject(screen);
     return value.dx >= -0.5 &&
             value.dy >= -0.5 &&
             value.dx < frame.columns - 0.5 &&
@@ -370,12 +617,15 @@ class RayKitViewerState extends State<RayKitViewer> {
   }
 
   Future<void> _tap(Offset screen) async {
-    if (_tool.method == null && _tool != _Tool.sample) return;
+    final tool = _tool;
+    if (tool.method == null && tool != _Tool.sample) return;
+    await _settle();
+    if (!mounted || tool != _tool) return;
     final session = _session;
     final frame = _frame;
     if (session == null || frame == null) return;
-    final pixel = await _pixel(screen);
-    if (pixel == null || !mounted || frame != _frame) return;
+    final pixel = _pixel(screen);
+    if (pixel == null) return;
     if (_tool == _Tool.sample) {
       final sample = await session.sample(
         frame.index,
@@ -395,6 +645,8 @@ class RayKitViewerState extends State<RayKitViewer> {
   }
 
   Future<void> _calculate() async {
+    await _settle();
+    if (!mounted) return;
     final tool = _tool;
     final session = _session;
     final frame = _frame;
@@ -489,14 +741,21 @@ class RayKitViewerState extends State<RayKitViewer> {
           'width': (width + delta.dx * width / 220).clamp(1.0, 1e30),
         },
       };
-      _run(_redraw(rebuildImage: true));
+      _run(_redraw());
     }
   }
 
   void _beginEdit(Offset screen) {
-    final transform = _transform;
-    final index = _frame?.index;
-    if (transform == null || index == null || _tool.method == null) return;
+    final transform = _presentedTransform;
+    final index = _presented?.source['frame'];
+    if (transform == null ||
+        index == null ||
+        _tool.method == null ||
+        _targetFrame != index ||
+        _seeking != null) {
+      return;
+    }
+    _pause();
     for (final record in _measurements.reversed) {
       final input = record['input'] as Json;
       if ((record['source'] as Json)['frame'] != index ||
@@ -515,20 +774,39 @@ class RayKitViewerState extends State<RayKitViewer> {
         _editing = record;
         _draft
           ..clear()
-          ..addAll(points)
-          ..removeAt(point);
+          ..addAll(points);
+        _editIndex = point;
+        _movedLandmark = false;
       });
-      _run(_replaceLandmark(point));
       return;
     }
   }
 
+  void _moveLandmark(Offset screen) {
+    final index = _editIndex;
+    final pixel = _pixel(screen);
+    if (index == null || pixel == null) return;
+    setState(() {
+      _draft[index] = pixel;
+      _movedLandmark = true;
+    });
+  }
+
+  void _endEdit() {
+    final index = _editIndex;
+    _editIndex = null;
+    if (index == null) return;
+    _run(_movedLandmark ? _calculate() : _replaceLandmark(index));
+  }
+
   Future<void> _replaceLandmark(int index) async {
+    final editing = _editing;
+    if (editing == null) return;
     final point = await showDialog<Offset>(
       context: context,
       builder: (dialogContext) {
         final source =
-            ((_editing!['input'] as Json)['points'] as List)[index] as Json;
+            ((editing['input'] as Json)['points'] as List)[index] as Json;
         var x = (source['x'] as num).toDouble(),
             y = (source['y'] as num).toDouble();
         return AlertDialog(
@@ -567,7 +845,7 @@ class RayKitViewerState extends State<RayKitViewer> {
         );
       },
     );
-    if (!mounted || _editing == null) return;
+    if (!mounted || !identical(_editing, editing)) return;
     if (point == null) {
       setState(() {
         _editing = null;
@@ -575,32 +853,59 @@ class RayKitViewerState extends State<RayKitViewer> {
       });
       return;
     }
-    _draft.insert(index, point);
+    _draft[index] = point;
     await _calculate();
   }
 
-  Future<void> _play() async {
+  Future<void> _play([double? rate]) async {
     final session = _session;
     final count = session?.inspection.frames ?? 0;
     if (session == null || count < 2) return;
     if (_playing) {
-      _pause();
+      await _settle();
+      if (!mounted) return;
       setState(() {});
       return;
     }
     final generation = ++_playGeneration;
-    setState(() => _playing = true);
-    final durations = session.inspection.frameDurations;
+    setState(() {
+      _rate = rate ?? _rate;
+      _playing = true;
+    });
+    final durations =
+        session.inspection.frameDurations ?? List.filled(count, 1000 / 15);
+    final duration = durations
+        .map((ms) => math.max(1000, (ms * 1000 / _rate).round()))
+        .toList();
+    final cycle = duration.reduce((a, b) => a + b);
+    final clock = Stopwatch()..start();
+    var index = _presented?.source['frame'] as int? ?? 0;
+    var due = duration[index];
     try {
       while (mounted &&
           _playing &&
           generation == _playGeneration &&
           session == _session) {
-        final index = _frame?.index ?? 0;
-        final ms = (durations?[index] ?? 1000 / 15) / _rate;
-        await Future<void>.delayed(Duration(microseconds: (ms * 1000).round()));
+        final wait = (due - clock.elapsedMicroseconds).clamp(0, 40000);
+        await Future<void>.delayed(Duration(microseconds: wait));
         if (generation != _playGeneration || session != _session) return;
-        await _showFrame((index + 1) % count);
+        final now = clock.elapsedMicroseconds;
+        if (now < due) continue;
+        index = (index + 1) % count;
+        due += duration[index];
+        final cycles = math.max(0, now - due) ~/ cycle;
+        _cineSkipped += cycles * count;
+        due += cycles * cycle;
+        while (due <= now) {
+          index = (index + 1) % count;
+          due += duration[index];
+          _cineSkipped++;
+        }
+        final before = _presentations;
+        await _showFrame(index, prefetch: false);
+        if (_presentations > before && _presented?.source['frame'] == index) {
+          _cineShown++;
+        }
       }
     } finally {
       if (mounted && generation == _playGeneration) {
@@ -614,11 +919,29 @@ class RayKitViewerState extends State<RayKitViewer> {
     _playGeneration++;
   }
 
+  Future<void> _settle() async {
+    final wasPlaying = _playing;
+    _pause();
+    if (wasPlaying && mounted) setState(() {});
+    final target = _targetFrame;
+    if (target == null || _session == null) return;
+    if (_seeking != null ||
+        _pendingSeek != null ||
+        _presented?.source['frame'] != target) {
+      await _showFrame(target, prefetch: false);
+    }
+  }
+
   Future<void> _retire() async {
     _generation++;
     _pause();
     _opening?.cancel();
     _seeking?.cancel();
+    _seeking = null;
+    _cancelPendingSeek();
+    _targetFrame = null;
+    _sliderTarget = null;
+    _redrawQueued = false;
     _painting?.cancel();
     _prefetching?.cancel();
     final session = _session;
@@ -627,9 +950,13 @@ class RayKitViewerState extends State<RayKitViewer> {
     _frame = null;
     _image = null;
     _transform = null;
-    if (image != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => image.dispose());
-    }
+    _drawnRender = null;
+    _uniforms = null;
+    _mapping = null;
+    _presented = null;
+    _presentedTransform = null;
+    _editIndex = null;
+    image?.dispose();
     final current = session?.close();
     if (current != null) {
       _retired = Future.wait<void>([_retired, current]);
@@ -656,8 +983,6 @@ class RayKitViewerState extends State<RayKitViewer> {
     _lifecycle.dispose();
     _target.dispose();
     _radius.dispose();
-    _image?.dispose();
-    _image = null;
     unawaited(_retire());
     super.dispose();
   }
@@ -674,77 +999,97 @@ class RayKitViewerState extends State<RayKitViewer> {
         : _tool.landmarks[_draft.length.clamp(0, _tool.landmarks.length - 1)];
     return Column(
       children: [
-        Wrap(
-          spacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            DropdownButton<_Tool>(
-              value: _tool,
-              items: _Tool.values
-                  .map(
-                    (tool) =>
-                        DropdownMenuItem(value: tool, child: Text(tool.label)),
-                  )
-                  .toList(),
-              onChanged: (tool) {
-                if (tool != null) {
-                  setState(() {
-                    _tool = tool;
-                    _confirmProjection = false;
-                    _draft.clear();
-                    _editing = null;
-                  });
-                }
-              },
-            ),
-            IconButton(
-              tooltip: 'Rotate',
-              onPressed: frame == null
-                  ? null
-                  : () {
-                      _rotation = (_rotation + 1) % 4;
-                      _run(_redraw());
-                    },
-              icon: const Icon(Icons.rotate_right),
-            ),
-            TextButton(
-              onPressed: frame == null
-                  ? null
-                  : () {
-                      _render = {
-                        ..._render,
-                        'invert': _render['invert'] != true,
-                      };
-                      _run(_redraw(rebuildImage: true));
-                    },
-              child: const Text('Invert'),
-            ),
-            TextButton(
-              onPressed: frame == null
-                  ? null
-                  : () {
-                      _pan = Offset.zero;
-                      _zoom = 1;
-                      _rotation = 0;
-                      _render = {};
-                      _run(_redraw(rebuildImage: true));
-                    },
-              child: const Text('Reset'),
-            ),
-            if (_tool.method != null) ...[
-              TextButton(
-                onPressed: _draft.isEmpty
+        if (widget.showControls)
+          Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              DropdownButton<_Tool>(
+                value: _tool,
+                items: _Tool.values
+                    .map(
+                      (tool) => DropdownMenuItem(
+                        value: tool,
+                        child: Text(tool.label),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (tool) {
+                  if (tool != null) {
+                    if (tool != _Tool.pan && tool != _Tool.window) {
+                      _run(_settle());
+                    }
+                    setState(() {
+                      _tool = tool;
+                      _confirmProjection = false;
+                      _draft.clear();
+                      _editing = null;
+                    });
+                  }
+                },
+              ),
+              IconButton(
+                tooltip: 'Rotate',
+                onPressed: frame == null
                     ? null
-                    : () => setState(() => _draft.removeLast()),
-                child: const Text('Undo point'),
+                    : () {
+                        _rotation = (_rotation + 1) % 4;
+                        _run(_redraw());
+                      },
+                icon: const Icon(Icons.rotate_right),
               ),
               TextButton(
-                onPressed: _draft.isEmpty ? null : () => _run(_calculate()),
-                child: const Text('Calculate'),
+                onPressed: frame == null
+                    ? null
+                    : () {
+                        _render = {
+                          ..._render,
+                          'invert': _render['invert'] != true,
+                        };
+                        _run(_redraw());
+                      },
+                child: const Text('Invert'),
               ),
+              DropdownButton<String>(
+                value: _render['palette'] == 'hot' ? 'hot' : 'gray',
+                items: const [
+                  DropdownMenuItem(value: 'gray', child: Text('Gray palette')),
+                  DropdownMenuItem(value: 'hot', child: Text('Hot palette')),
+                ],
+                onChanged: frame == null
+                    ? null
+                    : (value) {
+                        if (value == null) return;
+                        _render = {..._render, 'palette': value};
+                        _run(_redraw());
+                      },
+              ),
+              TextButton(
+                onPressed: frame == null
+                    ? null
+                    : () {
+                        _pan = Offset.zero;
+                        _zoom = 1;
+                        _rotation = 0;
+                        _render = {};
+                        _run(_redraw());
+                      },
+                child: const Text('Reset'),
+              ),
+              if (_tool.method != null) ...[
+                TextButton(
+                  onPressed: _draft.isEmpty
+                      ? null
+                      : () => setState(() => _draft.removeLast()),
+                  child: const Text('Undo point'),
+                ),
+                TextButton(
+                  onPressed: _draft.isEmpty ? null : () => _run(_calculate()),
+                  child: const Text('Calculate'),
+                ),
+              ],
             ],
-          ],
-        ),
+          ),
         if (_tool.method != null) Text(pointLabel),
         if (_tool.projection case final projection?)
           Row(
@@ -760,7 +1105,7 @@ class RayKitViewerState extends State<RayKitViewer> {
               ),
             ],
           ),
-        if (_tool == _Tool.tplo)
+        if (widget.showControls && _tool == _Tool.tplo)
           Row(
             children: [
               Expanded(
@@ -801,28 +1146,53 @@ class RayKitViewerState extends State<RayKitViewer> {
                 onTapUp: (details) => _run(_tap(details.localPosition)),
                 onLongPressStart: (details) =>
                     _beginEdit(details.localPosition),
+                onLongPressMoveUpdate: (details) =>
+                    _moveLandmark(details.localPosition),
+                onLongPressEnd: (_) => _endEdit(),
                 onScaleStart: (details) {
                   _lastFocal = details.localFocalPoint;
                   _initialZoom = _zoom;
                 },
                 onScaleUpdate: _scale,
                 onScaleEnd: (_) => _lastFocal = null,
-                child: CustomPaint(
-                  size: size,
-                  painter: _Painter(
-                    image,
-                    transform,
-                    colorScheme.tertiary,
-                    _paths(frame),
-                    List.of(_draft),
-                  ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    RepaintBoundary(
+                      child: CustomPaint(
+                        painter: _ImagePainter(
+                          image,
+                          transform,
+                          _shader,
+                          _uniforms,
+                          () => _imagePaints++,
+                        ),
+                      ),
+                    ),
+                    RepaintBoundary(
+                      child: CustomPaint(
+                        painter: _LandmarkPainter(
+                          transform,
+                          colorScheme.tertiary,
+                          _paths(frame),
+                        ),
+                      ),
+                    ),
+                    RepaintBoundary(
+                      child: CustomPaint(
+                        painter: _LandmarkPainter(transform, Colors.amber, [
+                          List.of(_draft),
+                        ]),
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
           ),
         ),
         if (_loading) const LinearProgressIndicator(),
-        if (count > 1)
+        if (widget.showControls && count > 1)
           Row(
             children: [
               IconButton(
@@ -830,15 +1200,40 @@ class RayKitViewerState extends State<RayKitViewer> {
                 onPressed: () => _run(_play()),
                 icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
               ),
+              IconButton(
+                tooltip: 'Previous frame',
+                onPressed: frame == null || frame.index == 0
+                    ? null
+                    : () {
+                        _pause();
+                        _run(_showFrame(frame.index - 1));
+                      },
+                icon: const Icon(Icons.skip_previous),
+              ),
+              IconButton(
+                tooltip: 'Next frame',
+                onPressed: frame == null || frame.index >= count - 1
+                    ? null
+                    : () {
+                        _pause();
+                        _run(_showFrame(frame.index + 1));
+                      },
+                icon: const Icon(Icons.skip_next),
+              ),
               Expanded(
                 child: Slider(
                   label: 'Frame ${(frame?.index ?? 0) + 1} of $count',
                   min: 0,
                   max: (count - 1).toDouble(),
-                  value: (frame?.index ?? 0).toDouble(),
+                  value: _sliderTarget ?? (frame?.index ?? 0).toDouble(),
                   divisions: count - 1,
                   onChanged: (v) {
                     _pause();
+                    setState(() => _sliderTarget = v);
+                    _run(_showFrame(v.round(), continuous: true));
+                  },
+                  onChangeEnd: (v) {
+                    setState(() => _sliderTarget = null);
                     _run(_showFrame(v.round()));
                   },
                 ),
@@ -849,12 +1244,24 @@ class RayKitViewerState extends State<RayKitViewer> {
                 items: [0.5, 1.0, 2.0]
                     .map((r) => DropdownMenuItem(value: r, child: Text('$r×')))
                     .toList(),
-                onChanged: (value) => setState(() => _rate = value ?? 1),
+                onChanged: (value) {
+                  final playing = _playing;
+                  _pause();
+                  setState(() => _rate = value ?? 1);
+                  if (playing) _run(_play());
+                },
               ),
             ],
           ),
-        Text(_status, textAlign: TextAlign.center),
-        if (_value.isNotEmpty) Text(_value, textAlign: TextAlign.center),
+        if (widget.showControls) Text(_status, textAlign: TextAlign.center),
+        if (widget.showControls)
+          SizedBox(
+            height: MediaQuery.textScalerOf(context).scale(24),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Center(child: Text(_value)),
+            ),
+          ),
       ],
     );
   }
@@ -897,42 +1304,48 @@ Offset _readPair(List pair) =>
     Offset((pair[0] as num).toDouble(), (pair[1] as num).toDouble());
 
 class _Transform {
-  const _Transform(this.origin, this.x, this.y, this.requestId);
-  factory _Transform.fromJson(Json json, int requestId) => _Transform(
+  const _Transform(this.origin, this.x, this.y);
+  factory _Transform.fromJson(Json json) => _Transform(
     _readPoint(json['origin'] as Json),
     _readPair(json['x_axis'] as List),
     _readPair(json['y_axis'] as List),
-    requestId,
   );
   final Offset origin;
   final Offset x;
   final Offset y;
-  final int requestId;
   Offset project(Offset point) => origin + x * point.dx + y * point.dy;
+  Offset unproject(Offset point) {
+    final p = point - origin;
+    final det = x.dx * y.dy - x.dy * y.dx;
+    return Offset(
+      (y.dy * p.dx - y.dx * p.dy) / det,
+      (x.dx * p.dy - x.dy * p.dx) / det,
+    );
+  }
 }
 
-class _Painter extends CustomPainter {
-  const _Painter(
-    this.image,
+class _ImagePainter extends CustomPainter {
+  const _ImagePainter(
+    this.raster,
     this.transform,
-    this.accent,
-    this.paths,
-    this.draft,
+    this.shader,
+    this.uniforms,
+    this.onPaint,
   );
-  final ui.Image? image;
+  final FrameRaster? raster;
   final _Transform? transform;
-  final Color accent;
-  final List<List<Offset>> paths;
-  final List<Offset> draft;
+  final MonochromeShader? shader;
+  final List<double>? uniforms;
+  final VoidCallback onPaint;
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = Colors.black);
-    final raw = image;
+    final pixels = raster;
     final view = transform;
-    if (raw == null || view == null) return;
+    if (pixels == null || pixels.disposed || view == null) return;
+    onPaint();
     canvas.save();
     canvas.clipRect(Offset.zero & size);
-    canvas.save();
     canvas.transform(
       Float64List.fromList([
         view.x.dx,
@@ -953,20 +1366,47 @@ class _Painter extends CustomPainter {
         1,
       ]),
     );
-    canvas.drawImage(
-      raw,
-      const Offset(-0.5, -0.5),
-      Paint()..filterQuality = FilterQuality.none,
-    );
+    if (pixels.texture && uniforms != null && shader != null) {
+      shader!.draw(canvas, pixels.image, uniforms!);
+    } else {
+      canvas.drawImage(
+        pixels.image,
+        const Offset(-0.5, -0.5),
+        Paint()..filterQuality = FilterQuality.none,
+      );
+    }
     canvas.restore();
-    for (final path in [...paths, draft]) {
-      final paint = Paint()
-        ..color = identical(path, draft) ? Colors.amber : accent;
+  }
+
+  @override
+  bool shouldRepaint(_ImagePainter previous) =>
+      raster != previous.raster ||
+      transform != previous.transform ||
+      shader != previous.shader ||
+      !listEquals(uniforms, previous.uniforms);
+}
+
+class _LandmarkPainter extends CustomPainter {
+  const _LandmarkPainter(this.transform, this.color, this.paths);
+  final _Transform? transform;
+  final Color color;
+  final List<List<Offset>> paths;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final view = transform;
+    if (view == null) return;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2;
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    for (final path in paths) {
       Offset? previous;
       for (final source in path) {
         final p = view.project(source);
         if (previous != null) {
-          canvas.drawLine(previous, p, paint..strokeWidth = 2);
+          canvas.drawLine(previous, p, paint);
         }
         canvas.drawCircle(p, 3.5, paint);
         previous = p;
@@ -976,33 +1416,15 @@ class _Painter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_Painter oldDelegate) =>
-      image != oldDelegate.image ||
-      transform != oldDelegate.transform ||
-      paths != oldDelegate.paths ||
-      draft != oldDelegate.draft;
-}
-
-Future<ui.Image> _decode(Uint8List rgba, int width, int height) async {
-  final buffer = await ui.ImmutableBuffer.fromUint8List(rgba);
-  try {
-    final descriptor = ui.ImageDescriptor.raw(
-      buffer,
-      width: width,
-      height: height,
-      pixelFormat: ui.PixelFormat.rgba8888,
-    );
-    try {
-      final codec = await descriptor.instantiateCodec();
-      try {
-        return (await codec.getNextFrame()).image;
-      } finally {
-        codec.dispose();
-      }
-    } finally {
-      descriptor.dispose();
+  bool shouldRepaint(_LandmarkPainter previous) {
+    if (transform != previous.transform ||
+        color != previous.color ||
+        paths.length != previous.paths.length) {
+      return true;
     }
-  } finally {
-    buffer.dispose();
+    for (var i = 0; i < paths.length; i++) {
+      if (!listEquals(paths[i], previous.paths[i])) return true;
+    }
+    return false;
   }
 }

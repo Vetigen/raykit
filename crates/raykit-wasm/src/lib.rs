@@ -61,6 +61,44 @@ impl WasmSession {
         self.inspection.clone()
     }
 
+    pub fn open_index(bytes: &[u8], pin: &str, options: &str) -> Result<WasmSession, JsValue> {
+        let options = OpenOptions::parse(options.as_bytes()).map_err(failure)?;
+        let (session, reply) = BoundSession::open_index(bytes, pin, options).map_err(failure)?;
+        Ok(Self {
+            session,
+            inspection: reply.metadata,
+        })
+    }
+
+    pub fn source_bytes(&self) -> usize {
+        self.session.source_bytes()
+    }
+
+    pub fn frame_range(&self, index: usize) -> Result<Box<[u32]>, JsValue> {
+        let range = self.session.frame_range(index).map_err(failure)?;
+        Ok(Box::new([
+            range.start as u32,
+            range.end as u32,
+            range.source_bytes as u32,
+        ]))
+    }
+
+    pub fn stage_range(&mut self, index: usize, data: Box<[u8]>) -> Result<(), JsValue> {
+        self.session
+            .stage_range(index, data.into_vec())
+            .map_err(failure)
+    }
+
+    pub fn clear_range(&mut self) {
+        self.session.clear_range();
+    }
+
+    pub fn adopt_full_source(&mut self, full: WasmSession) -> Result<(), JsValue> {
+        self.session
+            .adopt_full_source(full.session)
+            .map_err(failure)
+    }
+
     pub fn append(&mut self, bytes: Box<[u8]>, options: &str) -> Result<WasmReply, JsValue> {
         let options = OpenOptions::parse(options.as_bytes()).map_err(failure)?;
         self.session

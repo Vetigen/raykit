@@ -1,7 +1,7 @@
 import { CpuRenderer, WebGlRenderer } from './renderer.js';
 import { open, RaykitSession } from './session.js';
 import { RaykitError } from './types.js';
-import type { Frame, MappedPoint, OpenOptions, RenderOptions, ScreenPoint, Source, SourceReference, View, ViewTransform } from './types.js';
+import type { Frame, MappedPoint, OpenOptions, RenderOptions, Sample, ScreenPoint, Source, SourceReference, View, ViewTransform } from './types.js';
 
 export interface PresentedFrame {
   source: SourceReference;
@@ -16,6 +16,7 @@ export interface PresentedFrame {
 }
 
 export type ViewSettings = Omit<View, 'viewport'>;
+type FrameSettings = { view: ViewSettings; render: RenderOptions };
 const defaults: ViewSettings = { pan: [0, 0], zoom: 1, quarter_turns: 0 };
 const nextPaint = () => new Promise<number>(resolve => requestAnimationFrame(resolve));
 
@@ -28,6 +29,10 @@ export class RaykitViewport extends EventTarget {
   #gpu?: WebGlRenderer;
   #session?: RaykitSession;
   #frame?: Frame;
+  #undrawn?: Frame;
+  #wanted?: number;
+  #latest?: { index: number; resolve(): void; reject(error: unknown): void };
+  #redrawRequested = false;
   #scope = new AbortController();
   #seek?: AbortController;
   #prefetch?: AbortController;
@@ -77,7 +82,7 @@ export class RaykitViewport extends EventTarget {
       const session = await open(source, { ...options, signal: scope.signal });
       if (scope.signal.aborted) { session.close(); throw new RaykitError('cancelled'); }
       this.#session = session;
-      if (session.inspection.capabilities.frame_access) await this.showFrame(0);
+      if (session.inspection.capabilities.frame_access) await this.showFrame(0, session.inspection.verification !== 'pinned_frame_index');
       if (scope.signal.aborted) throw new RaykitError('cancelled');
       return session;
     } catch (error) {
@@ -86,31 +91,94 @@ export class RaykitViewport extends EventTarget {
     } finally { signal?.removeEventListener('abort', abort); }
   }
 
-  async showFrame(index: number, prefetch = true, settings?: { view: ViewSettings; render: RenderOptions }): Promise<void> {
+  async showFrame(index: number, prefetch = true, settings?: FrameSettings): Promise<void> {
+    this.pause();
+    this.#setTarget(index);
+    await this.#show(index, prefetch, settings);
+  }
+
+  /** Keep one in-flight frame and replace the pending target during continuous input. */
+  async scrubFrame(index: number): Promise<void> {
+    this.pause();
+    this.#setTarget(index);
+    return new Promise((resolve, reject) => {
+      this.#latest = { index, resolve, reject };
+      this.#drain();
+    });
+  }
+
+  /** Stop playback and give the last requested frame priority over continuous input. */
+  async settle(): Promise<void> {
+    this.pause();
+    if (this.#wanted !== undefined && (this.#pending() || this.#presented?.source.frame !== this.#wanted)) {
+      await this.showFrame(this.#wanted, false);
+    }
+  }
+
+  #pending(): boolean { return !!(this.#seek || this.#latest); }
+
+  #setTarget(index: number): void {
+    const session = this.#session;
+    if (!session) throw new RaykitError('closed');
+    if (!Number.isInteger(index) || index < 0 || index >= session.inspection.frames) throw new RaykitError('invalid_request', 'Frame index');
+    this.#wanted = index;
+    this.#cancelQueued();
+    this.#prefetch?.abort();
+  }
+
+  #cancelQueued(): void {
+    this.#latest?.reject(new RaykitError('cancelled'));
+    this.#latest = undefined;
+  }
+
+  #drain(): void {
+    const target = this.#latest;
+    if (!target || this.#seek) return;
+    this.#latest = undefined;
+    void this.#show(target.index, false).then(target.resolve, target.reject);
+  }
+
+  async #show(index: number, prefetch: boolean, settings?: FrameSettings): Promise<void> {
     const session = this.#session;
     if (!session) throw new RaykitError('closed');
     this.#seek?.abort();
-    this.#prefetch?.abort();
     this.#paint?.abort();
+    this.#undrawn = undefined;
     const seek = this.#seek = new AbortController();
     const previous = this.#frame?.source.frame ?? index;
-    const frame = await session.readFrame(index, { output: this.#enableGPU ? 'stored' : 'rgba', signal: seek.signal });
-    if (seek.signal.aborted || session !== this.#session) throw new RaykitError('cancelled');
-    if (settings) { this.#view = settings.view; this.#render = settings.render; }
-    this.#frame = frame;
-    await this.redraw();
-    if (seek.signal.aborted || session !== this.#session) throw new RaykitError('cancelled');
-    const neighbor = index + (index < previous ? -1 : 1);
-    if (!prefetch || neighbor < 0 || neighbor >= session.inspection.frames || this.#hidden) return;
-    const controller = this.#prefetch = new AbortController();
-    void session.prefetch(neighbor, controller.signal).catch(() => {});
+    try {
+      const frame = await session.readFrame(index, { output: this.#enableGPU ? 'stored' : 'rgba', signal: seek.signal });
+      if (seek.signal.aborted || session !== this.#session) throw new RaykitError('cancelled');
+      if (settings) { this.#view = settings.view; this.#render = settings.render; }
+      this.#undrawn = frame;
+      await this.#draw(frame, session);
+      if (seek.signal.aborted || session !== this.#session) throw new RaykitError('cancelled');
+      const neighbor = index + (index < previous ? -1 : 1);
+      if (!prefetch || this.#latest || neighbor < 0 || neighbor >= session.inspection.frames || this.#hidden) return;
+      const controller = this.#prefetch = new AbortController();
+      void session.prefetch(neighbor, controller.signal).catch(() => {});
+    } finally {
+      if (this.#seek === seek) {
+        this.#seek = undefined;
+        this.#drain();
+        if (!this.#pending() && this.#redrawRequested) {
+          this.#redrawRequested = false;
+          this.#redraw();
+        }
+      }
+    }
   }
 
   async redraw(): Promise<void> {
-    const frame = this.#frame;
+    if (this.#seek) { this.#redrawRequested = true; return; }
+    const frame = this.#undrawn ?? this.#frame;
     const session = this.#session;
+    if (frame && session) await this.#draw(frame, session);
+  }
+
+  async #draw(frame: Frame, session: RaykitSession): Promise<void> {
     const viewport = [this.surface.clientWidth, this.surface.clientHeight] as const;
-    if (!frame || !session || this.#hidden || !viewport[0] || !viewport[1]) return;
+    if (this.#hidden || !viewport[0] || !viewport[1]) return;
     this.#initGPU();
     this.#paint?.abort();
     const scope = this.#paint = new AbortController();
@@ -152,6 +220,8 @@ export class RaykitViewport extends EventTarget {
       if (scope.signal.aborted) return;
       const presented: PresentedFrame = { source: frame.source, revision: session.revision, requestId: frame.requestId,
         view, render, transform, renderer: gpu ? 'webgl2' : 'cpu', quality: 'original', time: performance.now() };
+      this.#undrawn = undefined;
+      this.#frame = frame;
       this.#presented = presented;
       this.dispatchEvent(new CustomEvent<PresentedFrame>('presented', { detail: presented }));
     } catch (error) {
@@ -180,8 +250,17 @@ export class RaykitViewport extends EventTarget {
     const presented = this.#presented;
     if (!session || !presented) throw new RaykitError('closed', 'No presented frame');
     const mapped = await session.transform(presented.source.frame, presented.view, point, this.#scope.signal);
-    if (presented !== this.#presented || presented.source.frame !== this.#frame?.source.frame) throw new RaykitError('cancelled');
+    if (presented !== this.#presented || session !== this.#session) throw new RaykitError('cancelled');
     return mapped;
+  }
+
+  async samplePresented(x: number, y: number): Promise<Sample> {
+    const session = this.#session;
+    const presented = this.#presented;
+    if (!session || !presented) throw new RaykitError('closed', 'No presented frame');
+    const sample = await session.sample(presented.source.frame, x, y, this.#scope.signal);
+    if (presented !== this.#presented || session !== this.#session) throw new RaykitError('cancelled');
+    return sample;
   }
 
   async play(rate = 1): Promise<{ shown: number; skipped: number }> {
@@ -192,6 +271,7 @@ export class RaykitViewport extends EventTarget {
     const count = session.inspection.frames;
     const durations = session.inspection.frame_durations_ms ?? Array.from({ length: count }, () => 1000 / 15);
     const duration = (i: number) => Math.max(1, durations[i] / rate);
+    const cycle = durations.reduce((sum, _, i) => sum + duration(i), 0);
     let index = this.#frame?.source.frame ?? 0;
     let due = performance.now() + duration(index);
     let shown = 0, skipped = 0;
@@ -202,17 +282,19 @@ export class RaykitViewport extends EventTarget {
       if (now < due) continue;
       index = (index + 1) % count;
       due += duration(index);
-      const cycle = durations.reduce((sum, _, i) => sum + duration(i), 0);
       const elapsedCycles = Math.floor(Math.max(0, now - due) / cycle);
       skipped += elapsedCycles * count;
       due += elapsedCycles * cycle;
       while (due <= now) { index = (index + 1) % count; due += duration(index); skipped++; }
-      try { await this.showFrame(index, false); }
+      try {
+        this.#setTarget(index);
+        await this.#show(index, false);
+      }
       catch (error) {
         if (error instanceof RaykitError && (error.code === 'closed' || error.code === 'cancelled')) break;
         throw error;
       }
-      shown++;
+      if (this.#presented?.source.frame === index) shown++;
     }
     return { shown, skipped };
   }
@@ -224,6 +306,11 @@ export class RaykitViewport extends EventTarget {
     this.#scope.abort();
     this.#scope = new AbortController();
     this.#seek?.abort(); this.#prefetch?.abort(); this.#paint?.abort();
+    this.#seek = undefined;
+    this.#cancelQueued();
+    this.#wanted = undefined;
+    this.#undrawn = undefined;
+    this.#redrawRequested = false;
     this.#session?.close();
     this.#session = undefined;
     this.#frame = undefined;
@@ -260,7 +347,7 @@ export class RaykitViewport extends EventTarget {
   }
 
   #redraw(): void {
-    if (this.#frame && !this.#hidden) this.#initGPU();
+    if (this.#seek) { this.#redrawRequested = true; return; }
     void this.redraw().catch(error => this.#report(error));
   }
 
@@ -285,6 +372,9 @@ export class RaykitViewport extends EventTarget {
     if (!this.#hidden) { this.#redraw(); return; }
     this.pause();
     this.#seek?.abort(); this.#prefetch?.abort(); this.#paint?.abort();
+    this.#cancelQueued();
+    this.#wanted = this.#frame?.source.frame;
+    this.#undrawn = undefined;
     this.#presented = undefined;
   };
 }

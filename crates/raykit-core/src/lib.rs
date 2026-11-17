@@ -1,5 +1,8 @@
 mod codec;
 mod dicom;
+mod frame_index;
+#[cfg(not(target_arch = "wasm32"))]
+mod native_file;
 mod source;
 
 pub mod geometry;
@@ -8,6 +11,9 @@ pub mod measurement;
 pub mod pixel;
 pub mod volume;
 
+pub use frame_index::{FrameIndex, FrameRange, MAX_FRAME_INDEX_BYTES};
+#[cfg(not(target_arch = "wasm32"))]
+pub use native_file::NativeFile;
 pub use source::{
     Capabilities, Frame, FrameGeometry, Inspection, Memory, Object, Sample, Session, TransferSyntax,
 };
@@ -24,6 +30,8 @@ pub enum Error {
     Unsupported(&'static str),
     Limit(&'static str),
     Decode(&'static str),
+    Io(&'static str),
+    FrameRange(usize),
     Geometry(&'static str),
     InvalidRequest(&'static str),
     Closed,

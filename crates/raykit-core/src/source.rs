@@ -3,14 +3,18 @@ use std::{collections::VecDeque, sync::Arc};
 use serde::Serialize;
 
 use crate::{
-    Error, Limits, Result,
-    codec::Index,
+    Error, FrameIndex, FrameRange, Limits, Result,
+    codec::{Index, read_indexed},
     dicom::{Dataset, File, Key, uid},
+    frame_index::DetachedIndex,
     geometry::{
         Anatomy, Calibration, PatientPlane, ProjectionCalibration, Region, UltrasoundRegion,
         valid_spacing,
     },
-    pixel::{Display, Photometric, PixelFormat, RenderOptions, Samples, color_rgb, display},
+    pixel::{
+        Display, Modality, Photometric, PixelFormat, RenderOptions, Samples, Voi, WindowFunction,
+        color_rgb, display,
+    },
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -215,6 +219,7 @@ pub struct Inspection {
     pub frame_durations_ms: Option<Vec<f64>>,
     pub initial_geometry: Option<FrameGeometry>,
     pub capabilities: Capabilities,
+    pub verification: &'static str,
 }
 
 #[derive(Debug)]
@@ -227,6 +232,41 @@ pub struct Frame {
 }
 
 impl Frame {
+    pub fn texture16(&self, options: RenderOptions) -> bool {
+        if self.format.columns > 4096 || self.format.rows > 4096 {
+            return false;
+        }
+        let Some(display) = &self.display else {
+            return false;
+        };
+        let Modality::Linear { slope, intercept } = display.modality else {
+            return false;
+        };
+        let window = options.window.or(match display.voi {
+            Voi::Window { window } => Some(window),
+            _ => None,
+        });
+        let Some(window) = window else {
+            return false;
+        };
+        let linear = window.function == WindowFunction::Linear;
+        let target = window.center - if linear { 0.5 } else { 0.0 };
+        let center = (target - intercept) / slope;
+        let width = (window.width - f64::from(linear)) / slope.abs();
+        let uniform_error =
+            (center - f64::from(center as f32)).abs() + (width - f64::from(width as f32)).abs();
+        let error = uniform_error
+            + (target.abs() + intercept.abs() + 65536.0 * slope.abs()) * 1e-15 / slope.abs();
+        (center as f32).is_finite()
+            && (width as f32).is_finite()
+            && width >= 0.0
+            && if width == 0.0 {
+                (center - center.round()).abs() > error
+            } else {
+                error * 2048.0 <= width && width as f32 != 0.0
+            }
+    }
+
     pub fn render_rgba(&self, options: RenderOptions) -> Result<Vec<u8>> {
         if let Some(window) = options.window {
             window.validate()?;
@@ -302,15 +342,21 @@ pub struct Memory {
     pub decoded_frames: u64,
     pub fragment_copy_bytes: u64,
     pub produced_pixel_bytes: u64,
+    pub source_read_bytes: u64,
+    pub frame_index_input_bytes: usize,
+    pub range_reads: u64,
 }
 
 pub struct Session {
-    pub(crate) file: File,
+    pub(crate) file: Arc<File>,
     pub(crate) info: Inspection,
     limits: Limits,
-    index: Option<Index>,
+    index: Option<Arc<Index>>,
     frames: VecDeque<Arc<Frame>>,
     memory: Memory,
+    staged: Option<(usize, Vec<u8>)>,
+    #[cfg(not(target_arch = "wasm32"))]
+    reader: Option<Arc<crate::NativeFile>>,
 }
 
 impl Session {
@@ -323,7 +369,7 @@ impl Session {
         limits: Limits,
         expected_sha256: Option<&str>,
     ) -> Result<Self> {
-        Self::inspect_file(File::parse(bytes, limits, expected_sha256)?, limits)
+        Self::inspect_file(File::parse(bytes, limits, expected_sha256)?, limits, None)
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -333,10 +379,108 @@ impl Session {
         expected_sha256: Option<&str>,
     ) -> Result<Self> {
         let file = File::parse_in_worker(bytes, limits, expected_sha256).await?;
-        Self::inspect_file(file, limits)
+        Self::inspect_file(file, limits, None)
     }
 
-    fn inspect_file(file: File, limits: Limits) -> Result<Self> {
+    #[cfg(target_arch = "wasm32")]
+    pub async fn open_preparing_frame(
+        bytes: Vec<u8>,
+        limits: Limits,
+        expected_sha256: Option<&str>,
+    ) -> Result<Self> {
+        use crate::dicom::{finish_web_digest, source_digest, start_web_digest};
+        File::check_source_size(bytes.len(), limits)?;
+        let Some(digest) = start_web_digest(&bytes) else {
+            return Self::open_verified(bytes, limits, expected_sha256);
+        };
+        let bytes = Arc::new(bytes);
+        let prepared = File::parse_shared(Arc::clone(&bytes), limits, bytes.len(), String::new())
+            .and_then(|file| Self::inspect_file(file, limits, None))
+            .map(|mut source| {
+                if source.info.transfer_syntax == TransferSyntax::JpegBaseline
+                    && source.info.capabilities.frame_access
+                    && limits.cache_frames > 0
+                    && source
+                        .info
+                        .pixel_format
+                        .is_some_and(|format| format.pixels() * 4 <= limits.cache_bytes)
+                {
+                    let _ = source.read_frame(0);
+                }
+                source
+            });
+        let digest = finish_web_digest(digest)
+            .await
+            .unwrap_or_else(|| source_digest(&bytes));
+        let fingerprint = format!("{digest:x}");
+        if expected_sha256.is_some_and(|hash| !fingerprint.eq_ignore_ascii_case(hash)) {
+            return Err(Error::Integrity("source SHA-256"));
+        }
+        let mut source = prepared?;
+        Arc::get_mut(&mut source.file)
+            .ok_or(Error::Internal)?
+            .sha256 = fingerprint.clone();
+        source.info.content_sha256 = fingerprint;
+        Ok(source)
+    }
+
+    pub fn open_index(
+        bytes: &[u8],
+        pin: &str,
+        limits: Limits,
+        expected_sha256: Option<&str>,
+    ) -> Result<Self> {
+        let (index, file) = DetachedIndex::open(bytes, pin, limits, expected_sha256)?;
+        let mut session = Self::inspect_file(file, limits, Some(index))?;
+        session.memory.source_read_bytes = 0;
+        session.memory.frame_index_input_bytes = bytes.len();
+        Ok(session)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn bind_file(&mut self, reader: crate::NativeFile) -> Result<()> {
+        if !matches!(self.index.as_deref(), Some(Index::Detached(_)))
+            || reader.len() != self.file.source_bytes as u64
+        {
+            return Err(Error::Integrity("indexed file length"));
+        }
+        self.reader = Some(Arc::new(reader));
+        Ok(())
+    }
+
+    pub fn create_frame_index(&self) -> Result<FrameIndex> {
+        let Some(Index::Encapsulated { fragments, frames }) = self.index.as_deref() else {
+            return Err(Error::Unsupported(
+                "index generation requires a complete encapsulated source",
+            ));
+        };
+        DetachedIndex::encode(&self.file, fragments, frames)
+    }
+
+    pub fn frame_range(&self, frame: usize) -> Result<FrameRange> {
+        let Some(Index::Detached(index)) = self.index.as_deref() else {
+            return Err(Error::InvalidRequest("source has no detached index"));
+        };
+        index.range(frame)
+    }
+
+    pub fn stage_range(&mut self, frame: usize, bytes: Vec<u8>) -> Result<()> {
+        let Some(Index::Detached(index)) = self.index.as_deref() else {
+            return Err(Error::InvalidRequest("source has no detached index"));
+        };
+        self.staged = None;
+        self.memory.source_read_bytes += bytes.len() as u64;
+        self.memory.range_reads += 1;
+        index.verify(frame, &bytes)?;
+        self.staged = Some((frame, bytes));
+        Ok(())
+    }
+
+    pub fn clear_range(&mut self) {
+        self.staged = None;
+    }
+
+    fn inspect_file(file: File, limits: Limits, detached: Option<DetachedIndex>) -> Result<Self> {
         let d = &file.dataset;
         let object = Object::from_uid(&file.class_uid);
         let video = file.syntax.video();
@@ -380,22 +524,37 @@ impl Session {
         } else {
             None
         };
-        let index = match format {
-            Some(format) if file.syntax.supports(format) => {
-                match Index::new(&file, format, frames, limits) {
-                    Ok(index) => Some(index),
-                    Err(Error::Unsupported(detail)) => {
-                        limitation = Some(detail);
-                        None
+        let verification = if detached.is_some() {
+            "pinned_frame_index"
+        } else {
+            "full_source"
+        };
+        let index = if let Some(index) = detached {
+            if format.is_none_or(|format| !file.syntax.supports(format))
+                || frames != index.len()
+                || !object.is_image()
+            {
+                return Err(Error::Integrity("indexed frame metadata"));
+            }
+            Some(Index::Detached(index))
+        } else {
+            match format {
+                Some(format) if file.syntax.supports(format) => {
+                    match Index::new(&file, format, frames, limits) {
+                        Ok(index) => Some(index),
+                        Err(Error::Unsupported(detail)) => {
+                            limitation = Some(detail);
+                            None
+                        }
+                        Err(error) => return Err(error),
                     }
-                    Err(error) => return Err(error),
                 }
+                Some(_) => {
+                    limitation = Some("pixel profile for transfer syntax");
+                    None
+                }
+                None => None,
             }
-            Some(_) => {
-                limitation = Some("pixel profile for transfer syntax");
-                None
-            }
-            None => None,
         };
         let geometry = format.map(|f| frame_geometry(&file, object, f, 0));
         let physical_measurement = geometry.as_ref().is_some_and(|g| match &g.calibration {
@@ -441,21 +600,26 @@ impl Session {
             initial_geometry: geometry,
             capabilities,
             frame_durations_ms: durations(&file, frames),
+            verification,
         };
         let memory = Memory {
             source_bytes: file.source_bytes,
             resident_dataset_bytes: file.bytes.capacity(),
             dataset_elements: file.elements,
             frame_index_bytes: index.as_ref().map_or(0, Index::bytes),
+            source_read_bytes: file.source_bytes as u64,
             ..Memory::default()
         };
         Ok(Self {
-            file,
+            file: Arc::new(file),
             info,
             limits,
-            index,
+            index: index.map(Arc::new),
             frames: VecDeque::new(),
             memory,
+            staged: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            reader: None,
         })
     }
 
@@ -472,23 +636,12 @@ impl Session {
     }
 
     pub fn read_frame(&mut self, index: usize) -> Result<Arc<Frame>> {
-        let codec = self.index.as_ref().ok_or_else(|| {
-            Error::Unsupported(
-                self.info
-                    .capabilities
-                    .frame_limitation
-                    .unwrap_or("pixel profile"),
-            )
-        })?;
-        if index >= self.info.frames {
-            return Err(Error::InvalidRequest("frame index"));
-        }
         if let Some(i) = self.frames.iter().position(|frame| frame.index == index) {
             let hit = self.frames.remove(i).expect("cached frame");
             self.frames.push_back(Arc::clone(&hit));
             return Ok(hit);
         }
-        let format = self.info.pixel_format.ok_or(Error::Internal)?;
+        let format = self.access(index)?;
         let expected_bytes = format.pixels()
             * if format.photometric.is_monochrome() {
                 4
@@ -503,26 +656,15 @@ impl Session {
             self.memory.cached_pixel_bytes -= evicted.samples.bytes();
         }
         self.memory.cached_frames = self.frames.len();
-        let (samples, copied) = codec.read(&self.file, format, index)?;
+        let decoded = self.decode(index, format);
+        self.staged = None;
+        let (frame, copied, read_bytes) = decoded?;
+        let frame = Arc::new(frame);
         self.memory.decoded_frames += 1;
         self.memory.fragment_copy_bytes += copied as u64;
-        self.memory.produced_pixel_bytes += samples.bytes() as u64;
-        let display = match &samples {
-            Samples::Monochrome(values) => {
-                let transform = groups(&self.file, index, (0x28, 0x9145));
-                let voi = groups(&self.file, index, (0x28, 0x9132));
-                Some(display(&self.file, format, transform, voi, values)?)
-            }
-            _ => None,
-        };
-        let geometry = frame_geometry(&self.file, self.info.object, format, index);
-        let frame = Arc::new(Frame {
-            index,
-            format,
-            samples,
-            display,
-            geometry,
-        });
+        self.memory.source_read_bytes += read_bytes as u64;
+        self.memory.range_reads += u64::from(read_bytes != 0);
+        self.memory.produced_pixel_bytes += frame.samples.bytes() as u64;
         let bytes = frame.samples.bytes();
         if self.limits.cache_frames > 0
             && self.memory.cached_pixel_bytes + bytes <= self.limits.cache_bytes
@@ -536,6 +678,111 @@ impl Session {
                 .max(self.memory.cached_pixel_bytes);
         }
         Ok(frame)
+    }
+
+    fn access(&self, index: usize) -> Result<PixelFormat> {
+        if self.index.is_none() {
+            return Err(Error::Unsupported(
+                self.info
+                    .capabilities
+                    .frame_limitation
+                    .unwrap_or("pixel profile"),
+            ));
+        }
+        if index >= self.info.frames {
+            return Err(Error::InvalidRequest("frame index"));
+        }
+        self.info.pixel_format.ok_or(Error::Internal)
+    }
+
+    fn decode(&self, index: usize, format: PixelFormat) -> Result<(Frame, usize, usize)> {
+        let codec = self.index.as_ref().ok_or(Error::Internal)?;
+        #[allow(unused_mut)]
+        let mut read_bytes = 0;
+        let (samples, copied) = if let Index::Detached(table) = codec.as_ref() {
+            if let Some((frame, bytes)) = &self.staged
+                && *frame == index
+            {
+                read_indexed(table, format, index, bytes)?
+            } else {
+                #[cfg(not(target_arch = "wasm32"))]
+                if let Some(reader) = &self.reader {
+                    let range = table.range(index)?;
+                    let bytes = reader.read(range.start, range.end - range.start)?;
+                    table.verify(index, &bytes)?;
+                    read_bytes = bytes.len();
+                    read_indexed(table, format, index, &bytes)?
+                } else {
+                    return Err(Error::FrameRange(index));
+                }
+                #[cfg(target_arch = "wasm32")]
+                return Err(Error::FrameRange(index));
+            }
+        } else {
+            codec.read(&self.file, format, index)?
+        };
+        let display = match &samples {
+            Samples::Monochrome(values) => {
+                let transform = groups(&self.file, index, (0x28, 0x9145));
+                let voi = groups(&self.file, index, (0x28, 0x9132));
+                Some(display(&self.file, format, transform, voi, values)?)
+            }
+            _ => None,
+        };
+        let geometry = frame_geometry(&self.file, self.info.object, format, index);
+        Ok((
+            Frame {
+                index,
+                format,
+                samples,
+                display,
+                geometry,
+            },
+            copied,
+            read_bytes,
+        ))
+    }
+
+    // Share the immutable source snapshot without retaining the viewer's decoded frames.
+    pub(crate) fn volume_reader(&self) -> Self {
+        Self {
+            file: Arc::clone(&self.file),
+            info: self.info.clone(),
+            limits: self.limits,
+            index: self.index.clone(),
+            frames: VecDeque::new(),
+            memory: self.memory.clone(),
+            staged: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            reader: self.reader.clone(),
+        }
+    }
+
+    pub(crate) fn modality_slice(&self, index: usize) -> Result<Vec<f32>> {
+        let (frame, _, _) = self.decode(index, self.access(index)?)?;
+        let Samples::Monochrome(pixels) = frame.samples else {
+            return Err(Error::Unsupported("color volume"));
+        };
+        let display = frame.display.ok_or(Error::Internal)?;
+        Ok(pixels
+            .into_iter()
+            .map(|value| {
+                if display.is_padding(value) {
+                    f32::NAN
+                } else {
+                    display.modality.at(value) as f32
+                }
+            })
+            .collect())
+    }
+
+    pub fn geometry(&self, index: usize) -> Result<FrameGeometry> {
+        Ok(frame_geometry(
+            &self.file,
+            self.info.object,
+            self.access(index)?,
+            index,
+        ))
     }
 
     pub fn evict_frames(&mut self) {

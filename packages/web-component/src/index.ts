@@ -28,6 +28,7 @@ const projections = { vhs: 'lateral_thorax', norberg: 'ventrodorsal_extended_hip
 const projectionLabels = { vhs: 'Lateral thorax', norberg: 'Ventrodorsal extended hips', tplo: 'Mediolateral stifle' } as const;
 type Panel = { viewport: RaykitViewport; surface: HTMLElement; overlay: HTMLCanvasElement; records: Measurement[];
   draft: PixelPoint[]; editing?: Measurement; generation: number; playing: boolean;
+  frame?: number; sliderTarget?: number;
   segmentation?: { source: SegmentationOverlay['source']; image: HTMLCanvasElement } };
 
 export class RaykitViewer extends HTMLElement {
@@ -73,7 +74,23 @@ export class RaykitViewer extends HTMLElement {
       const panel = this.#panel;
       if (panel) panel.viewport.setRenderOptions({ ...panel.viewport.renderOptions, palette: (event.currentTarget as HTMLSelectElement).value === 'hot' ? 'hot' : 'gray' });
     };
-    this.#field<HTMLInputElement>('[data-seek]').oninput = event => this.#run(this.#seek(Number((event.currentTarget as HTMLInputElement).value) - 1));
+    const seek = this.#field<HTMLInputElement>('[data-seek]');
+    seek.oninput = () => {
+      const panel = this.#panel;
+      if (!panel) return;
+      panel.playing = false;
+      panel.sliderTarget = seek.valueAsNumber - 1;
+      this.#run(panel.viewport.scrubFrame(panel.sliderTarget));
+    };
+    const release = () => {
+      const panel = this.#panel;
+      if (!panel) return;
+      panel.sliderTarget = undefined;
+      this.#run(panel.viewport.settle());
+      this.#controls();
+    };
+    seek.onchange = release;
+    seek.onpointercancel = release;
     this.#addPanel();
     this.#controls();
   }
@@ -102,6 +119,8 @@ export class RaykitViewer extends HTMLElement {
     panel.draft = [];
     panel.editing = undefined;
     panel.playing = false;
+    panel.sliderTarget = undefined;
+    panel.frame = undefined;
     this.#status('Opening source…');
     this.#result('');
     this.#controls();
@@ -170,6 +189,13 @@ export class RaykitViewer extends HTMLElement {
     this.#panels.push(panel);
     this.#select(panel);
     viewport.addEventListener('presented', event => {
+      const detail = (event as CustomEvent<PresentedFrame>).detail;
+      if (panel.frame !== detail.source.frame) {
+        panel.frame = detail.source.frame;
+        panel.draft = [];
+        panel.editing = undefined;
+        if (panel === this.#panel) this.#result('');
+      }
       this.#paint(panel);
       if (panel === this.#panel) {
         const frame = viewport.frame;
@@ -180,8 +206,8 @@ export class RaykitViewer extends HTMLElement {
         this.#status(`Original · ${frame?.format.columns} × ${frame?.format.rows} · ${orientation}${calibrated}`);
         this.#controls();
       }
-    this.dispatchEvent(new CustomEvent('raykit-presented', { bubbles: true, composed: true,
-      detail: { panel: this.#panels.indexOf(panel), ...(event as CustomEvent<PresentedFrame>).detail } }));
+      this.dispatchEvent(new CustomEvent('raykit-presented', { bubbles: true, composed: true,
+        detail: { panel: this.#panels.indexOf(panel), ...detail } }));
     });
     viewport.addEventListener('diagnostic', event => this.#error((event as CustomEvent<RaykitError>).detail));
     viewport.addEventListener('closed', () => {
@@ -224,7 +250,7 @@ export class RaykitViewer extends HTMLElement {
     const seek = this.#field<HTMLInputElement>('[data-seek]');
     seek.disabled = frame === undefined || count < 2;
     seek.max = String(Math.max(count, 1));
-    seek.value = String((frame ?? 0) + 1);
+    seek.value = String((panel?.sliderTarget ?? frame ?? 0) + 1);
     this.#field('[data-count]').textContent = frame === undefined ? '—' : `${frame + 1} / ${count}`;
     for (const action of ['previous', 'next', 'play', 'zoom-in', 'zoom-out', 'rotate', 'invert', 'reset']) {
       this.#field<HTMLButtonElement>(`[data-action=${action}]`).disabled = frame === undefined || (['previous', 'next', 'play'].includes(action) && count < 2);
@@ -258,7 +284,7 @@ export class RaykitViewer extends HTMLElement {
         await this.#seek((vp.presented?.source.frame ?? 0) + (action === 'previous' ? -1 : 1));
         break;
       case 'play':
-        if (panel.playing) { panel.playing = false; vp.pause(); this.#controls(); break; }
+        if (panel.playing) { panel.playing = false; await vp.settle(); this.#controls(); break; }
         panel.playing = true; this.#controls();
         try { await vp.play(Number(this.#field<HTMLSelectElement>('[data-speed]').value)); }
         finally { panel.playing = false; this.#controls(); }
@@ -273,7 +299,7 @@ export class RaykitViewer extends HTMLElement {
   async #seek(wanted: number, panel = this.#panel): Promise<void> {
     const session = panel?.viewport.session;
     if (!panel || !session) return;
-    panel.playing = false; panel.viewport.pause(); panel.draft = []; panel.editing = undefined;
+    panel.playing = false; panel.sliderTarget = undefined;
     await panel.viewport.showFrame(Math.max(0, Math.min(wanted, session.inspection.frames - 1)));
   }
 
@@ -289,7 +315,14 @@ export class RaykitViewer extends HTMLElement {
       this.#field<HTMLInputElement>('[data-record]').onchange = event => this.#run(this.#readRecords(event.currentTarget as HTMLInputElement));
     } else { bar.replaceChildren(); }
     const panel = this.#panel;
-    if (panel) { panel.draft = []; panel.editing = undefined; this.#paint(panel); }
+    if (panel) {
+      if (tool !== 'pan' && tool !== 'window') {
+        panel.playing = false;
+        this.#run(panel.viewport.settle());
+        this.#controls();
+      }
+      panel.draft = []; panel.editing = undefined; this.#paint(panel);
+    }
   }
 
   #point(panel: Panel, event: PointerEvent): ScreenPoint {
@@ -339,13 +372,17 @@ export class RaykitViewer extends HTMLElement {
     const session = viewport.session;
     if (drag?.panel !== panel || drag.pointer !== event.pointerId || !session || !viewport.presented) return;
     const tool = this.#tool;
-    const index = viewport.presented.source.frame;
     if (tool === 'pan' || tool === 'window' || (drag.moved && drag.landmark < 0)) return;
+    const before = viewport.presented.source.frame;
+    await viewport.settle();
+    if (viewport.session !== session || tool !== this.#tool || !viewport.presented) return;
+    const index = viewport.presented.source.frame;
+    if (drag.landmark >= 0 && index !== before) return;
     const { pixel } = await viewport.mapPoint(this.#point(panel, event));
     const format = viewport.frame?.format;
     if (tool !== this.#tool || !pixel || !format || pixel.x < -0.5 || pixel.y < -0.5 || pixel.x >= format.columns - 0.5 || pixel.y >= format.rows - 0.5) return;
     if (tool === 'sample') {
-      const sample = await session.sample(index, Math.round(pixel.x), Math.round(pixel.y));
+      const sample = await viewport.samplePresented(Math.round(pixel.x), Math.round(pixel.y));
       if (session !== viewport.session || index !== viewport.presented?.source.frame) return;
       this.#result(sample.kind === 'monochrome' ? `Stored ${sample.stored}, modality ${sample.modality}${sample.padding ? ' (padding)' : ''}` : `${sample.space} ${sample.values.join(', ')}`);
       return;
@@ -358,6 +395,8 @@ export class RaykitViewer extends HTMLElement {
 
   async #commit(panel: Panel): Promise<void> {
     const tool = this.#tool as keyof typeof methods;
+    await panel.viewport.settle();
+    if (this.#tool !== tool) return;
     const frame = panel.viewport.presented;
     const session = panel.viewport.session;
     if (!frame || !session || !(tool in methods)) return;

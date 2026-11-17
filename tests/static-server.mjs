@@ -6,12 +6,14 @@ import { extname, resolve, sep } from 'node:path';
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json',
   '.dcm': 'application/dicom', '.jpg': 'image/jpeg' };
 
-export async function serve(directory, middleware) {
-  const root = resolve(directory);
+export async function serve(directory, middleware, mounts = {}) {
   const files = async (req, res) => {
     try {
       const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://127.0.0.1/').pathname);
-      const path = resolve(root, pathname === '/' ? 'index.html' : `.${pathname}`);
+      const mount = Object.keys(mounts).find(prefix => pathname.startsWith(`${prefix}/`));
+      const root = resolve(mount ? mounts[mount] : directory);
+      const relative = mount ? pathname.slice(mount.length) : pathname;
+      const path = resolve(root, relative === '/' ? 'index.html' : `.${relative}`);
       if (!path.startsWith(root + sep) || !(await stat(path)).isFile()) throw new Error('not found');
       res.writeHead(200, { 'content-type': types[extname(path)] ?? 'application/octet-stream' });
       createReadStream(path).pipe(res);

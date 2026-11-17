@@ -75,6 +75,27 @@ try {
       return viewport.presented.source.frame;
     });
     assert.equal(last, 349);
+    await page.locator('#open-indexed').click();
+    await page.waitForFunction(() => document.querySelector('raykit-viewer')?.viewport?.session?.inspection.verification === 'pinned_frame_index' &&
+      document.querySelector('raykit-viewer')?.viewport?.presented?.source.frame === 0);
+    const range = await page.locator('raykit-viewer').evaluate(async viewer => {
+      const vp = viewer.viewport;
+      await vp.scrubFrame(175);
+      await vp.showFrame(349, false);
+      const original = await vp.samplePresented(0, 0);
+      return { original, reads: (await vp.session.stats()).range_requests };
+    });
+    assert.deepEqual(range, { original: { kind: 'color', space: 'rgb', values: [189, 87, 75] }, reads: 3 });
+    await page.locator('[data-fixture="large-enhanced-ct.dcm"]').click();
+    await page.locator('#build-volume').click();
+    await page.waitForFunction(() => document.querySelector('#volume-status').value.includes('300 source slices'));
+    await page.locator('#volume-plane').selectOption('Oblique');
+    await page.locator('#volume-slab').selectOption('maximum');
+    await page.waitForFunction(() => document.querySelector('#volume-status').value.startsWith('oblique · maximum'));
+    await page.locator('#volume-width').fill('200');
+    await page.waitForFunction(async () => (await document.querySelector('raykit-viewer').viewport.session.stats()).plane_cache_hits >= 1);
+    await page.locator('raykit-viewer').locator('[data-action="close"]').click();
+    await page.waitForFunction(() => document.querySelector('raykit-viewer')?.viewport?.session === undefined);
   } finally { await browser?.close(); service.close(); }
 
   for (const path of ['examples/flutter/pubspec.yaml', 'examples/flutter/analysis_options.yaml', 'examples/flutter/lib',

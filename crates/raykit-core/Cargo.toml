@@ -25,6 +25,9 @@ advanced-codecs = ["dep:jpegls", "dep:openjp2", "dep:oxiarc-jpeg"]
 jpeg-encoder = "=0.7.1"
 openjph-core = "=0.1.0"
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "=0.3.105"
 wasm-bindgen = "=0.2.128"

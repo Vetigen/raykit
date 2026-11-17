@@ -75,6 +75,63 @@ void main() {
       );
     },
   );
+  testWidgets(
+    'installed example draws shaders, indexed cine and a large CT volume',
+    (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: example.ExampleViewer()));
+      await tester.tap(find.text('16-bit shader'));
+      await tester.tap(find.text('Synthetic radiograph'));
+      await tester.pump();
+      RayKitViewerController controller() =>
+          tester.widget<RayKitViewer>(find.byType(RayKitViewer)).controller!;
+      await until(tester, () => controller().presented != null);
+      expect(controller().presented!.renderer, 'shader');
+      final stats = controller().displayStats;
+      final changing = controller().setRenderOptions({
+        'window': {'center': -3180, 'width': 2, 'function': 'linear_exact'},
+      });
+      await until(tester, () => controller().presented!.render.isNotEmpty);
+      await changing;
+      expect(
+        controller().displayStats['image_upload_bytes'],
+        stats['image_upload_bytes'],
+      );
+      await tester.tap(find.text('Indexed ultrasound'));
+      await tester.pump();
+      await until(
+        tester,
+        () =>
+            controller().session?.inspection.data['verification'] ==
+                'pinned_frame_index' &&
+            controller().presented != null,
+      );
+      expect(controller().presented!.renderer, 'cpu');
+      final moving = controller().seek(349);
+      await until(tester, () => controller().presented?.source['frame'] == 349);
+      await moving;
+      expect(
+        (await tester.runAsync(
+          () => controller().samplePresented(0, 0),
+        ))!['values'],
+        [189, 87, 75],
+      );
+      await tester.tap(find.text('300-slice CT'));
+      await tester.pump();
+      await until(tester, () => find.text('Volume').evaluate().isNotEmpty);
+      await tester.tap(find.text('Volume'));
+      await tester.pump();
+      await until(
+        tester,
+        () => find.textContaining('300 source slices').evaluate().isNotEmpty,
+      );
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      navigator.pop();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Close image'));
+      await tester.pump();
+      expect(find.byType(RayKitViewer), findsNothing);
+    },
+  );
 }
 
 Future<void> until(WidgetTester tester, bool Function() done) async {

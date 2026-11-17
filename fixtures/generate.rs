@@ -42,6 +42,13 @@ fn main() -> std::io::Result<()> {
         json!({"frames":1,"sample":[10,10,-1540],"value_tolerance":0,"gray_tolerance":1}),
     )?;
     save(
+        "detail-signed12",
+        detail_xray(),
+        json!({"dimensions":[2048,2048],
+        "probes":[[0,0,-2048],[127,10,-1508],[128,10,-1507],[1000,550,-1501],
+        [1001,550,-1499],[1023,1600,-1536],[1024,1600,-1472],[2047,2047,-2048]], "gray_tolerance":1}),
+    )?;
+    save(
         "unsigned16-rle",
         unsigned_rle(),
         json!({"frames":1,"stored":[0,7,32768,65535]}),
@@ -74,6 +81,15 @@ fn main() -> std::io::Result<()> {
             source,
             json!({"dimensions":[8,6,3], "frames":6, "temporal_positions":2,
             "patient_point":phantom_point(3.0, 2.0, 1.0), "modality_by_time":[136,1136], "column_spacing":0.7, "row_spacing":1.5, "slice_spacing":2.5}),
+        )?;
+    }
+    for (name, mr) in [("large-enhanced-ct", false), ("large-enhanced-mr", true)] {
+        save(
+            name,
+            large_volume(mr),
+            json!({"dimensions":[512,512,300], "frames":300,
+            "patient_point":[179.2,204.8,180.0], "stored_at_256_256_150":474,
+            "modality_at_point":448, "voxel_bytes":314572800}),
         )?;
     }
     for i in 0..3 {
@@ -117,6 +133,11 @@ fn main() -> std::io::Result<()> {
         "us-rgb-planar",
         native_us(true, true),
         json!({"rgb":[12,34,56], "distance_mm":5}),
+    )?;
+    save(
+        "us-ybr-422",
+        native_ybr422(),
+        json!({"stored_ybr":[[32,180,110],[96,180,110],[64,90,160],[200,90,160]], "rgb_tolerance":1}),
     )?;
     save(
         "us-gray-time",

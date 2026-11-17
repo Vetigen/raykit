@@ -26,6 +26,10 @@ try {
 }
 ```
 
-Use `RayKitViewer(source: source)` for the interactive widget. The widget owns its session and releases it when removed. Hosts control file and network access.
+Use `RayKitViewer(source: source)` for the interactive widget. A `RayKitViewerController` supports precise `seek`, continuous `scrub`, `settle`, and `samplePresented`. Use `RayKitVolumeView(session: session)` for patient-space CT/MR planes and slabs. Its host owns the session. The image viewer owns and releases its own session when removed.
+
+Local file sessions read through a Rust-owned descriptor. For an indexed JPEG Baseline source, use `createFrameIndex` on a fully verified session. Keep its manifest and SHA-256 under host control. Reopen with `RayKitSource.indexedFile(file, index)` to verify and read ranges. Byte and stream source constructors are also supported.
+
+The default viewer uses the reference CPU rendering path. `RayKitDisplayMode.shader` can select the packed 16-bit path after a runtime precision probe. The standalone example exposes both modes for device A/B measurement.
 
 The RayKit project license is pending. See `notices/inventory.json` for the dependencies included in a native build.

@@ -1,5 +1,5 @@
 export * from './types.js';
-export { browserCapabilities, capabilities, inspect, open, RaykitSession } from './session.js';
+export { browserCapabilities, capabilities, indexedBlob, indexedHttp, inspect, open, RaykitSession } from './session.js';
 export { RaykitViewport } from './viewport.js';
 export type { PresentedFrame, ViewSettings } from './viewport.js';
 export { WebGlRenderer } from './renderer.js';
