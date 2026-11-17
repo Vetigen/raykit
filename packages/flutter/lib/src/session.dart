@@ -187,6 +187,7 @@ final class RayKitSession {
   final _Channel _channel;
   final RayKitInspection inspection;
   final String revision;
+  bool get isClosed => _channel._closing;
   Future<void> _planeQueue = Future.value();
   int _planeTicket = 0;
 

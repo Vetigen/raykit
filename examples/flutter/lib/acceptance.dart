@@ -103,6 +103,7 @@ class _AcceptanceState extends State<_Acceptance> {
     String name, {
     int panels = 1,
     RayKitDisplayMode mode = RayKitDisplayMode.cpu,
+    RayKitFrameIndex? index,
   }) async {
     final file = _assets[name] ?? await _copyFixture(name);
     final expected = _manifest[name] as Json;
@@ -113,7 +114,12 @@ class _AcceptanceState extends State<_Acceptance> {
     setState(() {
       _options = options;
       _display = mode;
-      _sources = List.generate(panels, (_) => RayKitSource.file(file));
+      _sources = List.generate(
+        panels,
+        (_) => index == null
+            ? RayKitSource.file(file)
+            : RayKitSource.indexedFile(file, index),
+      );
       _ready = List.generate(panels, (_) => Completer<RayKitPresentedFrame>());
       _draws.clear();
       _epoch++;
@@ -334,6 +340,58 @@ class _AcceptanceState extends State<_Acceptance> {
     };
   }
 
+  Future<Json> _indexed() async {
+    const name = 'cine-350.dcm';
+    final create = <double>[], fullOpen = <double>[];
+    final displayed = List.generate(3, (_) => <double>[]);
+    final bytesRead = <int>[];
+    var manifestBytes = 0;
+    for (var trial = 0; trial < _repeats; trial++) {
+      await _closePanels();
+      final watch = Stopwatch()..start();
+      await _open(name);
+      fullOpen.add(watch.elapsedMicroseconds / 1000);
+      watch.reset();
+      final manifest = await _primary.session!.createFrameIndex();
+      create.add(watch.elapsedMicroseconds / 1000);
+      manifestBytes = manifest.bytes.length;
+      await _closePanels();
+      watch.reset();
+      await _open(name, index: manifest);
+      final first = watch.elapsedMicroseconds / 1000;
+      final session = _primary.session!;
+      var total = 0;
+      for (final (slot, frame) in [0, 175, 349].indexed) {
+        watch.reset();
+        if (frame != 0) await _primary.seek(frame, prefetch: false);
+        displayed[slot].add(
+          frame == 0 ? first : watch.elapsedMicroseconds / 1000,
+        );
+        final sample = await _primary.samplePresented(0, 0);
+        final expected = [
+          [32, 64, 63],
+          [207, 77, 137],
+          [189, 87, 75],
+        ][slot];
+        if (jsonEncode(sample['values']) != jsonEncode(expected)) {
+          throw StateError('Incorrect indexed sample');
+        }
+        final stats = await session.stats();
+        final read = (stats['session'] as Json)['source_read_bytes'] as int;
+        if (trial == 0) bytesRead.add(read - total);
+        total = read;
+      }
+    }
+    return {
+      'build_ms': _metric(create),
+      'manifest_bytes': manifestBytes,
+      'full_first_ms': _metric(fullOpen),
+      'indexed_ms': displayed.map(_metric).toList(),
+      'range_bytes': bytesRead,
+      'stats': await _primary.session!.stats(),
+    };
+  }
+
   Future<Json> _soak() async {
     await _open('cine-350.dcm');
     if (_hidden) throw StateError('Cine must begin in the foreground');
@@ -404,6 +462,7 @@ class _AcceptanceState extends State<_Acceptance> {
       _results['cpu'] = await _radiograph(RayKitDisplayMode.cpu);
       _results['shader'] = await _radiograph(RayKitDisplayMode.shader);
       _results['scrub'] = await _cine();
+      _results['indexed'] = await _indexed();
       _results['ct'] = await _volume('large-enhanced-ct.dcm');
       _results['mr'] = await _volume('large-enhanced-mr.dcm');
       _results['soak'] = await _soak();

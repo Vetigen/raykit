@@ -13,11 +13,12 @@ const repetitions = Number(process.env.RAYKIT_REPEATS ?? 5);
 const cineRepetitions = Number(process.env.RAYKIT_CINE_REPEATS ?? 3);
 const browserName = process.env.RAYKIT_BROWSER ?? 'chromium';
 const browserType = { chromium, firefox, webkit }[browserName];
+const distribution = process.env.RAYKIT_BENCHMARK_DIST ?? 'benchmarks/dist';
 assert.ok(browserType, `Unknown benchmark browser ${browserName}`);
 const selected = (process.env.RAYKIT_ENGINES ?? (browserName === 'chromium' ? 'raykit,webgpu,dwv,cornerstone' : 'raykit,dwv,cornerstone')).split(',');
 assert.ok(Number.isSafeInteger(repetitions) && repetitions > 0 && Number.isSafeInteger(cineRepetitions) && cineRepetitions > 0);
 const manifest = JSON.parse(await readFile('fixtures/generated/manifest.json', 'utf8'));
-const service = await serve('benchmarks/dist');
+const service = await serve(distribution);
 const raw = [];
 const args = browserName === 'chromium' ? ['--enable-unsafe-webgpu', '--enable-unsafe-swiftshader', '--use-angle=swiftshader',
   '--enable-precise-memory-info', '--enable-features=Vulkan', '--use-vulkan=swiftshader', '--disable-vulkan-surface'] : [];
@@ -128,8 +129,8 @@ for (const backend of selected) for (const fixture of ['benchmark-signed12.dcm',
     interactions, failures: [...new Set(results.flatMap(r => [r.cold.error, r.warm?.error].filter(Boolean)))] });
 }
 const assetSizes = [];
-for (const name of await readdir('benchmarks/dist/assets', { recursive: true })) {
-  const path = `benchmarks/dist/assets/${name}`;
+for (const name of await readdir(`${distribution}/assets`, { recursive: true })) {
+  const path = `${distribution}/assets/${name}`;
   if (!(await stat(path)).isFile()) continue;
   const bytes = await readFile(path);
   assetSizes.push({ name, bytes: bytes.length, gzip_bytes: (await compressed(bytes)).length, sha256: createHash('sha256').update(bytes).digest('hex') });
@@ -138,7 +139,7 @@ function git(args) {
   try { return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
   catch { return null; }
 }
-const result = { profile: { checkout_revision: git(['rev-parse', 'HEAD']), platform: platform(), release: release(), cpu: cpus()[0]?.model, totalMemory: totalmem(),
+const result = { profile: { checkout_revision: process.env.RAYKIT_BENCHMARK_REVISION ?? git(['rev-parse', 'HEAD']), platform: platform(), release: release(), cpu: cpus()[0]?.model, totalMemory: totalmem(),
   measurement: 'first-original-draw-event',
   browser: browserName, browserVersion, flags: args, viewport_px: [640, 512], deviceScaleFactor: 1, repeats: repetitions, cineRepeats: cineRepetitions,
   versions: { dwv: '0.36.4', cornerstone3d: '5.19.4', jpeg_decoder: '0.3.2',

@@ -17,6 +17,8 @@ class RayKitVolumeView extends StatefulWidget {
 
 class _RayKitVolumeViewState extends State<RayKitVolumeView> {
   RayKitCancellation? _pending;
+  late final AppLifecycleListener _lifecycle;
+  bool _background = false;
   Json? _volume;
   List<Json> _candidates = [];
   int _candidate = 0;
@@ -30,6 +32,12 @@ class _RayKitVolumeViewState extends State<RayKitVolumeView> {
   @override
   void initState() {
     super.initState();
+    _lifecycle = AppLifecycleListener(
+      onHide: _suspend,
+      onPause: _suspend,
+      onDetach: _suspend,
+      onResume: _resume,
+    );
     unawaited(_buildVolume());
   }
 
@@ -49,6 +57,7 @@ class _RayKitVolumeViewState extends State<RayKitVolumeView> {
   }
 
   Future<void> _buildVolume() async {
+    if (_background) return;
     final session = widget.session;
     final token = _replaceWork();
     _image?.dispose();
@@ -89,7 +98,8 @@ class _RayKitVolumeViewState extends State<RayKitVolumeView> {
 
   Future<void> _draw() async {
     final volume = _volume;
-    if (volume == null) return;
+    final session = widget.session;
+    if (volume == null || _background) return;
     final token = _replaceWork();
     final geometry = volume['plane'] as Json;
     final column = _vector(geometry['column_axis']);
@@ -118,7 +128,7 @@ class _RayKitVolumeViewState extends State<RayKitVolumeView> {
         200;
     const size = 256;
     try {
-      final result = await widget.session.reslice(
+      final result = await session.reslice(
         {
           'center': List<double>.generate(
             3,
@@ -138,7 +148,7 @@ class _RayKitVolumeViewState extends State<RayKitVolumeView> {
       );
       token.check();
       final image = FrameRaster(await decodeRgba(result.pixels, size, size));
-      if (!mounted || token.isCancelled) {
+      if (!mounted || token.isCancelled || session.isClosed) {
         image.dispose();
         return;
       }
@@ -161,8 +171,29 @@ class _RayKitVolumeViewState extends State<RayKitVolumeView> {
     }
   }
 
+  void _suspend() {
+    if (_background) return;
+    _background = true;
+    _pending?.cancel();
+    _image?.dispose();
+    setState(() => _image = null);
+  }
+
+  void _resume() {
+    if (!_background) return;
+    _background = false;
+    if (widget.session.isClosed) {
+      setState(() => _status = 'Open the volume again to restore its session');
+    } else if (_volume != null) {
+      unawaited(_draw());
+    } else {
+      unawaited(_buildVolume());
+    }
+  }
+
   @override
   void dispose() {
+    _lifecycle.dispose();
     _pending?.cancel();
     _image?.dispose();
     super.dispose();

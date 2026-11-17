@@ -18,10 +18,10 @@ class RayKitViewerController {
   RayKitViewerState get _attached =>
       _viewer ?? (throw const RayKitException('closed'));
 
-  Future<void> seek(int index) async {
+  Future<void> seek(int index, {bool prefetch = true}) async {
     final viewer = _attached;
     viewer._pause();
-    await viewer._showFrame(index);
+    await viewer._showFrame(index, prefetch: prefetch);
   }
 
   Future<void> scrub(int index) async {

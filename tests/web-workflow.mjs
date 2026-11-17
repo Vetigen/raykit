@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { chromium, firefox } from 'playwright-core';
+import { chromium, firefox, webkit } from 'playwright-core';
 import { serve } from './static-server.mjs';
 
 const server = await serve('examples/web/dist');
 const engine = process.env.RAYKIT_BROWSER ?? 'chromium';
 let browser;
 try {
-  browser = await { chromium, firefox }[engine].launch(engine === 'chromium'
+  browser = await { chromium, firefox, webkit }[engine].launch(engine === 'chromium'
     ? { executablePath: process.env.RAYKIT_CHROMIUM, args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'] } : {});
   const page = await browser.newPage({ viewport: { width: 1050, height: 750 } });
   const errors = [];
