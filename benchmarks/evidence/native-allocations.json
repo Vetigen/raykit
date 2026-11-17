@@ -1,0 +1,577 @@
+{
+  "profile": {
+    "revision": "0e90eb60a1ace3ef5791785582d9cd4e1aa871ee",
+    "platform": "Linux x64",
+    "rust": "1.99.0",
+    "cpu": "AMD Ryzen 9 9900X"
+  },
+  "fixtures": [
+    {
+      "file": "cine-350.dcm",
+      "frames": [
+        {
+          "allocation": {
+            "milliseconds": 3.309213,
+            "peak_additional_bytes": 5767580,
+            "retained_additional_bytes": 3440280,
+            "transient_above_retained_bytes": 2327300
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 3439800,
+            "dataset_elements": 18,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 14000,
+            "peak_cached_pixel_bytes": 3439800,
+            "produced_pixel_bytes": 3439800,
+            "resident_dataset_bytes": 9766844,
+            "source_bytes": 9766844
+          },
+          "sample_at_0_0": {
+            "kind": "color",
+            "space": "rgb",
+            "values": [
+              32,
+              64,
+              63
+            ]
+          }
+        },
+        {
+          "allocation": {
+            "milliseconds": 2.638103,
+            "peak_additional_bytes": 5767532,
+            "retained_additional_bytes": 3440200,
+            "transient_above_retained_bytes": 2327332
+          },
+          "index": 175,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 3439800,
+            "dataset_elements": 18,
+            "decoded_frames": 2,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 14000,
+            "peak_cached_pixel_bytes": 3439800,
+            "produced_pixel_bytes": 6879600,
+            "resident_dataset_bytes": 9766844,
+            "source_bytes": 9766844
+          },
+          "sample_at_0_0": {
+            "kind": "color",
+            "space": "rgb",
+            "values": [
+              207,
+              77,
+              137
+            ]
+          }
+        },
+        {
+          "allocation": {
+            "milliseconds": 2.218876,
+            "peak_additional_bytes": 5767532,
+            "retained_additional_bytes": 3440200,
+            "transient_above_retained_bytes": 2327332
+          },
+          "index": 349,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 3439800,
+            "dataset_elements": 18,
+            "decoded_frames": 3,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 14000,
+            "peak_cached_pixel_bytes": 3439800,
+            "produced_pixel_bytes": 10319400,
+            "resident_dataset_bytes": 9766844,
+            "source_bytes": 9766844
+          },
+          "sample_at_0_0": {
+            "kind": "color",
+            "space": "rgb",
+            "values": [
+              189,
+              87,
+              75
+            ]
+          }
+        }
+      ],
+      "parse_and_index": {
+        "milliseconds": 3.937363,
+        "peak_additional_bytes": 31152,
+        "retained_additional_bytes": 31152,
+        "transient_above_retained_bytes": 0
+      },
+      "syntax": "jpeg_baseline"
+    },
+    {
+      "file": "jpeg-extended-12.dcm",
+      "frames": [
+        {
+          "allocation": {
+            "milliseconds": 0.016872,
+            "peak_additional_bytes": 3677,
+            "retained_additional_bytes": 1456,
+            "transient_above_retained_bytes": 2221
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 1024,
+            "resident_dataset_bytes": 640,
+            "source_bytes": 640
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": 720.0,
+            "padding": false,
+            "stored": 720
+          }
+        },
+        {
+          "allocation": {
+            "milliseconds": 0.0030759999999999997,
+            "peak_additional_bytes": 3677,
+            "retained_additional_bytes": 1424,
+            "transient_above_retained_bytes": 2253
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 2,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 2048,
+            "resident_dataset_bytes": 640,
+            "source_bytes": 640
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": 720.0,
+            "padding": false,
+            "stored": 720
+          }
+        },
+        {
+          "allocation": {
+            "milliseconds": 0.002224,
+            "peak_additional_bytes": 3677,
+            "retained_additional_bytes": 1424,
+            "transient_above_retained_bytes": 2253
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 3,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 3072,
+            "resident_dataset_bytes": 640,
+            "source_bytes": 640
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": 720.0,
+            "padding": false,
+            "stored": 720
+          }
+        }
+      ],
+      "parse_and_index": {
+        "milliseconds": 0.01064,
+        "peak_additional_bytes": 2625,
+        "retained_additional_bytes": 2196,
+        "transient_above_retained_bytes": 429
+      },
+      "syntax": "jpeg_extended"
+    },
+    {
+      "file": "jpeg-lossless.dcm",
+      "frames": [
+        {
+          "allocation": {
+            "milliseconds": 0.012162,
+            "peak_additional_bytes": 27240,
+            "retained_additional_bytes": 1456,
+            "transient_above_retained_bytes": 25784
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 1024,
+            "resident_dataset_bytes": 812,
+            "source_bytes": 812
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": -800.0,
+            "padding": false,
+            "stored": -800
+          }
+        },
+        {
+          "allocation": {
+            "milliseconds": 0.004398,
+            "peak_additional_bytes": 27240,
+            "retained_additional_bytes": 1424,
+            "transient_above_retained_bytes": 25816
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 2,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 2048,
+            "resident_dataset_bytes": 812,
+            "source_bytes": 812
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": -800.0,
+            "padding": false,
+            "stored": -800
+          }
+        },
+        {
+          "allocation": {
+            "milliseconds": 0.0038770000000000002,
+            "peak_additional_bytes": 27240,
+            "retained_additional_bytes": 1424,
+            "transient_above_retained_bytes": 25816
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 3,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 3072,
+            "resident_dataset_bytes": 812,
+            "source_bytes": 812
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": -800.0,
+            "padding": false,
+            "stored": -800
+          }
+        }
+      ],
+      "parse_and_index": {
+        "milliseconds": 0.002515,
+        "peak_additional_bytes": 2625,
+        "retained_additional_bytes": 2196,
+        "transient_above_retained_bytes": 429
+      },
+      "syntax": "jpeg_lossless"
+    },
+    {
+      "file": "jpeg-ls.dcm",
+      "frames": [
+        {
+          "allocation": {
+            "milliseconds": 0.010860999999999999,
+            "peak_additional_bytes": 6536,
+            "retained_additional_bytes": 1456,
+            "transient_above_retained_bytes": 5080
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 1024,
+            "resident_dataset_bytes": 594,
+            "source_bytes": 594
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": -800.0,
+            "padding": false,
+            "stored": -800
+          }
+        },
+        {
+          "allocation": {
+            "milliseconds": 0.0055709999999999996,
+            "peak_additional_bytes": 6536,
+            "retained_additional_bytes": 1424,
+            "transient_above_retained_bytes": 5112
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 2,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 2048,
+            "resident_dataset_bytes": 594,
+            "source_bytes": 594
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": -800.0,
+            "padding": false,
+            "stored": -800
+          }
+        },
+        {
+          "allocation": {
+            "milliseconds": 0.004128,
+            "peak_additional_bytes": 6536,
+            "retained_additional_bytes": 1424,
+            "transient_above_retained_bytes": 5112
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 3,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 3072,
+            "resident_dataset_bytes": 594,
+            "source_bytes": 594
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": -800.0,
+            "padding": false,
+            "stored": -800
+          }
+        }
+      ],
+      "parse_and_index": {
+        "milliseconds": 0.0016530000000000002,
+        "peak_additional_bytes": 2625,
+        "retained_additional_bytes": 2196,
+        "transient_above_retained_bytes": 429
+      },
+      "syntax": "jpeg_ls_lossless"
+    },
+    {
+      "file": "jpeg-2000-lossless.dcm",
+      "frames": [
+        {
+          "allocation": {
+            "milliseconds": 0.055182999999999996,
+            "peak_additional_bytes": 33410,
+            "retained_additional_bytes": 1456,
+            "transient_above_retained_bytes": 31954
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 1024,
+            "resident_dataset_bytes": 694,
+            "source_bytes": 694
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": -800.0,
+            "padding": false,
+            "stored": -800
+          }
+        },
+        {
+          "allocation": {
+            "milliseconds": 0.013375,
+            "peak_additional_bytes": 33410,
+            "retained_additional_bytes": 1424,
+            "transient_above_retained_bytes": 31986
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 2,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 2048,
+            "resident_dataset_bytes": 694,
+            "source_bytes": 694
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": -800.0,
+            "padding": false,
+            "stored": -800
+          }
+        },
+        {
+          "allocation": {
+            "milliseconds": 0.009538000000000001,
+            "peak_additional_bytes": 33410,
+            "retained_additional_bytes": 1424,
+            "transient_above_retained_bytes": 31986
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 3,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 3072,
+            "resident_dataset_bytes": 694,
+            "source_bytes": 694
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": -800.0,
+            "padding": false,
+            "stored": -800
+          }
+        }
+      ],
+      "parse_and_index": {
+        "milliseconds": 0.001472,
+        "peak_additional_bytes": 2625,
+        "retained_additional_bytes": 2196,
+        "transient_above_retained_bytes": 429
+      },
+      "syntax": "jpeg2000_lossless"
+    },
+    {
+      "file": "htj2k-lossless.dcm",
+      "frames": [
+        {
+          "allocation": {
+            "milliseconds": 0.01029,
+            "peak_additional_bytes": 43849,
+            "retained_additional_bytes": 1456,
+            "transient_above_retained_bytes": 42393
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 1024,
+            "resident_dataset_bytes": 706,
+            "source_bytes": 706
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": -800.0,
+            "padding": false,
+            "stored": -800
+          }
+        },
+        {
+          "allocation": {
+            "milliseconds": 0.0059510000000000006,
+            "peak_additional_bytes": 43849,
+            "retained_additional_bytes": 1424,
+            "transient_above_retained_bytes": 42425
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 2,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 2048,
+            "resident_dataset_bytes": 706,
+            "source_bytes": 706
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": -800.0,
+            "padding": false,
+            "stored": -800
+          }
+        },
+        {
+          "allocation": {
+            "milliseconds": 0.0051,
+            "peak_additional_bytes": 43849,
+            "retained_additional_bytes": 1424,
+            "transient_above_retained_bytes": 42425
+          },
+          "index": 0,
+          "memory": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 1024,
+            "dataset_elements": 14,
+            "decoded_frames": 3,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 40,
+            "peak_cached_pixel_bytes": 1024,
+            "produced_pixel_bytes": 3072,
+            "resident_dataset_bytes": 706,
+            "source_bytes": 706
+          },
+          "sample_at_0_0": {
+            "kind": "monochrome",
+            "modality": -800.0,
+            "padding": false,
+            "stored": -800
+          }
+        }
+      ],
+      "parse_and_index": {
+        "milliseconds": 0.001884,
+        "peak_additional_bytes": 2625,
+        "retained_additional_bytes": 2196,
+        "transient_above_retained_bytes": 429
+      },
+      "syntax": "htj2k_lossless"
+    }
+  ]
+}

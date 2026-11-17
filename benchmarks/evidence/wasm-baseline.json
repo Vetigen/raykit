@@ -1,0 +1,2448 @@
+{
+  "profile": {
+    "revision": "38577b660b37f2fd2bf351c3ae209a792311d584",
+    "platform": "linux",
+    "release": "7.0.0-38-generic",
+    "cpu": "AMD Ryzen 9 9900X 12-Core Processor",
+    "totalMemory": 67007139840,
+    "chromeVersion": "131.0.6778.33",
+    "flags": [
+      "--enable-unsafe-webgpu",
+      "--enable-unsafe-swiftshader",
+      "--use-angle=swiftshader",
+      "--enable-precise-memory-info",
+      "--enable-features=Vulkan",
+      "--use-vulkan=swiftshader",
+      "--disable-vulkan-surface"
+    ],
+    "viewport_px": [
+      640,
+      512
+    ],
+    "deviceScaleFactor": 1,
+    "repeats": 5,
+    "cineRepeats": 3,
+    "versions": {
+      "dwv": "0.36.4",
+      "cornerstone3d": "5.19.4",
+      "jpeg_decoder": "0.3.2",
+      "oxiarc_jpeg": "0.4.2",
+      "pure_jpegls": "2.1.0",
+      "openjpeg2_pure_rs": "0.1.1"
+    },
+    "wasmVariant": "baseline",
+    "isolated": false
+  },
+  "fixture_hashes": {
+    "benchmark-signed12.dcm": "35eaa0bde4b8e39c08b4b657ae864234e7a68217b767432e4142758a31e7113f",
+    "cine-350.dcm": "fa5e98aeb4fa9fd05211b838f1d4601537a91db840bf187b6c876a1f6b745594"
+  },
+  "assetSizes": [
+    {
+      "name": "_commonjsHelpers-CE1G-McA.js",
+      "bytes": 755,
+      "gzip_bytes": 400
+    },
+    {
+      "name": "charlswasm_decode-CEN7ucFR.wasm",
+      "bytes": 145438,
+      "gzip_bytes": 46627
+    },
+    {
+      "name": "cornerstone-DFzV2m6P.js",
+      "bytes": 3304442,
+      "gzip_bytes": 929456
+    },
+    {
+      "name": "decodeImageFrameWorker-B7hl7Prs.js",
+      "bytes": 209897,
+      "gzip_bytes": 64719
+    },
+    {
+      "name": "dwv-DkpJeVXH.js",
+      "bytes": 876379,
+      "gzip_bytes": 238446
+    },
+    {
+      "name": "index-Cc3TorFe.js",
+      "bytes": 5494,
+      "gzip_bytes": 2599
+    },
+    {
+      "name": "jpeg-B-x1txLf.js",
+      "bytes": 10494,
+      "gzip_bytes": 4429
+    },
+    {
+      "name": "jpegxlwasm_decode-D5WHnpK-.wasm",
+      "bytes": 1090788,
+      "gzip_bytes": 377534
+    },
+    {
+      "name": "libjpegturbowasm_decode-B4UEe-KN.wasm",
+      "bytes": 180508,
+      "gzip_bytes": 70131
+    },
+    {
+      "name": "lossless-gIJOnqUd.js",
+      "bytes": 14873,
+      "gzip_bytes": 4321
+    },
+    {
+      "name": "openjpegwasm_decode-BP3l1OXH.wasm",
+      "bytes": 260334,
+      "gzip_bytes": 86425
+    },
+    {
+      "name": "openjphjs-odeu-u12.wasm",
+      "bytes": 299948,
+      "gzip_bytes": 96562
+    },
+    {
+      "name": "raykit-BCoUL0u0.js",
+      "bytes": 8168,
+      "gzip_bytes": 3315
+    },
+    {
+      "name": "raykit_wasm_bg-DR93odQR.wasm",
+      "bytes": 1231875,
+      "gzip_bytes": 383562
+    },
+    {
+      "name": "renderer-B4e208hM.js",
+      "bytes": 14514,
+      "gzip_bytes": 5326
+    },
+    {
+      "name": "webgpu-DFviJOfS.js",
+      "bytes": 6451,
+      "gzip_bytes": 2897
+    },
+    {
+      "name": "worker-CnaTsjzb.js",
+      "bytes": 6173,
+      "gzip_bytes": 2372
+    },
+    {
+      "name": "workers/jpeg2000.worker.min.js",
+      "bytes": 36576,
+      "gzip_bytes": 12862
+    },
+    {
+      "name": "workers/jpegbaseline.worker.min.js",
+      "bytes": 11792,
+      "gzip_bytes": 5578
+    },
+    {
+      "name": "workers/jpegloss.worker.min.js",
+      "bytes": 17222,
+      "gzip_bytes": 4369
+    },
+    {
+      "name": "workers/labeling.worker.min.js",
+      "bytes": 6493,
+      "gzip_bytes": 2462
+    },
+    {
+      "name": "workers/resampling.worker.min.js",
+      "bytes": 7910,
+      "gzip_bytes": 2928
+    },
+    {
+      "name": "workers/rle.worker.min.js",
+      "bytes": 995,
+      "gzip_bytes": 583
+    }
+  ],
+  "summary": [
+    {
+      "backend": "raykit",
+      "fixture": "benchmark-signed12.dcm",
+      "successful": 5,
+      "attempts": 5,
+      "cold_present_ms": {
+        "n": 5,
+        "median": 45.69999980926514,
+        "p95": 49.299999952316284,
+        "maximum": 49.299999952316284
+      },
+      "warm_present_ms": {
+        "n": 5,
+        "median": 48.799999952316284,
+        "p95": 49.700000047683716,
+        "maximum": 49.700000047683716
+      },
+      "cold_module_ms": {
+        "n": 5,
+        "median": 2.5999999046325684,
+        "p95": 2.9000000953674316,
+        "maximum": 2.9000000953674316
+      },
+      "cold_open_ms": {
+        "n": 5,
+        "median": 30.5,
+        "p95": 33,
+        "maximum": 33
+      },
+      "first_frame_worker_ms": {
+        "n": 5,
+        "median": 1.2999999523162842,
+        "p95": 1.5,
+        "maximum": 1.5
+      },
+      "seek_present_ms": {
+        "n": 5,
+        "median": 32.19999995231629,
+        "p95": 33.10000014305115,
+        "maximum": 33.10000014305115
+      },
+      "peak_sampled_renderer_rss": {
+        "n": 5,
+        "median": 202858496,
+        "p95": 210726912,
+        "maximum": 210726912
+      },
+      "interactions": {
+        "window": {
+          "input_ms": {
+            "n": 100,
+            "median": 16.699999809265137,
+            "p95": 16.700000047683716,
+            "maximum": 16.800000190734863
+          },
+          "interval_ms": {
+            "n": 95,
+            "median": 16.699999809265137,
+            "p95": 16.799999952316284,
+            "maximum": 16.800000190734863
+          },
+          "missed_60hz": 0
+        },
+        "pan_zoom": {
+          "input_ms": {
+            "n": 100,
+            "median": 16.699999809265137,
+            "p95": 16.799999952316284,
+            "maximum": 16.800000190734863
+          },
+          "interval_ms": {
+            "n": 95,
+            "median": 16.700000047683716,
+            "p95": 16.799999952316284,
+            "maximum": 16.800000190734863
+          },
+          "missed_60hz": 0
+        }
+      },
+      "failures": []
+    },
+    {
+      "backend": "raykit",
+      "fixture": "cine-350.dcm",
+      "successful": 3,
+      "attempts": 3,
+      "cold_present_ms": {
+        "n": 3,
+        "median": 253.10000014305115,
+        "p95": 253.89999985694885,
+        "maximum": 253.89999985694885
+      },
+      "warm_present_ms": {
+        "n": 3,
+        "median": 242.09999990463257,
+        "p95": 244.79999995231628,
+        "maximum": 244.79999995231628
+      },
+      "cold_module_ms": {
+        "n": 3,
+        "median": 2.3000001907348633,
+        "p95": 2.3000001907348633,
+        "maximum": 2.3000001907348633
+      },
+      "cold_open_ms": {
+        "n": 3,
+        "median": 235.79999995231628,
+        "p95": 237.29999995231628,
+        "maximum": 237.29999995231628
+      },
+      "first_frame_worker_ms": {
+        "n": 3,
+        "median": 11.899999856948853,
+        "p95": 11.900000095367432,
+        "maximum": 11.900000095367432
+      },
+      "seek_present_ms": {
+        "n": 9,
+        "median": 32.80000000000001,
+        "p95": 33.19999999999999,
+        "maximum": 33.19999999999999
+      },
+      "peak_sampled_renderer_rss": {
+        "n": 3,
+        "median": 343883776,
+        "p95": 347807744,
+        "maximum": 347807744
+      },
+      "interactions": {
+        "seek": {
+          "input_ms": {
+            "n": 60,
+            "median": 16.699999809265137,
+            "p95": 17.200000047683716,
+            "maximum": 18.200000047683716
+          },
+          "interval_ms": {
+            "n": 57,
+            "median": 16.699999809265137,
+            "p95": 17.200000047683716,
+            "maximum": 17.200000047683716
+          },
+          "missed_60hz": 0
+        },
+        "cine": {
+          "shown": {
+            "n": 3,
+            "median": 71,
+            "p95": 71,
+            "maximum": 71
+          },
+          "dropped": {
+            "n": 3,
+            "median": 0,
+            "p95": 0,
+            "maximum": 0
+          },
+          "interval_ms": {
+            "n": 210,
+            "median": 28.299999952316284,
+            "p95": 43.10000014305115,
+            "maximum": 46.09999990463257
+          }
+        }
+      },
+      "failures": []
+    }
+  ],
+  "raw": [
+    {
+      "backend": "raykit",
+      "fixture": "benchmark-signed12.dcm",
+      "quality": {
+        "maximum": 0,
+        "interpolation": [
+          {
+            "expected": 195,
+            "actual": 195
+          },
+          {
+            "expected": 0,
+            "actual": 0
+          },
+          {
+            "expected": 0,
+            "actual": 0
+          }
+        ],
+        "decoder_frames": 1
+      },
+      "baseline_rss_bytes": {
+        "browser": 171405312,
+        "renderer": 161918976,
+        "GPU": 131461120
+      },
+      "sampled_peak_rss_bytes": {
+        "browser": 175833088,
+        "renderer": 210726912,
+        "GPU": 155996160
+      },
+      "cold": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 2.6000001430511475,
+        "source_ms": 1.3999998569488525,
+        "frame_open_ms": 28.40000009536743,
+        "first_ms": 43.700000047683716,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 1.2000000476837158,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 32.19999995231629,
+            "sample": -1540,
+            "delta": 0,
+            "reported_frame_work_ms": 0.10000014305114746
+          }
+        ],
+        "interaction": {
+          "window": {
+            "elapsed_ms": 332.7999999523163,
+            "input_latency_ms": [
+              16.09999990463257,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.600000143051147,
+              16.699999809265137,
+              16.700000047683716,
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716,
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.699999809265137
+            ],
+            "present_interval_ms": [
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.600000143051147,
+              16.699999809265137,
+              16.700000047683716,
+              16.600000143051147,
+              16.699999809265137,
+              16.700000047683716,
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.799999952316284
+            ],
+            "estimated_missed_60hz": 0
+          },
+          "pan_zoom": {
+            "elapsed_ms": 333.30000019073486,
+            "input_latency_ms": [
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716
+            ],
+            "present_interval_ms": [
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.799999952316284,
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716
+            ],
+            "estimated_missed_60hz": 0
+          }
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 12288,
+          "output_copy_bytes": 24576,
+          "peak_output_bytes": 12288,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 12288,
+            "dataset_elements": 24,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "peak_cached_pixel_bytes": 12288,
+            "produced_pixel_bytes": 12288,
+            "resident_dataset_bytes": 6728,
+            "source_bytes": 6728
+          },
+          "wasm_linear_memory_bytes": 1441792,
+          "wasm_input_copy_bytes": 6728,
+          "wasm_output_copy_bytes": 24576,
+          "texture_bytes_estimate": 12295
+        },
+        "js_heap_bytes": 2081156,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      },
+      "warm": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 0.40000009536743164,
+        "source_ms": 1.8999998569488525,
+        "frame_open_ms": 29.700000047683716,
+        "first_ms": 48.5,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 1.2999999523162842,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 31.00000004768367,
+            "sample": -1540,
+            "delta": 0,
+            "reported_frame_work_ms": 0.10000014305114746
+          }
+        ],
+        "stats": {
+          "active_pixel_bytes_upper_bound": 12288,
+          "output_copy_bytes": 24576,
+          "peak_output_bytes": 12288,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 12288,
+            "dataset_elements": 24,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "peak_cached_pixel_bytes": 12288,
+            "produced_pixel_bytes": 12288,
+            "resident_dataset_bytes": 6728,
+            "source_bytes": 6728
+          },
+          "wasm_linear_memory_bytes": 1441792,
+          "wasm_input_copy_bytes": 6728,
+          "wasm_output_copy_bytes": 24576,
+          "texture_bytes_estimate": 12295
+        },
+        "js_heap_bytes": 2169358,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      }
+    },
+    {
+      "backend": "raykit",
+      "fixture": "benchmark-signed12.dcm",
+      "baseline_rss_bytes": {
+        "browser": 170070016,
+        "renderer": 155807744,
+        "GPU": 129974272
+      },
+      "sampled_peak_rss_bytes": {
+        "browser": 176041984,
+        "renderer": 201355264,
+        "GPU": 151552000
+      },
+      "cold": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 2.5999999046325684,
+        "source_ms": 1.9000000953674316,
+        "frame_open_ms": 32.09999990463257,
+        "first_ms": 45.69999980926514,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 1.2999999523162842,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 25.400000190734858,
+            "sample": -1540,
+            "delta": 0,
+            "reported_frame_work_ms": 0
+          }
+        ],
+        "interaction": {
+          "window": {
+            "elapsed_ms": 332.5,
+            "input_latency_ms": [
+              15.799999952316284,
+              16.700000047683716,
+              16.699999809265137,
+              16.700000047683716,
+              16.600000143051147,
+              16.699999809265137,
+              16.5,
+              16.700000047683716,
+              16.59999990463257,
+              16.59999990463257,
+              16.800000190734863,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.800000190734863
+            ],
+            "present_interval_ms": [
+              16.700000047683716,
+              16.699999809265137,
+              16.700000047683716,
+              16.600000143051147,
+              16.699999809265137,
+              16.5,
+              16.800000190734863,
+              16.59999990463257,
+              16.59999990463257,
+              16.800000190734863,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.800000190734863
+            ],
+            "estimated_missed_60hz": 0
+          },
+          "pan_zoom": {
+            "elapsed_ms": 333.2000000476837,
+            "input_latency_ms": [
+              16.59999990463257,
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.800000190734863,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.799999952316284,
+              16.600000143051147,
+              16.59999990463257,
+              16.59999990463257,
+              16.799999952316284,
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716
+            ],
+            "present_interval_ms": [
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.800000190734863,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.799999952316284,
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716,
+              16.799999952316284,
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716
+            ],
+            "estimated_missed_60hz": 0
+          }
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 12288,
+          "output_copy_bytes": 24576,
+          "peak_output_bytes": 12288,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 12288,
+            "dataset_elements": 24,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "peak_cached_pixel_bytes": 12288,
+            "produced_pixel_bytes": 12288,
+            "resident_dataset_bytes": 6728,
+            "source_bytes": 6728
+          },
+          "wasm_linear_memory_bytes": 1441792,
+          "wasm_input_copy_bytes": 6728,
+          "wasm_output_copy_bytes": 24576,
+          "texture_bytes_estimate": 12295
+        },
+        "js_heap_bytes": 2093508,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      },
+      "warm": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 0.40000009536743164,
+        "source_ms": 1.8999998569488525,
+        "frame_open_ms": 28.5,
+        "first_ms": 47.700000047683716,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 1.2999999523162842,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 30.600000143051147,
+            "sample": -1540,
+            "delta": 0,
+            "reported_frame_work_ms": 0.09999990463256836
+          }
+        ],
+        "stats": {
+          "active_pixel_bytes_upper_bound": 12288,
+          "output_copy_bytes": 24576,
+          "peak_output_bytes": 12288,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 12288,
+            "dataset_elements": 24,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "peak_cached_pixel_bytes": 12288,
+            "produced_pixel_bytes": 12288,
+            "resident_dataset_bytes": 6728,
+            "source_bytes": 6728
+          },
+          "wasm_linear_memory_bytes": 1441792,
+          "wasm_input_copy_bytes": 6728,
+          "wasm_output_copy_bytes": 24576,
+          "texture_bytes_estimate": 12295
+        },
+        "js_heap_bytes": 2181722,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      }
+    },
+    {
+      "backend": "raykit",
+      "fixture": "benchmark-signed12.dcm",
+      "baseline_rss_bytes": {
+        "browser": 170283008,
+        "renderer": 157679616,
+        "GPU": 130691072
+      },
+      "sampled_peak_rss_bytes": {
+        "browser": 176021504,
+        "renderer": 202858496,
+        "GPU": 152133632
+      },
+      "cold": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 2.5,
+        "source_ms": 1.6000001430511475,
+        "frame_open_ms": 30.5,
+        "first_ms": 45.39999985694885,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 1.5,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 26.900000143051145,
+            "sample": -1540,
+            "delta": 0,
+            "reported_frame_work_ms": 0
+          }
+        ],
+        "interaction": {
+          "window": {
+            "elapsed_ms": 332.2999999523163,
+            "input_latency_ms": [
+              15.5,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.800000190734863,
+              16.59999990463257,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.600000143051147,
+              16.699999809265137,
+              16.700000047683716,
+              16.600000143051147,
+              16.699999809265137
+            ],
+            "present_interval_ms": [
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.800000190734863,
+              16.59999990463257,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.600000143051147,
+              16.699999809265137,
+              16.700000047683716,
+              16.600000143051147,
+              16.699999809265137
+            ],
+            "estimated_missed_60hz": 0
+          },
+          "pan_zoom": {
+            "elapsed_ms": 333.2999999523163,
+            "input_latency_ms": [
+              16.59999990463257,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.800000190734863,
+              16.5,
+              16.699999809265137,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716
+            ],
+            "present_interval_ms": [
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.800000190734863,
+              16.5,
+              16.699999809265137,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716
+            ],
+            "estimated_missed_60hz": 0
+          }
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 12288,
+          "output_copy_bytes": 24576,
+          "peak_output_bytes": 12288,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 12288,
+            "dataset_elements": 24,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "peak_cached_pixel_bytes": 12288,
+            "produced_pixel_bytes": 12288,
+            "resident_dataset_bytes": 6728,
+            "source_bytes": 6728
+          },
+          "wasm_linear_memory_bytes": 1441792,
+          "wasm_input_copy_bytes": 6728,
+          "wasm_output_copy_bytes": 24576,
+          "texture_bytes_estimate": 12295
+        },
+        "js_heap_bytes": 2078092,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      },
+      "warm": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 0.40000009536743164,
+        "source_ms": 1.8999998569488525,
+        "frame_open_ms": 30.200000047683716,
+        "first_ms": 49.700000047683716,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 1.2999999523162842,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 29.700000095367386,
+            "sample": -1540,
+            "delta": 0,
+            "reported_frame_work_ms": 0.09999990463256836
+          }
+        ],
+        "stats": {
+          "active_pixel_bytes_upper_bound": 12288,
+          "output_copy_bytes": 24576,
+          "peak_output_bytes": 12288,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 12288,
+            "dataset_elements": 24,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "peak_cached_pixel_bytes": 12288,
+            "produced_pixel_bytes": 12288,
+            "resident_dataset_bytes": 6728,
+            "source_bytes": 6728
+          },
+          "wasm_linear_memory_bytes": 1441792,
+          "wasm_input_copy_bytes": 6728,
+          "wasm_output_copy_bytes": 24576,
+          "texture_bytes_estimate": 12295
+        },
+        "js_heap_bytes": 2166294,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      }
+    },
+    {
+      "backend": "raykit",
+      "fixture": "benchmark-signed12.dcm",
+      "baseline_rss_bytes": {
+        "browser": 171380736,
+        "renderer": 156450816,
+        "GPU": 131493888
+      },
+      "sampled_peak_rss_bytes": {
+        "browser": 177352704,
+        "renderer": 205410304,
+        "GPU": 155156480
+      },
+      "cold": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 2.1999998092651367,
+        "source_ms": 1.7000000476837158,
+        "frame_open_ms": 33,
+        "first_ms": 49.299999952316284,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 1.2999999523162842,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 33.00000014305115,
+            "sample": -1540,
+            "delta": 0,
+            "reported_frame_work_ms": 0
+          }
+        ],
+        "interaction": {
+          "window": {
+            "elapsed_ms": 332.89999985694885,
+            "input_latency_ms": [
+              16.200000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.600000143051147,
+              16.699999809265137,
+              16.700000047683716,
+              16.600000143051147,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.700000047683716,
+              16.600000143051147,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.59999990463257
+            ],
+            "present_interval_ms": [
+              16.700000047683716,
+              16.59999990463257,
+              16.600000143051147,
+              16.699999809265137,
+              16.700000047683716,
+              16.600000143051147,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.700000047683716,
+              16.600000143051147,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.59999990463257
+            ],
+            "estimated_missed_60hz": 0
+          },
+          "pan_zoom": {
+            "elapsed_ms": 333.2000000476837,
+            "input_latency_ms": [
+              16.399999856948853,
+              16.800000190734863,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.700000047683716,
+              16.600000143051147,
+              16.59999990463257,
+              16.799999952316284,
+              16.700000047683716,
+              16.59999990463257,
+              16.600000143051147,
+              16.700000047683716
+            ],
+            "present_interval_ms": [
+              16.800000190734863,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.700000047683716,
+              16.600000143051147,
+              16.59999990463257,
+              16.799999952316284,
+              16.700000047683716,
+              16.59999990463257,
+              16.600000143051147,
+              16.700000047683716
+            ],
+            "estimated_missed_60hz": 0
+          }
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 12288,
+          "output_copy_bytes": 24576,
+          "peak_output_bytes": 12288,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 12288,
+            "dataset_elements": 24,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "peak_cached_pixel_bytes": 12288,
+            "produced_pixel_bytes": 12288,
+            "resident_dataset_bytes": 6728,
+            "source_bytes": 6728
+          },
+          "wasm_linear_memory_bytes": 1441792,
+          "wasm_input_copy_bytes": 6728,
+          "wasm_output_copy_bytes": 24576,
+          "texture_bytes_estimate": 12295
+        },
+        "js_heap_bytes": 2099248,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      },
+      "warm": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 0.39999985694885254,
+        "source_ms": 1.8000001907348633,
+        "frame_open_ms": 30,
+        "first_ms": 48.799999952316284,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 1.2999999523162842,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 31,
+            "sample": -1540,
+            "delta": 0,
+            "reported_frame_work_ms": 0
+          }
+        ],
+        "stats": {
+          "active_pixel_bytes_upper_bound": 12288,
+          "output_copy_bytes": 24576,
+          "peak_output_bytes": 12288,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 12288,
+            "dataset_elements": 24,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "peak_cached_pixel_bytes": 12288,
+            "produced_pixel_bytes": 12288,
+            "resident_dataset_bytes": 6728,
+            "source_bytes": 6728
+          },
+          "wasm_linear_memory_bytes": 1441792,
+          "wasm_input_copy_bytes": 6728,
+          "wasm_output_copy_bytes": 24576,
+          "texture_bytes_estimate": 12295
+        },
+        "js_heap_bytes": 2187414,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      }
+    },
+    {
+      "backend": "raykit",
+      "fixture": "benchmark-signed12.dcm",
+      "baseline_rss_bytes": {
+        "browser": 170160128,
+        "renderer": 155738112,
+        "GPU": 130174976
+      },
+      "sampled_peak_rss_bytes": {
+        "browser": 175845376,
+        "renderer": 202186752,
+        "GPU": 151826432
+      },
+      "cold": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 2.9000000953674316,
+        "source_ms": 1.4000000953674316,
+        "frame_open_ms": 29.799999952316284,
+        "first_ms": 46.39999985694885,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 1.2999999523162842,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 33.10000014305115,
+            "sample": -1540,
+            "delta": 0,
+            "reported_frame_work_ms": 0
+          }
+        ],
+        "interaction": {
+          "window": {
+            "elapsed_ms": 332.89999985694885,
+            "input_latency_ms": [
+              16.09999990463257,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.700000047683716,
+              16.5,
+              16.799999952316284,
+              16.700000047683716,
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716
+            ],
+            "present_interval_ms": [
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.700000047683716,
+              16.5,
+              16.799999952316284,
+              16.700000047683716,
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716
+            ],
+            "estimated_missed_60hz": 0
+          },
+          "pan_zoom": {
+            "elapsed_ms": 333.2999999523163,
+            "input_latency_ms": [
+              16.600000143051147,
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.699999809265137,
+              16.5,
+              16.700000047683716,
+              16.799999952316284,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137
+            ],
+            "present_interval_ms": [
+              16.699999809265137,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137,
+              16.600000143051147,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.700000047683716,
+              16.59999990463257,
+              16.700000047683716,
+              16.700000047683716,
+              16.699999809265137,
+              16.5,
+              16.700000047683716,
+              16.799999952316284,
+              16.600000143051147,
+              16.700000047683716,
+              16.699999809265137
+            ],
+            "estimated_missed_60hz": 0
+          }
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 12288,
+          "output_copy_bytes": 24576,
+          "peak_output_bytes": 12288,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 12288,
+            "dataset_elements": 24,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "peak_cached_pixel_bytes": 12288,
+            "produced_pixel_bytes": 12288,
+            "resident_dataset_bytes": 6728,
+            "source_bytes": 6728
+          },
+          "wasm_linear_memory_bytes": 1441792,
+          "wasm_input_copy_bytes": 6728,
+          "wasm_output_copy_bytes": 24576,
+          "texture_bytes_estimate": 12295
+        },
+        "js_heap_bytes": 2090908,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      },
+      "warm": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 0.2999999523162842,
+        "source_ms": 1.9000000953674316,
+        "frame_open_ms": 30,
+        "first_ms": 49.59999990463257,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 1.3000001907348633,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 30.20000019073484,
+            "sample": -1540,
+            "delta": 0,
+            "reported_frame_work_ms": 0.09999990463256836
+          }
+        ],
+        "stats": {
+          "active_pixel_bytes_upper_bound": 12288,
+          "output_copy_bytes": 24576,
+          "peak_output_bytes": 12288,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 12288,
+            "dataset_elements": 24,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "peak_cached_pixel_bytes": 12288,
+            "produced_pixel_bytes": 12288,
+            "resident_dataset_bytes": 6728,
+            "source_bytes": 6728
+          },
+          "wasm_linear_memory_bytes": 1441792,
+          "wasm_input_copy_bytes": 6728,
+          "wasm_output_copy_bytes": 24576,
+          "texture_bytes_estimate": 12295
+        },
+        "js_heap_bytes": 2179146,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      }
+    },
+    {
+      "backend": "raykit",
+      "fixture": "cine-350.dcm",
+      "baseline_rss_bytes": {
+        "browser": 169172992,
+        "renderer": 157368320,
+        "GPU": 130048000
+      },
+      "sampled_peak_rss_bytes": {
+        "browser": 185688064,
+        "renderer": 343883776,
+        "GPU": 159625216
+      },
+      "cold": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 2.299999952316284,
+        "source_ms": 24.800000190734863,
+        "frame_open_ms": 235.79999995231628,
+        "first_ms": 250.5,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 11.900000095367432,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 28.5,
+            "sample": [
+              32,
+              64,
+              63
+            ],
+            "delta": 1,
+            "reported_frame_work_ms": 1.1000001430511475
+          },
+          {
+            "frame": 175,
+            "presented_ms": 32.80000000000001,
+            "sample": [
+              207,
+              77,
+              137
+            ],
+            "delta": 0,
+            "reported_frame_work_ms": 8.099999904632568
+          },
+          {
+            "frame": 349,
+            "presented_ms": 33.19999999999999,
+            "sample": [
+              189,
+              87,
+              75
+            ],
+            "delta": 0,
+            "reported_frame_work_ms": 7.799999952316284
+          }
+        ],
+        "interaction": {
+          "seek": {
+            "elapsed_ms": 334.7000000476837,
+            "input_latency_ms": [
+              18.200000047683716,
+              16.5,
+              16.799999952316284,
+              16.799999952316284,
+              16.40000009536743,
+              16.699999809265137,
+              16.90000009536743,
+              16.200000047683716,
+              16.799999952316284,
+              16.5,
+              16.59999990463257,
+              17.200000047683716,
+              16.799999952316284,
+              16.100000143051147,
+              17,
+              16.59999990463257,
+              16.40000009536743,
+              17.09999990463257,
+              16.5,
+              16.600000143051147
+            ],
+            "present_interval_ms": [
+              16.5,
+              16.799999952316284,
+              16.799999952316284,
+              16.40000009536743,
+              16.699999809265137,
+              16.90000009536743,
+              16.200000047683716,
+              16.799999952316284,
+              16.5,
+              16.59999990463257,
+              17.200000047683716,
+              16.799999952316284,
+              16.100000143051147,
+              17,
+              16.59999990463257,
+              16.40000009536743,
+              17.09999990463257,
+              16.5,
+              16.600000143051147
+            ],
+            "estimated_missed_60hz": 0
+          },
+          "cine": {
+            "source_interval_ms": 28.571428571428573,
+            "shown": 71,
+            "dropped": 0,
+            "intervals_ms": [
+              20.200000047683716,
+              46.09999990463257,
+              16.600000143051147,
+              23.299999952316284,
+              43.90000009536743,
+              16.199999809265137,
+              27.100000143051147,
+              39.59999990463257,
+              16.90000009536743,
+              28.5,
+              38,
+              18.700000047683716,
+              28.799999952316284,
+              28.5,
+              40.59999990463257,
+              17.100000143051147,
+              27.5,
+              38.69999980926514,
+              18.600000143051147,
+              28.700000047683716,
+              28.299999952316284,
+              41.5,
+              16.399999856948853,
+              28.700000047683716,
+              28.40000009536743,
+              43.89999985694885,
+              15.900000095367432,
+              25.90000009536743,
+              40.299999952316284,
+              16.799999952316284,
+              33.09999990463257,
+              23.300000190734863,
+              43.69999980926514,
+              16.40000009536743,
+              26.799999952316284,
+              40.10000014305115,
+              16.899999856948853,
+              28.799999952316284,
+              27.5,
+              43.40000009536743,
+              16.59999990463257,
+              27,
+              40.10000014305115,
+              16.59999990463257,
+              29.299999952316284,
+              27.800000190734863,
+              42.69999980926514,
+              16.800000190734863,
+              26.09999990463257,
+              40.200000047683716,
+              19.700000047683716,
+              25.5,
+              38.299999952316284,
+              18.299999952316284,
+              29.59999990463257,
+              28.5,
+              40.5,
+              16.5,
+              28.800000190734863,
+              27.59999990463257,
+              43.299999952316284,
+              16.90000009536743,
+              25.299999952316284,
+              41.799999952316284,
+              15.900000095367432,
+              28.700000047683716,
+              38.5,
+              19,
+              28.799999952316284,
+              27.299999952316284
+            ]
+          }
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 3439800,
+          "output_copy_bytes": 13759200,
+          "peak_output_bytes": 3439800,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 6879600,
+            "dataset_elements": 18,
+            "decoded_frames": 4,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 7000,
+            "peak_cached_pixel_bytes": 6879600,
+            "produced_pixel_bytes": 13759200,
+            "resident_dataset_bytes": 9766844,
+            "source_bytes": 9766844
+          },
+          "wasm_linear_memory_bytes": 30932992,
+          "wasm_input_copy_bytes": 9766844,
+          "wasm_output_copy_bytes": 13759200,
+          "texture_bytes_estimate": 4586407
+        },
+        "js_heap_bytes": 83630731,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      },
+      "warm": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 0.2999999523162842,
+        "source_ms": 29.40000009536743,
+        "frame_open_ms": 221.40000009536743,
+        "first_ms": 241.70000004768372,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 11.799999952316284,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 32.800000047683625,
+            "sample": [
+              32,
+              64,
+              63
+            ],
+            "delta": 1,
+            "reported_frame_work_ms": 1.5
+          },
+          {
+            "frame": 175,
+            "presented_ms": 32.90000000000009,
+            "sample": [
+              207,
+              77,
+              137
+            ],
+            "delta": 0,
+            "reported_frame_work_ms": 7.8999998569488525
+          },
+          {
+            "frame": 349,
+            "presented_ms": 33.10000009536725,
+            "sample": [
+              189,
+              87,
+              75
+            ],
+            "delta": 0,
+            "reported_frame_work_ms": 7.400000095367432
+          }
+        ],
+        "stats": {
+          "active_pixel_bytes_upper_bound": 3439800,
+          "output_copy_bytes": 13759200,
+          "peak_output_bytes": 3439800,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 6879600,
+            "dataset_elements": 18,
+            "decoded_frames": 4,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 7000,
+            "peak_cached_pixel_bytes": 6879600,
+            "produced_pixel_bytes": 13759200,
+            "resident_dataset_bytes": 9766844,
+            "source_bytes": 9766844
+          },
+          "wasm_linear_memory_bytes": 30932992,
+          "wasm_input_copy_bytes": 9766844,
+          "wasm_output_copy_bytes": 13759200,
+          "texture_bytes_estimate": 4586407
+        },
+        "js_heap_bytes": 25083606,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      }
+    },
+    {
+      "backend": "raykit",
+      "fixture": "cine-350.dcm",
+      "baseline_rss_bytes": {
+        "browser": 170516480,
+        "renderer": 158834688,
+        "GPU": 130179072
+      },
+      "sampled_peak_rss_bytes": {
+        "browser": 187420672,
+        "renderer": 347807744,
+        "GPU": 159657984
+      },
+      "cold": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 2.3000001907348633,
+        "source_ms": 26,
+        "frame_open_ms": 237.29999995231628,
+        "first_ms": 253.89999985694885,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 11.799999952316284,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 20.80000004768374,
+            "sample": [
+              32,
+              64,
+              63
+            ],
+            "delta": 1,
+            "reported_frame_work_ms": 1.2000000476837158
+          },
+          {
+            "frame": 175,
+            "presented_ms": 32.89999999999998,
+            "sample": [
+              207,
+              77,
+              137
+            ],
+            "delta": 0,
+            "reported_frame_work_ms": 7.800000190734863
+          },
+          {
+            "frame": 349,
+            "presented_ms": 32.99999995231627,
+            "sample": [
+              189,
+              87,
+              75
+            ],
+            "delta": 0,
+            "reported_frame_work_ms": 7.799999952316284
+          }
+        ],
+        "interaction": {
+          "seek": {
+            "elapsed_ms": 334.5,
+            "input_latency_ms": [
+              17.799999952316284,
+              17.200000047683716,
+              16.40000009536743,
+              16.799999952316284,
+              16.5,
+              16.799999952316284,
+              16.59999990463257,
+              16.40000009536743,
+              16.799999952316284,
+              16.600000143051147,
+              16.699999809265137,
+              16.800000190734863,
+              16.5,
+              16.5,
+              17.199999809265137,
+              16.5,
+              16.700000047683716,
+              16.40000009536743,
+              16.59999990463257,
+              16.700000047683716
+            ],
+            "present_interval_ms": [
+              17.200000047683716,
+              16.40000009536743,
+              16.799999952316284,
+              16.5,
+              16.799999952316284,
+              16.59999990463257,
+              16.40000009536743,
+              16.799999952316284,
+              16.600000143051147,
+              16.699999809265137,
+              16.800000190734863,
+              16.5,
+              16.5,
+              17.199999809265137,
+              16.5,
+              16.700000047683716,
+              16.40000009536743,
+              16.59999990463257,
+              16.700000047683716
+            ],
+            "estimated_missed_60hz": 0
+          },
+          "cine": {
+            "source_interval_ms": 28.571428571428573,
+            "shown": 71,
+            "dropped": 0,
+            "intervals_ms": [
+              21.299999952316284,
+              45.799999952316284,
+              16.799999952316284,
+              23.5,
+              42.700000047683716,
+              16.299999952316284,
+              25.40000009536743,
+              41.299999952316284,
+              16.59999990463257,
+              28.300000190734863,
+              38.39999985694885,
+              18.40000009536743,
+              29.09999990463257,
+              28.40000009536743,
+              40.89999985694885,
+              16.40000009536743,
+              28.799999952316284,
+              28.600000143051147,
+              43.09999990463257,
+              16.200000047683716,
+              26.299999952316284,
+              40.59999990463257,
+              16.40000009536743,
+              29.40000009536743,
+              28.399999856948853,
+              42.40000009536743,
+              16.899999856948853,
+              25.600000143051147,
+              40.89999985694885,
+              16.700000047683716,
+              33,
+              23.40000009536743,
+              43.799999952316284,
+              16.5,
+              25.5,
+              41.200000047683716,
+              16.59999990463257,
+              28.600000143051147,
+              28.399999856948853,
+              43.10000014305115,
+              16.5,
+              25.5,
+              41.19999980926514,
+              16.600000143051147,
+              29.700000047683716,
+              28.09999990463257,
+              42.299999952316284,
+              16.799999952316284,
+              25.90000009536743,
+              40.90000009536743,
+              20.299999952316284,
+              25.299999952316284,
+              27.299999952316284,
+              43.700000047683716,
+              16.299999952316284,
+              25.700000047683716,
+              41.09999990463257,
+              16.600000143051147,
+              29.09999990463257,
+              27.700000047683716,
+              43.299999952316284,
+              16.90000009536743,
+              26,
+              40.299999952316284,
+              16.40000009536743,
+              28.699999809265137,
+              38.5,
+              19.100000143051147,
+              27.799999952316284,
+              28.40000009536743
+            ]
+          }
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 3439800,
+          "output_copy_bytes": 13759200,
+          "peak_output_bytes": 3439800,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 6879600,
+            "dataset_elements": 18,
+            "decoded_frames": 4,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 7000,
+            "peak_cached_pixel_bytes": 6879600,
+            "produced_pixel_bytes": 13759200,
+            "resident_dataset_bytes": 9766844,
+            "source_bytes": 9766844
+          },
+          "wasm_linear_memory_bytes": 30932992,
+          "wasm_input_copy_bytes": 9766844,
+          "wasm_output_copy_bytes": 13759200,
+          "texture_bytes_estimate": 4586407
+        },
+        "js_heap_bytes": 87071355,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      },
+      "warm": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 0.2999999523162842,
+        "source_ms": 26,
+        "frame_open_ms": 224.60000014305115,
+        "first_ms": 244.79999995231628,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 12,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 33.10000009536725,
+            "sample": [
+              32,
+              64,
+              63
+            ],
+            "delta": 1,
+            "reported_frame_work_ms": 1.3000001907348633
+          },
+          {
+            "frame": 175,
+            "presented_ms": 32.80000009536752,
+            "sample": [
+              207,
+              77,
+              137
+            ],
+            "delta": 0,
+            "reported_frame_work_ms": 8.100000143051147
+          },
+          {
+            "frame": 349,
+            "presented_ms": 33.20000009536761,
+            "sample": [
+              189,
+              87,
+              75
+            ],
+            "delta": 0,
+            "reported_frame_work_ms": 7.599999904632568
+          }
+        ],
+        "stats": {
+          "active_pixel_bytes_upper_bound": 3439800,
+          "output_copy_bytes": 13759200,
+          "peak_output_bytes": 3439800,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 6879600,
+            "dataset_elements": 18,
+            "decoded_frames": 4,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 7000,
+            "peak_cached_pixel_bytes": 6879600,
+            "produced_pixel_bytes": 13759200,
+            "resident_dataset_bytes": 9766844,
+            "source_bytes": 9766844
+          },
+          "wasm_linear_memory_bytes": 30932992,
+          "wasm_input_copy_bytes": 9766844,
+          "wasm_output_copy_bytes": 13759200,
+          "texture_bytes_estimate": 4586407
+        },
+        "js_heap_bytes": 25082682,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      }
+    },
+    {
+      "backend": "raykit",
+      "fixture": "cine-350.dcm",
+      "baseline_rss_bytes": {
+        "browser": 169431040,
+        "renderer": 155455488,
+        "GPU": 130379776
+      },
+      "sampled_peak_rss_bytes": {
+        "browser": 186003456,
+        "renderer": 341737472,
+        "GPU": 160124928
+      },
+      "cold": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 2.3000001907348633,
+        "source_ms": 22.899999856948853,
+        "frame_open_ms": 234.29999995231628,
+        "first_ms": 253.10000014305115,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 11.899999856948853,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 25.599999809265114,
+            "sample": [
+              32,
+              64,
+              63
+            ],
+            "delta": 1,
+            "reported_frame_work_ms": 1.4000000953674316
+          },
+          {
+            "frame": 175,
+            "presented_ms": 32.599999952316296,
+            "sample": [
+              207,
+              77,
+              137
+            ],
+            "delta": 0,
+            "reported_frame_work_ms": 8.100000143051147
+          },
+          {
+            "frame": 349,
+            "presented_ms": 33.09999990463257,
+            "sample": [
+              189,
+              87,
+              75
+            ],
+            "delta": 0,
+            "reported_frame_work_ms": 7.5
+          }
+        ],
+        "interaction": {
+          "seek": {
+            "elapsed_ms": 335.30000019073486,
+            "input_latency_ms": [
+              18.200000047683716,
+              16.699999809265137,
+              16.800000190734863,
+              16.399999856948853,
+              16.700000047683716,
+              17,
+              16.299999952316284,
+              16.5,
+              16.700000047683716,
+              16.700000047683716,
+              17,
+              16.399999856948853,
+              16.600000143051147,
+              16.700000047683716,
+              17,
+              16,
+              17.200000047683716,
+              16.200000047683716,
+              17,
+              16.899999856948853
+            ],
+            "present_interval_ms": [
+              16.699999809265137,
+              16.800000190734863,
+              16.399999856948853,
+              16.700000047683716,
+              17,
+              16.299999952316284,
+              16.5,
+              16.700000047683716,
+              16.700000047683716,
+              17,
+              16.399999856948853,
+              16.600000143051147,
+              16.700000047683716,
+              17,
+              16.09999990463257,
+              17.200000047683716,
+              16.200000047683716,
+              17,
+              16.899999856948853
+            ],
+            "estimated_missed_60hz": 0
+          },
+          "cine": {
+            "source_interval_ms": 28.571428571428573,
+            "shown": 71,
+            "dropped": 0,
+            "intervals_ms": [
+              21.399999856948853,
+              28.700000047683716,
+              29,
+              28.799999952316284,
+              42.40000009536743,
+              17,
+              25.200000047683716,
+              41,
+              16.799999952316284,
+              29,
+              33.200000047683716,
+              23.899999856948853,
+              29.100000143051147,
+              27.699999809265137,
+              40.80000019073486,
+              16.5,
+              29.299999952316284,
+              28.200000047683716,
+              42.19999980926514,
+              16.40000009536743,
+              26.799999952316284,
+              40.10000014305115,
+              16.799999952316284,
+              28.899999856948853,
+              28.5,
+              42.60000014305115,
+              16.399999856948853,
+              26.700000047683716,
+              40.200000047683716,
+              16.59999990463257,
+              32.5,
+              24.300000190734863,
+              43.09999990463257,
+              16.5,
+              26.40000009536743,
+              40.299999952316284,
+              16.899999856948853,
+              28.800000190734863,
+              28.399999856948853,
+              43,
+              16.299999952316284,
+              26.600000143051147,
+              40.39999985694885,
+              16.700000047683716,
+              28.5,
+              38.299999952316284,
+              18.600000143051147,
+              28.59999990463257,
+              29.100000143051147,
+              39.89999985694885,
+              21.40000009536743,
+              24.899999856948853,
+              27.90000009536743,
+              42.90000009536743,
+              16.299999952316284,
+              26.700000047683716,
+              40,
+              16.5,
+              28.299999952316284,
+              38.799999952316284,
+              18.700000047683716,
+              29,
+              28.59999990463257,
+              40.200000047683716,
+              16.5,
+              28.40000009536743,
+              38.299999952316284,
+              19.899999856948853,
+              27.800000190734863,
+              28.799999952316284
+            ]
+          }
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 3439800,
+          "output_copy_bytes": 13759200,
+          "peak_output_bytes": 3439800,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 6879600,
+            "dataset_elements": 18,
+            "decoded_frames": 4,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 7000,
+            "peak_cached_pixel_bytes": 6879600,
+            "produced_pixel_bytes": 13759200,
+            "resident_dataset_bytes": 9766844,
+            "source_bytes": 9766844
+          },
+          "wasm_linear_memory_bytes": 30932992,
+          "wasm_input_copy_bytes": 9766844,
+          "wasm_output_copy_bytes": 13759200,
+          "texture_bytes_estimate": 4586407
+        },
+        "js_heap_bytes": 83630731,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      },
+      "warm": {
+        "opened": true,
+        "backend": "RayKit webgl2",
+        "module_ms": 0.2999999523162842,
+        "source_ms": 24.40000009536743,
+        "frame_open_ms": 220.09999990463257,
+        "first_ms": 242.09999990463257,
+        "engine_first_ms": null,
+        "first_decode_and_materialize_ms": 12,
+        "seek": [
+          {
+            "frame": 0,
+            "presented_ms": 19.800000000000182,
+            "sample": [
+              32,
+              64,
+              63
+            ],
+            "delta": 1,
+            "reported_frame_work_ms": 1.4000000953674316
+          },
+          {
+            "frame": 175,
+            "presented_ms": 32.89999995231619,
+            "sample": [
+              207,
+              77,
+              137
+            ],
+            "delta": 0,
+            "reported_frame_work_ms": 8.399999856948853
+          },
+          {
+            "frame": 349,
+            "presented_ms": 33.19999980926514,
+            "sample": [
+              189,
+              87,
+              75
+            ],
+            "delta": 0,
+            "reported_frame_work_ms": 7.700000047683716
+          }
+        ],
+        "stats": {
+          "active_pixel_bytes_upper_bound": 3439800,
+          "output_copy_bytes": 13759200,
+          "peak_output_bytes": 3439800,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 6879600,
+            "dataset_elements": 18,
+            "decoded_frames": 4,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 7000,
+            "peak_cached_pixel_bytes": 6879600,
+            "produced_pixel_bytes": 13759200,
+            "resident_dataset_bytes": 9766844,
+            "source_bytes": 9766844
+          },
+          "wasm_linear_memory_bytes": 30932992,
+          "wasm_input_copy_bytes": 9766844,
+          "wasm_output_copy_bytes": 13759200,
+          "texture_bytes_estimate": 4586407
+        },
+        "js_heap_bytes": 25083338,
+        "assets": [
+          {
+            "name": "index-Cc3TorFe.js",
+            "transfer_bytes": 5494
+          },
+          {
+            "name": "raykit-BCoUL0u0.js",
+            "transfer_bytes": 8168
+          },
+          {
+            "name": "renderer-B4e208hM.js",
+            "transfer_bytes": 14514
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          },
+          {
+            "name": "worker-CnaTsjzb.js",
+            "transfer_bytes": 6173
+          }
+        ]
+      }
+    }
+  ]
+}

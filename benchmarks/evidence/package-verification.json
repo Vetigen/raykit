@@ -1,0 +1,67 @@
+{
+  "revision": "38577b660b37f2fd2bf351c3ae209a792311d584",
+  "local_packages": [
+    {
+      "file": "raykit-flutter-0.1.0.tar.gz",
+      "bytes": 103646,
+      "sha256": "0072b485c6ff578d14743fb4a34d1a60fb4e158dd1ff65f98e894122f98846d1",
+      "entries": 135,
+      "notice_files": 100
+    },
+    {
+      "file": "raykit-web-0.1.0.tgz",
+      "bytes": 587443,
+      "sha256": "39afc0fec6f34dddfa7d8dffbbb258d039978c78e71eb00f1ed1f4aa3a5bec8b",
+      "entries": 127,
+      "notice_files": 102
+    },
+    {
+      "file": "raykit-web-component-0.1.0.tgz",
+      "bytes": 8490,
+      "sha256": "4b1f8873281e55f6c1b6c95005473c8cc9f741e2cd579502060a22e07cff8ce4",
+      "entries": 3,
+      "notice_files": 0
+    }
+  ],
+  "independent_package_install": {
+    "typescript_and_component": "passed",
+    "flutter_source_archive_and_native_hook": "passed"
+  },
+  "android_arm64": {
+    "host": "Linux x64",
+    "flutter": "3.44.9",
+    "android_sdk": 36,
+    "ndk": "28.2.13676358",
+    "mode": "debug",
+    "machine": "AArch64",
+    "bytes": 77890596,
+    "sha256": "ae87486a3f3efb96d092d7a5f863940661a0a5a2d3f89a04ad2fd00aadf9ee73",
+    "verified_members": {
+      "lib/arm64-v8a/libraykit_ffi.so": {
+        "bytes": 2209640,
+        "sha256": "6d1e6035e54c225f0b6c41807179420d47cb3682080ab26469813a81bc72fb17"
+      },
+      "assets/flutter_assets/assets/raykit/signed12.dcm": {
+        "bytes": 6728,
+        "sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd"
+      },
+      "assets/flutter_assets/assets/raykit/cine-350.dcm": {
+        "bytes": 9766844,
+        "sha256": "fa5e98aeb4fa9fd05211b838f1d4601537a91db840bf187b6c876a1f6b745594"
+      }
+    },
+    "exported_symbols": [
+      "raykit_v1_abi_version",
+      "raykit_v1_append",
+      "raykit_v1_capabilities",
+      "raykit_v1_close",
+      "raykit_v1_free",
+      "raykit_v1_live_buffers",
+      "raykit_v1_live_sessions",
+      "raykit_v1_open",
+      "raykit_v1_request"
+    ],
+    "emulator": "open",
+    "physical_device": "open"
+  }
+}

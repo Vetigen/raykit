@@ -15,7 +15,9 @@ npm run build:web
 npm run example:web
 ```
 
-Open the printed local URL. Choose a local file or a synthetic case. In the ultrasound, drag the frame slider to 350. In the oblique CT, click **Build volume**, then choose a plane or slab. Select **Ruler**, mark its two endpoints, and click **Calculate**. Export the measures and import the JSON after reopening the same DICOM bytes. To run the source adapter against a local service, choose **Open local DICOMweb series**.
+Open the printed local URL. Choose a local file or a synthetic case. In the ultrasound, drag the frame slider to 350. In the oblique CT, click **Build volume**, then choose a plane or slab. The file picker can also open the generated `enhanced-mr-oblique.dcm`.
+
+Select **Ruler**, mark two endpoints, and click **Calculate**. For a canine VHS record, select **VHS**, confirm the lateral projection and place the cardiac and vertebral landmarks shown in the tool. Export the measurements and import the JSON after reopening the same DICOM bytes. **Open local DICOMweb series** demonstrates a clearly labeled preview, verification of the original bytes and progressive series loading.
 
 The packages expose a framework-independent session and viewport. `@raykit/web-component` registers the ready viewer.
 
@@ -41,7 +43,7 @@ Use a bundler that supports module workers with `new URL(..., import.meta.url)`.
 
 ## Flutter example
 
-Install Flutter 3.41 or later, Rust with `rustup`, and the Flutter-supported toolchain for your target. Android needs the SDK and NDK. iOS needs Xcode on macOS. Prepare the synthetic assets from the checkout root, then run the example on a device you select.
+Install Flutter 3.41 or later, Rust 1.97.1 or later with `rustup`, Node.js and the Flutter-supported toolchain for your target. Android needs the SDK and NDK. iOS needs Xcode on macOS. Prepare the synthetic assets from the checkout root, then run the example on a device you select.
 
 ```sh
 npm run fixtures
@@ -70,10 +72,17 @@ try {
 
 Run `npm run package:local` from a build checkout. The `artifacts/` directory contains npm tarballs for both web packages and a standalone Flutter source bundle. Install both web tarballs in the same app. Extract the Flutter archive and point your app's `raykit` dependency at the extracted directory. The native sources and lockfile travel with the Flutter bundle.
 
+```sh
+npm install path/to/raykit-web-0.1.0.tgz path/to/raykit-web-component-0.1.0.tgz
+tar -xzf path/to/raykit-flutter-0.1.0.tar.gz
+```
+
+With the fixtures and archives built, run `node tests/packaged-workflows.mjs` from the checkout. It installs both web tarballs and the Flutter archive in a fresh directory and exercises the independent examples. Install a Playwright Chromium with `npx playwright-core install chromium` or set `RAYKIT_CHROMIUM` to a compatible local browser.
+
 ## Verification and scope
 
 Run `cargo test --workspace --locked` after changing the core. The generated corpus records SHA-256 and expected results. `tests/web-workflow.mjs` and `tests/web-conformance.mjs` exercise the built web package in a local browser. `packages/flutter/test/native_workflow_test.dart` exercises the Flutter package and native ABI on its host. `npm run benchmark:build` builds the local browser comparison with DWV and Cornerstone3D.
 
-The [support matrix](docs/support.md) lists the tested profiles. The [API notes](docs/api.md) describe byte ownership, evidence for source identity, geometry and local interchange. The [measurement guide](docs/measurements.md) describes the landmark methods and the external Rust example.
+The [support matrix](docs/support.md) lists the tested profiles. The [API notes](docs/api.md) describe ownership, layout, interchange and desktop WebView embedding. The [measurement guide](docs/measurements.md) describes the landmark methods and the external Rust example. The [benchmark guide](benchmarks/README.md) contains the measured results and reproduction steps.
 
-RayKit's project license is pending. The package build records the licenses and included notices of third-party components. Geometric validation is based on synthetic fixtures. Veterinary specialist review and physical-device qualification are tracked separately.
+RayKit's project license is pending. Apache-2.0 is the proposed license. The package build records the licenses and included notices of third-party components. Geometric validation is based on synthetic fixtures. Veterinary specialist review and physical-device qualification are tracked separately.

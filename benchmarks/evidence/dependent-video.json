@@ -1,0 +1,197 @@
+{
+  "commit": "0e90eb60a1ace3ef5791785582d9cd4e1aa871ee",
+  "browser": "131.0.6778.33",
+  "encoder": "ffmpeg version n9.0.2-17-g2a571b6068-20260930 Copyright (c) 2000-2026 the FFmpeg developers",
+  "codec": "VP9 in WebM",
+  "dimensions": [
+    1260,
+    910
+  ],
+  "count": 350,
+  "fps": 35,
+  "gop": 35,
+  "tolerance": 7,
+  "bytes": 164974,
+  "summary": [
+    {
+      "index": 0,
+      "preceding_gop_frames": 0,
+      "median_ms": 10.799999952316284,
+      "p95_ms": 13
+    },
+    {
+      "index": 175,
+      "preceding_gop_frames": 0,
+      "median_ms": 13.699999809265137,
+      "p95_ms": 14.100000143051147
+    },
+    {
+      "index": 349,
+      "preceding_gop_frames": 34,
+      "median_ms": 14.599999904632568,
+      "p95_ms": 16.299999952316284
+    }
+  ],
+  "runs": [
+    [
+      {
+        "index": 0,
+        "mediaTime": 0,
+        "milliseconds": 13,
+        "sample": [
+          32,
+          64,
+          65
+        ]
+      },
+      {
+        "index": 175,
+        "mediaTime": 5,
+        "milliseconds": 13.400000095367432,
+        "sample": [
+          207,
+          76,
+          136
+        ]
+      },
+      {
+        "index": 349,
+        "mediaTime": 9.971,
+        "milliseconds": 14.599999904632568,
+        "sample": [
+          188,
+          88,
+          74
+        ]
+      }
+    ],
+    [
+      {
+        "index": 0,
+        "mediaTime": 0,
+        "milliseconds": 8.199999809265137,
+        "sample": [
+          32,
+          64,
+          65
+        ]
+      },
+      {
+        "index": 175,
+        "mediaTime": 5,
+        "milliseconds": 13.599999904632568,
+        "sample": [
+          207,
+          76,
+          136
+        ]
+      },
+      {
+        "index": 349,
+        "mediaTime": 9.971,
+        "milliseconds": 14.400000095367432,
+        "sample": [
+          188,
+          88,
+          74
+        ]
+      }
+    ],
+    [
+      {
+        "index": 0,
+        "mediaTime": 0,
+        "milliseconds": 12.100000143051147,
+        "sample": [
+          32,
+          64,
+          65
+        ]
+      },
+      {
+        "index": 175,
+        "mediaTime": 5,
+        "milliseconds": 13.699999809265137,
+        "sample": [
+          207,
+          76,
+          136
+        ]
+      },
+      {
+        "index": 349,
+        "mediaTime": 9.971,
+        "milliseconds": 16.299999952316284,
+        "sample": [
+          188,
+          88,
+          74
+        ]
+      }
+    ],
+    [
+      {
+        "index": 0,
+        "mediaTime": 0,
+        "milliseconds": 8.200000047683716,
+        "sample": [
+          32,
+          64,
+          65
+        ]
+      },
+      {
+        "index": 175,
+        "mediaTime": 5,
+        "milliseconds": 14.100000143051147,
+        "sample": [
+          207,
+          76,
+          136
+        ]
+      },
+      {
+        "index": 349,
+        "mediaTime": 9.971,
+        "milliseconds": 14.599999904632568,
+        "sample": [
+          188,
+          88,
+          74
+        ]
+      }
+    ],
+    [
+      {
+        "index": 0,
+        "mediaTime": 0,
+        "milliseconds": 10.799999952316284,
+        "sample": [
+          32,
+          64,
+          65
+        ]
+      },
+      {
+        "index": 175,
+        "mediaTime": 5,
+        "milliseconds": 14,
+        "sample": [
+          207,
+          76,
+          136
+        ]
+      },
+      {
+        "index": 349,
+        "mediaTime": 9.971,
+        "milliseconds": 15.799999952316284,
+        "sample": [
+          188,
+          88,
+          74
+        ]
+      }
+    ]
+  ]
+}

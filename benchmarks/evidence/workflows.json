@@ -1,0 +1,433 @@
+{
+  "revision": "38577b660b37f2fd2bf351c3ae209a792311d584",
+  "chromium_workflow": {
+    "engine": "chromium",
+    "browser": "131.0.6778.33",
+    "crossOriginIsolated": false,
+    "xray": "webgl2",
+    "measurement": {
+      "name": "length",
+      "value": 5,
+      "unit": "millimeter"
+    },
+    "cine": {
+      "data": [
+        {
+          "index": 0,
+          "milliseconds": 15.900000095367432,
+          "sample": {
+            "kind": "color",
+            "space": "rgb",
+            "values": [
+              32,
+              64,
+              63
+            ]
+          },
+          "decoded": 0
+        },
+        {
+          "index": 175,
+          "milliseconds": 15.700000047683716,
+          "sample": {
+            "kind": "color",
+            "space": "rgb",
+            "values": [
+              207,
+              77,
+              137
+            ]
+          },
+          "decoded": 1
+        },
+        {
+          "index": 349,
+          "milliseconds": 16.5,
+          "sample": {
+            "kind": "color",
+            "space": "rgb",
+            "values": [
+              189,
+              87,
+              75
+            ]
+          },
+          "decoded": 1
+        }
+      ],
+      "seeks": [
+        "cancelled",
+        "cancelled",
+        "cancelled",
+        "fulfilled"
+      ],
+      "latest": 349,
+      "hash": "fa5e98aeb4fa9fd05211b838f1d4601537a91db840bf187b6c876a1f6b745594",
+      "stats": {
+        "active_pixel_bytes_upper_bound": 3439800,
+        "output_copy_bytes": 20638800,
+        "peak_output_bytes": 3439800,
+        "session": {
+          "cached_frames": 2,
+          "cached_pixel_bytes": 6879600,
+          "dataset_elements": 18,
+          "decoded_frames": 5,
+          "fragment_copy_bytes": 0,
+          "frame_index_bytes": 7000,
+          "peak_cached_pixel_bytes": 6879600,
+          "produced_pixel_bytes": 17199000,
+          "resident_dataset_bytes": 9766844,
+          "source_bytes": 9766844
+        },
+        "wasm_linear_memory_bytes": 30998528,
+        "wasm_input_copy_bytes": 9766844,
+        "wasm_output_copy_bytes": 20638800
+      },
+      "gpuTextureEstimate": 4586407,
+      "verifiedReference": "fa5e98aeb4fa9fd05211b838f1d4601537a91db840bf187b6c876a1f6b745594"
+    },
+    "four_panel_lifecycle": {
+      "cancelled": "cancelled",
+      "rejected": "integrity",
+      "retained": "original",
+      "old": "closed",
+      "observedStale": false
+    }
+  },
+  "firefox_workflow": {
+    "engine": "firefox",
+    "browser": "132.0",
+    "crossOriginIsolated": false,
+    "xray": "cpu",
+    "measurement": {
+      "name": "length",
+      "value": 5.0002076975227885,
+      "unit": "millimeter"
+    },
+    "cine": {
+      "data": [
+        {
+          "index": 0,
+          "milliseconds": 14,
+          "sample": {
+            "kind": "color",
+            "space": "rgb",
+            "values": [
+              32,
+              64,
+              63
+            ]
+          },
+          "decoded": 0
+        },
+        {
+          "index": 175,
+          "milliseconds": 59,
+          "sample": {
+            "kind": "color",
+            "space": "rgb",
+            "values": [
+              207,
+              77,
+              137
+            ]
+          },
+          "decoded": 1
+        },
+        {
+          "index": 349,
+          "milliseconds": 56,
+          "sample": {
+            "kind": "color",
+            "space": "rgb",
+            "values": [
+              189,
+              87,
+              75
+            ]
+          },
+          "decoded": 1
+        }
+      ],
+      "seeks": [
+        "cancelled",
+        "cancelled",
+        "cancelled",
+        "fulfilled"
+      ],
+      "latest": 349,
+      "hash": "fa5e98aeb4fa9fd05211b838f1d4601537a91db840bf187b6c876a1f6b745594",
+      "stats": {
+        "active_pixel_bytes_upper_bound": 3439800,
+        "output_copy_bytes": 43570800,
+        "peak_output_bytes": 4586400,
+        "session": {
+          "cached_frames": 2,
+          "cached_pixel_bytes": 6879600,
+          "dataset_elements": 18,
+          "decoded_frames": 5,
+          "fragment_copy_bytes": 0,
+          "frame_index_bytes": 7000,
+          "peak_cached_pixel_bytes": 6879600,
+          "produced_pixel_bytes": 17199000,
+          "resident_dataset_bytes": 9766844,
+          "source_bytes": 9766844
+        },
+        "wasm_linear_memory_bytes": 29753344,
+        "wasm_input_copy_bytes": 9766844,
+        "wasm_output_copy_bytes": 43570800
+      },
+      "gpuTextureEstimate": 0,
+      "verifiedReference": "fa5e98aeb4fa9fd05211b838f1d4601537a91db840bf187b6c876a1f6b745594"
+    },
+    "four_panel_lifecycle": {
+      "cancelled": "cancelled",
+      "rejected": "integrity",
+      "retained": "original",
+      "old": "closed",
+      "observedStale": false
+    }
+  },
+  "chromium_profiles": {
+    "engine": "chromium",
+    "version": "131.0.6778.33",
+    "codecResults": [
+      {
+        "filename": "htj2k-lossless.dcm",
+        "maximum": 0,
+        "renderer": "webgl2",
+        "tolerance": 0
+      },
+      {
+        "filename": "htj2k-rpcl.dcm",
+        "maximum": 0,
+        "renderer": "webgl2",
+        "tolerance": 0
+      },
+      {
+        "filename": "htj2k.dcm",
+        "maximum": 0,
+        "renderer": "webgl2",
+        "tolerance": 4
+      },
+      {
+        "filename": "jpeg-2000-lossless.dcm",
+        "maximum": 0,
+        "renderer": "webgl2",
+        "tolerance": 0
+      },
+      {
+        "filename": "jpeg-2000.dcm",
+        "maximum": 0,
+        "renderer": "webgl2",
+        "tolerance": 4
+      },
+      {
+        "filename": "jpeg-extended-12.dcm",
+        "maximum": 0,
+        "renderer": "webgl2",
+        "tolerance": 2
+      },
+      {
+        "filename": "jpeg-lossless-sv1.dcm",
+        "maximum": 0,
+        "renderer": "webgl2",
+        "tolerance": 0
+      },
+      {
+        "filename": "jpeg-lossless.dcm",
+        "maximum": 0,
+        "renderer": "webgl2",
+        "tolerance": 0
+      },
+      {
+        "filename": "jpeg-ls-near.dcm",
+        "maximum": 2,
+        "renderer": "webgl2",
+        "tolerance": 2
+      },
+      {
+        "filename": "jpeg-ls.dcm",
+        "maximum": 0,
+        "renderer": "webgl2",
+        "tolerance": 0
+      }
+    ],
+    "physical": 136,
+    "series": {
+      "source": "2.25.913",
+      "hash": "e0a3a1998f0387d992300d1adff46d19b43642ad67a40a52341ba949cab464e0",
+      "positions": 3,
+      "available": true
+    },
+    "sr": {
+      "name": "length",
+      "value": 5,
+      "unit": "millimeter"
+    }
+  },
+  "firefox_profiles": {
+    "engine": "firefox",
+    "version": "132.0",
+    "codecResults": [
+      {
+        "filename": "htj2k-lossless.dcm",
+        "maximum": 0,
+        "renderer": "cpu",
+        "tolerance": 0
+      },
+      {
+        "filename": "htj2k-rpcl.dcm",
+        "maximum": 0,
+        "renderer": "cpu",
+        "tolerance": 0
+      },
+      {
+        "filename": "htj2k.dcm",
+        "maximum": 0,
+        "renderer": "cpu",
+        "tolerance": 4
+      },
+      {
+        "filename": "jpeg-2000-lossless.dcm",
+        "maximum": 0,
+        "renderer": "cpu",
+        "tolerance": 0
+      },
+      {
+        "filename": "jpeg-2000.dcm",
+        "maximum": 0,
+        "renderer": "cpu",
+        "tolerance": 4
+      },
+      {
+        "filename": "jpeg-extended-12.dcm",
+        "maximum": 0,
+        "renderer": "cpu",
+        "tolerance": 2
+      },
+      {
+        "filename": "jpeg-lossless-sv1.dcm",
+        "maximum": 0,
+        "renderer": "cpu",
+        "tolerance": 0
+      },
+      {
+        "filename": "jpeg-lossless.dcm",
+        "maximum": 0,
+        "renderer": "cpu",
+        "tolerance": 0
+      },
+      {
+        "filename": "jpeg-ls-near.dcm",
+        "maximum": 2,
+        "renderer": "cpu",
+        "tolerance": 2
+      },
+      {
+        "filename": "jpeg-ls.dcm",
+        "maximum": 0,
+        "renderer": "cpu",
+        "tolerance": 0
+      }
+    ],
+    "physical": 136,
+    "series": {
+      "source": "2.25.913",
+      "hash": "e0a3a1998f0387d992300d1adff46d19b43642ad67a40a52341ba949cab464e0",
+      "positions": 3,
+      "available": true
+    },
+    "sr": {
+      "name": "length",
+      "value": 5,
+      "unit": "millimeter"
+    }
+  },
+  "independent_dicom_reference": {
+    "pydicom": "3.0.2",
+    "highdicom": "0.29.0",
+    "codec_deltas": {
+      "htj2k-lossless.dcm": 0,
+      "htj2k-rpcl.dcm": 0,
+      "htj2k.dcm": 0,
+      "jpeg-2000-lossless.dcm": 0,
+      "jpeg-2000.dcm": 0,
+      "jpeg-extended-12.dcm": 0,
+      "jpeg-lossless-sv1.dcm": 0,
+      "jpeg-lossless.dcm": 0,
+      "jpeg-ls-near.dcm": 2,
+      "jpeg-ls.dcm": 0
+    },
+    "sr": {
+      "value": 5.0,
+      "unit": "mm"
+    },
+    "errors": []
+  },
+  "external_rust_method": {
+    "source": {
+      "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+      "instance_uid": "2.25.101",
+      "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+      "frame_of_reference_uid": null,
+      "frame": 0
+    },
+    "coordinate_system": "source_pixel_centers",
+    "input": {
+      "id": "synthetic-ratio",
+      "method": "example:landmark-ratio",
+      "version": 1,
+      "points": [
+        {
+          "x": 2.0,
+          "y": 3.0
+        },
+        {
+          "x": 8.0,
+          "y": 3.0
+        },
+        {
+          "x": 2.0,
+          "y": 6.0
+        },
+        {
+          "x": 6.0,
+          "y": 6.0
+        }
+      ],
+      "parameters": null
+    },
+    "calibration": {
+      "kind": "projection",
+      "spacing_xy": [
+        0.5,
+        0.25
+      ],
+      "method": "fiducial"
+    },
+    "values": [
+      {
+        "name": "landmark_ratio",
+        "value": 1.5,
+        "unit": "ratio"
+      }
+    ]
+  },
+  "flutter_linux": {
+    "flutter": "3.44.9",
+    "dart": "3.12.2",
+    "native_workflow_tests_passed": 4
+  },
+  "rust": {
+    "integration_tests_passed": 11,
+    "veterinary_tests_passed": 1,
+    "clippy_warnings": 0
+  },
+  "ios_arm64": {
+    "rust": "1.97.1",
+    "cargo_check": "passed",
+    "xcode_app_link": "open",
+    "physical_device": "open"
+  }
+}
