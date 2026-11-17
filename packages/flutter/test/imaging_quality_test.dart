@@ -332,9 +332,9 @@ void main() {
     tester,
   ) async {
     await tester.runAsync(() async {
-      final gpu = await MonochromeShader.testedProgram(
-        'shaders/monochrome.frag',
-      );
+      final gpu =
+          await MonochromeShader.available() ??
+          await MonochromeShader.testedProgram('shaders/monochrome.frag');
       expect(
         gpu,
         isNotNull,

@@ -293,6 +293,7 @@ pub struct BoundSession {
     rendered_frame_bytes: u64,
     frame_proofs: Option<(String, raykit_core::FrameProofCatalog)>,
     tiles: Option<TileCatalog>,
+    full_source_file_read_us: Option<u128>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -368,18 +369,24 @@ impl BoundSession {
         options: OpenOptions,
     ) -> Result<(Self, Reply)> {
         options.check_primary()?;
-        let session = if let Some((manifest, pin)) = index {
+        let (session, read_us) = if let Some((manifest, pin)) = index {
             let mut session = Self::checked_index(manifest, pin, &options)?;
             session.bind_file(file)?;
-            session
+            (session, None)
         } else {
-            Self::checked_file(&file, &options)?
+            let (session, read_us) = Self::checked_file(&file, &options)?;
+            (session, Some(read_us))
         };
-        Self::bind(session)
+        let (mut bound, reply) = Self::bind(session)?;
+        bound.full_source_file_read_us = read_us;
+        Ok((bound, reply))
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn checked_file(file: &raykit_core::NativeFile, options: &OpenOptions) -> Result<Session> {
+    fn checked_file(
+        file: &raykit_core::NativeFile,
+        options: &OpenOptions,
+    ) -> Result<(Session, u128)> {
         if file.len()
             > options
                 .limits
@@ -390,12 +397,12 @@ impl BoundSession {
         }
         let len = file.len() as usize;
         options.check_expected_size(len)?;
-        let session = Session::open_verified(
-            file.read(0, len)?,
-            options.limits,
-            options.expected_sha256.as_deref(),
-        )?;
-        Self::check_identifiers(session, options)
+        let started = std::time::Instant::now();
+        let bytes = file.read(0, len)?;
+        let read_us = started.elapsed().as_micros();
+        let session =
+            Session::open_verified(bytes, options.limits, options.expected_sha256.as_deref())?;
+        Ok((Self::check_identifiers(session, options)?, read_us))
     }
 
     pub fn frame_range(&self, index: usize) -> Result<raykit_core::FrameRange> {
@@ -419,6 +426,7 @@ impl BoundSession {
             return Err(Error::Integrity("full source differs from indexed source"));
         }
         self.session = full.session;
+        self.full_source_file_read_us = full.full_source_file_read_us;
         Ok(())
     }
 
@@ -458,6 +466,7 @@ impl BoundSession {
                 rendered_frame_bytes: 0,
                 frame_proofs: None,
                 tiles: None,
+                full_source_file_read_us: None,
             },
             inspection,
         ))
@@ -526,7 +535,7 @@ impl BoundSession {
         mut options: OpenOptions,
     ) -> Result<Reply> {
         let remaining = self.constrain_append(&mut options)?;
-        let source = Self::checked_file(&file, &options)?;
+        let (source, _) = Self::checked_file(&file, &options)?;
         self.attach(source, options.attachment.take(), remaining)
     }
 
@@ -844,6 +853,7 @@ impl BoundSession {
             }
             Command::Stats => json(&serde_json::json!({
                 "session": self.session.memory(), "output_copy_bytes": self.output_copy_bytes,
+                "full_source_file_read_us": self.full_source_file_read_us,
                 "peak_output_bytes": self.peak_output_bytes,
                 "rendered_frames": self.rendered_frames, "rendered_frame_bytes": self.rendered_frame_bytes,
                 "active_pixel_bytes_upper_bound": self.active.as_ref().map_or(0, |f| f.format.pixels() * if f.format.photometric.is_monochrome() { 4 } else { 3 }),

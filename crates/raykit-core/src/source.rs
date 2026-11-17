@@ -1,3 +1,5 @@
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 use std::{collections::VecDeque, sync::Arc};
 
 use serde::Serialize;
@@ -5,7 +7,7 @@ use serde::Serialize;
 use crate::{
     Error, FrameIndex, FrameProofCatalog, FrameRange, Limits, Result,
     codec::{Index, decode_jpeg, read_indexed},
-    dicom::{Dataset, File, Key, uid},
+    dicom::{Dataset, File, Key, source_digest, uid},
     frame_index::DetachedIndex,
     frame_proof::{ProofIndex, VerifiedFrame},
     geometry::{
@@ -375,6 +377,12 @@ pub struct Memory {
     pub source_read_bytes: u64,
     pub frame_index_input_bytes: usize,
     pub range_reads: u64,
+    #[cfg(not(target_arch = "wasm32"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub full_source_hash_us: Option<u128>,
+    #[cfg(not(target_arch = "wasm32"))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub full_source_parse_us: Option<u128>,
 }
 
 pub struct Session {
@@ -400,7 +408,22 @@ impl Session {
         limits: Limits,
         expected_sha256: Option<&str>,
     ) -> Result<Self> {
-        Self::inspect_file(File::parse(bytes, limits, expected_sha256)?, limits, None)
+        File::check_source_size(bytes.len(), limits)?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let hash_started = Instant::now();
+        let digest = source_digest(&bytes);
+        #[cfg(not(target_arch = "wasm32"))]
+        let hashed = Instant::now();
+        let file = File::parse_with_digest(bytes, limits, expected_sha256, digest)?;
+        let session = Self::inspect_file(file, limits, None)?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let session = {
+            let mut session = session;
+            session.memory.full_source_hash_us = Some((hashed - hash_started).as_micros());
+            session.memory.full_source_parse_us = Some(hashed.elapsed().as_micros());
+            session
+        };
+        Ok(session)
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -419,7 +442,7 @@ impl Session {
         limits: Limits,
         expected_sha256: Option<&str>,
     ) -> Result<Self> {
-        use crate::dicom::{finish_web_digest, source_digest, start_web_digest};
+        use crate::dicom::{finish_web_digest, start_web_digest};
         File::check_source_size(bytes.len(), limits)?;
         let Some(digest) = start_web_digest(&bytes) else {
             return Self::open_verified(bytes, limits, expected_sha256);

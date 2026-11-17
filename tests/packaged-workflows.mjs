@@ -18,9 +18,10 @@ const browsers = { chromium, firefox, webkit };
 assert.ok(browsers[engine], 'Unknown browser ' + engine);
 const reference = JSON.parse(readFileSync(join(root, 'benchmarks/evidence/comparison-reference.json')));
 const published = process.argv.includes('--published');
+const acceptance = process.argv.includes('--acceptance');
 
-function run(command, args, cwd) {
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' && command === npm });
+function run(command, args, cwd, env = process.env) {
+  const result = spawnSync(command, args, { cwd, env, stdio: 'inherit', shell: process.platform === 'win32' && command === npm });
   if (result.error) throw result.error;
   assert.equal(result.status, 0, `${command} exited with ${result.status}`);
 }
@@ -54,7 +55,7 @@ try {
   const packages = ['web', 'web-component'];
   const files = packages.map(name => join(artifacts, 'raykit-' + name + '-' + version + '.tgz'));
   run(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--cache', join(tree, 'npm-cache'),
-    ...(published ? ['--registry', 'https://registry.npmjs.org', '@raykit/web-component@' + version] : files),
+    ...(published ? ['--registry', 'https://registry.npmjs.org', ...packages.map(name => '@raykit/' + name + '@' + version)] : files),
     'vite@7.3.1', 'typescript@5.9.3'], web);
   const lock = JSON.parse(readFileSync(join(web, 'package-lock.json')));
   for (const [index, name] of packages.entries()) {
@@ -204,16 +205,36 @@ try {
     assert(requests.some(url => url.startsWith('/installed-sdk/generated/advanced/raykit_wasm_bg.wasm')));
     await page.locator('#custom-worker').click();
     await page.waitForFunction(() => document.querySelector('#sample-error').value.includes('stored -1540'));
-    if (existsSync(join(root, 'fixtures/generated/delivery/pins.json'))) {
+    let proofCheck;
+    if (acceptance || existsSync(join(root, 'fixtures/generated/delivery/pins.json'))) {
       await page.locator('#open-proof').click();
       await page.waitForFunction(() => document.querySelector('raykit-viewer')?.viewport?.session?.inspection.verification === 'pinned_frame_proof' &&
         document.querySelector('raykit-viewer')?.viewport?.presented?.source.frame === 0);
       const proof = await page.locator('raykit-viewer').evaluate(async viewer => (await viewer.viewport.session.stats()).range_requests);
       assert.equal(proof, 1);
+      proofCheck = await page.locator('raykit-viewer').evaluate(async viewer => {
+        const api = await import('/installed-sdk/index.js');
+        const { proof: { index } } = await fetch('/delivery/pins.json').then(r => r.json());
+        const source = api.frameProofHttp('/delivery/proof/', { rootSha256: index.root_sha256, revision: index.revision });
+        const drawn = [];
+        viewer.addEventListener('raykit-presented', event => drawn.push(event.detail), { once: true });
+        const wrongRevision = await viewer.open(source, { revision: 'superseded' }).then(() => 'accepted', error => error.code);
+        return { reads: 1, wrongRevision, draws: drawn.length };
+      });
+      assert.deepEqual(proofCheck, { reads: 1, wrongRevision: 'integrity', draws: 0 });
       await page.locator('#open-tiles').click();
       await page.waitForFunction(() => document.querySelector('#tiled-status').value.includes('Original resolution'));
     }
-    const evidence = { engine, browser: browser.version(), ...exact, advanced_codec: codec.engine };
+    const checks = [];
+    if (acceptance) {
+      for (const name of ['workflow', 'source-open', 'indexed', 'imaging-quality']) {
+        run(process.execPath, [`tests/web-${name}.mjs`], root, {
+          ...process.env, RAYKIT_EXAMPLE_DIST: join(web, 'dist'), RAYKIT_WEB_DIST: sdk,
+        });
+        checks.push(name);
+      }
+    }
+    const evidence = { engine, browser: browser.version(), ...exact, advanced_codec: codec.engine, checks, proof: proofCheck };
     if (process.env.RAYKIT_WEB_EVIDENCE) writeFileSync(process.env.RAYKIT_WEB_EVIDENCE, JSON.stringify(evidence, null, 2));
     console.log(JSON.stringify(evidence, null, 2));
   } finally { await browser?.close(); service.close(); }

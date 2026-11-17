@@ -224,7 +224,19 @@ jobs:
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
         with:
           arch: ${{ matrix.target.arch == 'arm64' && 'arm64' || 'x64' }}
-      - run: node scripts/package-native.mjs
+      - if: runner.os == 'Windows'
+        name: Select the MSVC linker
+        shell: pwsh
+        run: |
+          $linker = (Get-Command link.exe -ErrorAction Stop).Source
+          if ($linker -notmatch '\\VC\\Tools\\MSVC\\') { throw "Expected the Visual Studio linker" }
+          $target = $env:RAYKIT_EXPECT_TARGET.ToUpper().Replace('-', '_')
+          "CARGO_TARGET_${target}_LINKER=$linker" >> $env:GITHUB_ENV
+      - if: runner.os != 'Windows'
+        run: node scripts/package-native.mjs
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: node scripts/package-native.mjs
       - env:
           VERSION: ${{ needs.versions.outputs.version }}
         run: |
@@ -304,7 +316,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npx --no-install playwright-core install --with-deps "$RAYKIT_BROWSER"
       - run: |
-          RAYKIT_WEB_EVIDENCE="$RUNNER_TEMP/browser.json" RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node tests/packaged-workflows.mjs --web
+          RAYKIT_WEB_EVIDENCE="$RUNNER_TEMP/browser.json" RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node tests/packaged-workflows.mjs --web --acceptance
           python scripts/release.py shard "$SHARD" "web-$RAYKIT_BROWSER" "$COMMIT" --evidence "$RUNNER_TEMP/browser.json"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
@@ -338,12 +350,14 @@ jobs:
           path: fixtures/generated
       - run: |
           node scripts/prepare-examples.mjs --assets-only
-          RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node scripts/prepare-flutter-consumer.mjs "$RUNNER_TEMP/consumer"
+          RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node scripts/prepare-flutter-consumer.mjs "$RUNNER_TEMP/consumer" --acceptance
       - run: flutter pub publish --dry-run
         working-directory: ${{ runner.temp }}/consumer/packages/raykit
-      - run: flutter test --no-pub --concurrency=1 test/package_test.dart test/example_test.dart
+      - run: |
+          RAYKIT_FLUTTER_EVIDENCE="$RUNNER_TEMP/flutter.json" flutter test --no-pub --concurrency=1 \
+            test/package_test.dart test/example_test.dart test/native_workflow_test.dart test/imaging_quality_test.dart
         working-directory: ${{ runner.temp }}/consumer/examples/flutter
-      - run: python scripts/release.py shard "$SHARD" flutter "$COMMIT"
+      - run: python scripts/release.py shard "$SHARD" flutter "$COMMIT" --evidence "$RUNNER_TEMP/flutter.json"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: raykit-shard-flutter
@@ -431,7 +445,10 @@ jobs:
         with:
           name: raykit-fixtures
           path: fixtures/generated
-      - run: sdkmanager 'platforms;android-36' 'ndk;28.2.13676358'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+        with:
+          cmdline-tools-version: '12266719'
+          packages: platform-tools platforms;android-36 ndk;28.2.13676358
       - run: |
           node scripts/prepare-examples.mjs --assets-only
           RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node scripts/prepare-flutter-consumer.mjs "$RUNNER_TEMP/consumer"

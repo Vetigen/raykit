@@ -223,10 +223,16 @@ final class RayKitFrame {
 }
 
 final class RayKitSession {
-  RayKitSession._(this._channel, this.inspection, this.revision);
+  RayKitSession._(
+    this._channel,
+    this.inspection,
+    this.revision,
+    this._openTiming,
+  );
   final _Channel _channel;
   final RayKitInspection inspection;
   final String revision;
+  final Json _openTiming;
   bool get isClosed => _channel._closing;
   int _owners = 1;
   bool _ownerReleased = false;
@@ -259,6 +265,7 @@ final class RayKitSession {
       _ => null,
     };
     final Uint8List? bytes;
+    final clock = Stopwatch()..start();
     try {
       bytes = local == null
           ? await _abortable(source.read(scope, limit), scope)
@@ -269,9 +276,13 @@ final class RayKitSession {
       throw const RayKitException('io', 'Source read failed');
     }
     scope.check();
+    final hostReadUs = clock.elapsedMicroseconds;
+    clock.reset();
     final channel = await _Channel.start();
+    final workerStartUs = clock.elapsedMicroseconds;
     try {
       scope.check();
+      clock.reset();
       final reply = local != null
           ? await _sendLocal(
               channel,
@@ -286,11 +297,17 @@ final class RayKitSession {
               options.toJson(),
             ], scope);
       scope.check();
+      final workerOpenUs = clock.elapsedMicroseconds;
       final info = RayKitInspection(reply.metadata as Json);
       return RayKitSession._(
         channel,
         info,
         options.revision ?? info.contentSha256,
+        {
+          if (local == null) 'host_read_us': hostReadUs,
+          'worker_start_us': workerStartUs,
+          'worker_open_us': workerOpenUs,
+        },
       );
     } catch (_) {
       await channel.close();
@@ -458,7 +475,10 @@ final class RayKitSession {
     RayKitCancellation? cancellation,
   }) => _json({'op': 'verify', 'record': record}, cancellation);
 
-  Future<Json> stats() => _json({'op': 'stats'}, null);
+  Future<Json> stats() async => {
+    ...await _json({'op': 'stats'}, null),
+    'open_timing': Map.of(_openTiming),
+  };
 
   Future<Json> addVolumeSource(
     RayKitSource source, {

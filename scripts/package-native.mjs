@@ -60,7 +60,8 @@ try {
     run('cargo', rustBuild, { env: cargoEnv });
     output = join(target_directory, target.rust, 'release');
     cpSync(join(output, ffi), join(pythonNative, ffi));
-    run(python, ['-m', 'build', '--wheel', '--outdir', artifacts], { cwd: pythonSource, env: cargoEnv });
+    run(python, ['-m', 'build', '--wheel', '--outdir', artifacts,
+      `--config-setting=--build-option=--plat-name=${target.wheel}`], { cwd: pythonSource, env: cargoEnv });
   }
 
   archive(cliArchive(target.rust), 'raykit-cli', directory => {

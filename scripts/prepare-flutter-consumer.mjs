@@ -5,6 +5,7 @@ import { artifacts, flutter, flutterArchive, root, run, version } from './releas
 const work = resolve(process.argv[2]);
 const registry = process.argv.includes('--registry');
 const integration = process.argv.includes('--integration');
+const acceptance = process.argv.includes('--acceptance');
 const example = join(root, 'examples/flutter');
 const app = join(work, 'examples/flutter');
 mkdirSync(app, { recursive: true });
@@ -33,9 +34,27 @@ if (integration) {
   mkdirSync(join(app, 'integration_test'));
   cpSync(join(root, 'tests/flutter-consumer/integration_test.dart'), join(app, 'integration_test/release_test.dart'));
 }
+if (acceptance) {
+  pubspec = pubspec.replace('dev_dependencies:\n', 'dev_dependencies:\n  ffi: ^2.1.5\n');
+  for (const file of ['native_workflow_test.dart', 'imaging_quality_test.dart']) {
+    cpSync(join(root, 'packages/flutter/test', file), join(app, 'test', file));
+  }
+  for (const file of ['fixtures/generated', 'benchmarks/evidence/imaging-reference.json', 'tests/measurement-cases.json']) {
+    mkdirSync(join(work, file, '..'), { recursive: true });
+    cpSync(join(root, file), join(work, file), { recursive: true });
+  }
+}
 writeFileSync(manifest, pubspec);
 for (const file of ['acceptance.dart', 'package_test.dart']) {
   cpSync(join(root, 'tests/flutter-consumer', file), join(app, 'test', file));
 }
 run(flutter, ['pub', 'get'], { cwd: app });
+if (registry) {
+  const lock = readFileSync(join(app, 'pubspec.lock'), 'utf8');
+  const entry = lock.match(/^  raykit:\n(?:    .*\n)+/m)?.[0];
+  if (!entry?.includes('source: hosted\n') || !entry.includes(`version: "${version}"\n`) ||
+    !entry.includes('url: "https://pub.dev"\n')) {
+    throw new Error('The consumer did not resolve the exact raykit version from pub.dev');
+  }
+}
 console.log(app);

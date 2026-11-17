@@ -48,7 +48,10 @@ def approved_tag(commit):
     required = [job for job in jobs if job["name"] == "ci-required" and job["head_sha"] == commit]
     require(len(required) == 1 and required[0]["conclusion"] == "success", f"ci-required did not pass for {commit}")
     environment = github("environments/release")
+    require(environment.get("can_admins_bypass") is False,
+            "Disable administrator bypass on the release environment")
     require(any(rule["type"] == "required_reviewers" and rule.get("reviewers")
+                and rule.get("prevent_self_review") is True
                 for rule in environment["protection_rules"]), "Configure required reviewers on the release environment")
     require((environment.get("deployment_branch_policy") or {}).get("custom_branch_policies"),
             "Restrict the release environment to release tags")

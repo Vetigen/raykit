@@ -7,6 +7,40 @@ identify the commit, browser, engine, fixtures and runner image. Compare
 timings as trends on the shared runner. Stored samples, rendered window
 digests and calibrated measurements are exact acceptance gates.
 
+## Release startup comparison
+
+Build the benchmark page against the installed npm archive. The runner
+alternates RayKit and DWV in fresh Chromium processes on the same host.
+Each open action reads and checks the local HTTP fixture. RayKit uses the
+first verified canvas draw event and DWV uses the first `renderend`. The
+report includes the first action-to-draw interval, file read, Worker startup,
+transfer, Web Crypto digest, frame work and draw timing. Worker instrumentation
+applies only to this benchmark run. Overlapping phases are reported as
+individual intervals. A fast-seek series checks the requested frame. One
+trial per fixture and engine records renderer RSS after ten further cycles.
+
+```sh
+RAYKIT_WEB_DIST=/path/to/installed/@raykit/web/dist npm run benchmark:build
+RAYKIT_RELEASE_PROFILE=1 RAYKIT_ENGINES=raykit,dwv \
+  RAYKIT_REPEATS=20 RAYKIT_CINE_REPEATS=20 \
+  RAYKIT_COMPARISON_OUTPUT=benchmarks/results/release-web.json node benchmarks/compare.mjs
+```
+
+For Flutter, use the same `lib/acceptance.dart` entrypoint in independent
+consumer apps prepared with candidate and reference archives. Build a Linux
+profile executable in each app with the same Flutter version and
+`--dart-define=RAYKIT_COMMIT=...`. The runner alternates these executables
+under the same Xvfb software renderer. It measures from the local file
+selection to the viewer's post-frame callback and checks the source hash and
+sample afterwards. Each fresh process records one startup and ten additional
+open/close cycles. Reported RSS includes memory retained by the process.
+
+```sh
+RAYKIT_FLUTTER_LINUX=/path/to/candidate/raykit_example \
+  RAYKIT_FLUTTER_BASELINE=/path/to/reference/raykit_example \
+  node benchmarks/flutter-linux-profile.mjs --startup > benchmarks/results/release-flutter.json
+```
+
 ## Standalone delivery
 
 Use Node.js 24 or later, Python 3.11 or later, Docker for native Linux

@@ -35,6 +35,14 @@ The [release guide](release.md) defines the hosted package matrix and rehearsal
 reports. Those reports record builds and installed runtime results for each
 exact commit and artifact.
 
+The initial 0.1.0 rehearsal exercised installed npm apps in all three browser
+engines below and the unpacked Flutter SDK in a Linux consumer. Both Linux
+native architectures passed the CLI, C, Node and Python package checks. The
+Linux desktop archive opened the reference CT through its viewer. The rehearsal
+also identified Android, macOS and Windows packaging issues for the next run.
+Use the candidate report for the definitive release inventory and its passed
+checks. [Initial rehearsal](https://github.com/Vetigen/raykit/actions/runs/44202855691)
+
 | Target | Evidence |
 | --- | --- |
 | Chromium 131.0.6778.33, Linux x64 | Installed web packages. Software WebGL2 and CPU fallback, comparison, frame proofs, tiles, advanced codec retry, custom Worker and live replay with synthetic sources. [Delivery evidence](../benchmarks/evidence/delivery-web.json) |

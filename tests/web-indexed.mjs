@@ -9,7 +9,7 @@ const manifest = JSON.parse(await readFile('fixtures/generated/manifest.json', '
 const identity = manifest['cine-350.dcm'];
 const etag = `"${identity.sha256}"`;
 let stopped = 0;
-const service = await serve('examples/web/dist', (req, res, next) => {
+const service = await serve(process.env.RAYKIT_EXAMPLE_DIST ?? 'examples/web/dist', (req, res, next) => {
   const test = req.url.match(/^\/range-case\/(\w+)$/)?.[1];
   if (!test) { next(); return; }
   const range = /^bytes=(\d+)-(\d+)$/.exec(req.headers.range ?? '');
@@ -34,7 +34,7 @@ const service = await serve('examples/web/dist', (req, res, next) => {
     const timer = setTimeout(finish, 600);
     res.on('close', () => { if (res.writableEnded) return; clearTimeout(timer); stopped++; });
   } else finish();
-}, { '/sdk': 'packages/web/dist', '/fixtures': 'fixtures/generated' });
+}, { '/sdk': process.env.RAYKIT_WEB_DIST ?? 'packages/web/dist', '/fixtures': 'fixtures/generated' });
 
 let browser;
 try {

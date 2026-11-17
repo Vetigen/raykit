@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { chromium, firefox, webkit } from 'playwright-core';
 import { serve } from './static-server.mjs';
 
-const server = await serve('examples/web/dist');
+const server = await serve(process.env.RAYKIT_EXAMPLE_DIST ?? 'examples/web/dist');
 const engine = process.env.RAYKIT_BROWSER ?? 'chromium';
 let browser;
 try {
@@ -143,7 +143,26 @@ try {
   assert.equal(await viewer.evaluate(viewer => viewer.viewport.presented.source.frame), 349);
   await viewer.locator('.surface').first().focus();
   assert.deepEqual((await viewer.evaluate(viewer => viewer.measurements))[0], reopened);
+  const revocation = await viewer.evaluate(async viewer => {
+    const { viewport, measurements: [record] } = viewer;
+    const session = viewport.session;
+    await viewer.compare();
+    const shared = viewer.viewports.filter(panel => panel.session === session);
+    const other = viewer.viewports.find(panel => panel.presented?.source.frame === 349);
+    const host = new EventTarget();
+    host.addEventListener('source-revoked', () => session.revoke(), { once: true });
+    host.dispatchEvent(new Event('source-revoked'));
+    return {
+      shared: shared.length,
+      cleared: shared.every(panel => !panel.presented && !panel.frame && !panel.session && panel.textureBytes === 0),
+      measurements: viewer.measurements,
+      read: await session.readFrame(0).then(() => 'open', error => error.code),
+      restore: await viewer.restoreMeasurement(record).then(() => 'restored', error => error.code),
+      other: other?.presented?.source.frame,
+    };
+  });
+  assert.deepEqual(revocation, { shared: 2, cleared: true, measurements: [], read: 'closed', restore: 'closed', other: 349 });
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ engine, browser: browser.version(), crossOriginIsolated: false, xray: first.renderer, measurement: record.values[0], cine,
-    four_panel_lifecycle: retired }, null, 2));
+    four_panel_lifecycle: retired, revocation }, null, 2));
 } finally { await browser?.close(); server.close(); }

@@ -6,7 +6,9 @@ import { serve } from './static-server.mjs';
 const name = process.env.RAYKIT_BROWSER ?? 'chromium';
 const reference = JSON.parse(await readFile('benchmarks/evidence/imaging-reference.json', 'utf8'));
 const cases = JSON.parse(await readFile('tests/measurement-cases.json', 'utf8'));
-const server = await serve('examples/web/dist', undefined, { '/sdk': 'packages/web/dist' });
+const server = await serve(process.env.RAYKIT_EXAMPLE_DIST ?? 'examples/web/dist', undefined, {
+  '/sdk': process.env.RAYKIT_WEB_DIST ?? 'packages/web/dist',
+});
 let browser;
 try {
   browser = await { chromium, firefox, webkit }[name].launch(name === 'chromium' ? {

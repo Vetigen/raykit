@@ -12,7 +12,7 @@ export async function create(host, file, count, probe) {
       throw new Error('Presented RayKit frame does not match the selected source');
     }
     return { at: detail.time, source_id: detail.source.content_sha256, frame: index,
-      sample: point && originalPixel(frame, point), work_ms: frame.workerReadMs };
+      sample: point && originalPixel(frame, point), work_ms: frame.workerReadMs, request_id: frame.requestId };
   }, draw);
   try {
     const first = await present(0, async () => { session = await viewport.load(file, { expected_sha256: probe.sha256 }); }, probe);

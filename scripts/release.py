@@ -253,6 +253,15 @@ def assemble(shards, output, commit, results):
             errors.append(f"{job}: {value['result']}")
     notes = (ROOT / "docs/release-notes.md").read_text(encoding="utf-8")
     require(notes.startswith(f"# RayKit {version}\n"), "Release notes do not match the workspace version")
+    if not errors and set(files) == set(expected):
+        notes += f"\nSource commit `{commit}`.\n"
+        repo, run = os.getenv("GITHUB_REPOSITORY"), os.getenv("GITHUB_RUN_ID")
+        if repo and run:
+            notes += f" [Successful package rehearsal](https://github.com/{repo}/actions/runs/{run})\n"
+        notes += ("\nThe rehearsal checked installed Chromium, Firefox and Playwright WebKit consumers, "
+                  "the Flutter SDK, the linked ARM64 Android APK and the unsigned iOS app link plus simulator runtime. "
+                  "It launched the extracted desktop archives on their target hosts. See the release report for "
+                  "the exact package hashes and evidence.\n")
     (output / "RELEASE-NOTES.md").write_text(notes, encoding="utf-8")
     sums = "".join(f"{meta['sha256']}  {name}\n" for name, meta in sorted(files.items()))
     (output / "SHA256SUMS").write_text(sums, encoding="utf-8")

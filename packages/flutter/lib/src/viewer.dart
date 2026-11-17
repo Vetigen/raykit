@@ -12,11 +12,16 @@ class RayKitViewerController {
   RayKitViewerState? _viewer;
   RayKitSession? get session => _viewer?._session;
   RayKitPresentedFrame? get presented => _viewer?._presented;
-  List<Json> get measurements => List.unmodifiable(
-    (_viewer?._measurements ?? []).map(
-      (record) => jsonDecode(jsonEncode(record)) as Json,
-    ),
-  );
+  List<Json> get measurements {
+    final viewer = _viewer;
+    if (viewer == null || viewer._session?.isClosed != false) return const [];
+    return List.unmodifiable(
+      viewer._measurements.map(
+        (record) => jsonDecode(jsonEncode(record)) as Json,
+      ),
+    );
+  }
+
   Json get displayStats => _viewer?._displayStats ?? const {};
 
   RayKitViewerState get _attached =>
@@ -365,6 +370,8 @@ class RayKitViewerState extends State<RayKitViewer> {
   int _uploadedBytes = 0;
   int _imagePaints = 0;
   int _presentations = 0;
+  int? _frameReadUs;
+  int? _frameDrawUs;
   int _cineSkipped = 0;
   int _cineShown = 0;
   int? _editIndex;
@@ -410,6 +417,8 @@ class RayKitViewerState extends State<RayKitViewer> {
     'image_upload_bytes': _uploadedBytes,
     'image_paints': _imagePaints,
     'presentations': _presentations,
+    'frame_read_us': _frameReadUs,
+    'frame_draw_us': _frameDrawUs,
     'cine_shown': _cineShown,
     'cine_skipped': _cineSkipped,
     'image_bytes_estimate': _image?.bytes ?? 0,
@@ -445,6 +454,7 @@ class RayKitViewerState extends State<RayKitViewer> {
         oldWidget.displayMode != widget.displayMode) {
       _resumeFrame = widget.initialFrame;
       _content = null;
+      _clearSourceReview();
       if (!identical(oldWidget.source, widget.source)) {
         unawaited(_suspendedLease?.call());
         _suspendedLease = null;
@@ -490,6 +500,7 @@ class RayKitViewerState extends State<RayKitViewer> {
         : null;
     final attached = widget.source.attachedSession;
     if (attached?.isClosed == true) {
+      _clearSourceReview();
       setState(() {
         _loading = false;
         _status = 'Source closed.';
@@ -515,21 +526,18 @@ class RayKitViewerState extends State<RayKitViewer> {
       if (!mounted || !identical(_session, session)) return;
       _run(_retire());
       setState(() {
+        _clearSourceReview();
         _loading = false;
         _status = 'Source closed.';
       });
     });
     _shader = shader;
     if (_content != session.inspection.contentSha256) {
-      _measurements.clear();
-      _draft.clear();
-      _editing = null;
-      _value = '';
+      _clearSourceReview();
       _pan = Offset.zero;
       _zoom = 1;
       _rotation = 0;
       _render = Map.of(widget.initialRender);
-      _pointer = null;
       _preset = null;
       _resumeFrame = widget.initialFrame;
     }
@@ -553,6 +561,14 @@ class RayKitViewerState extends State<RayKitViewer> {
         widget.onDocument?.call(session);
       }
     }
+  }
+
+  void _clearSourceReview() {
+    _measurements.clear();
+    _draft.clear();
+    _editing = null;
+    _value = '';
+    _pointer = null;
   }
 
   Future<void> _navigate(int index, {bool continuous = false}) {
@@ -619,6 +635,7 @@ class RayKitViewerState extends State<RayKitViewer> {
           identical(_drawnRender, settings)) {
         return;
       }
+      final read = Stopwatch()..start();
       final frame = await session.readFrame(
         index,
         stored: false,
@@ -627,7 +644,9 @@ class RayKitViewerState extends State<RayKitViewer> {
         fallbackVoi: true,
         cancellation: cancellation,
       );
+      final readUs = read.elapsedMicroseconds;
       cancellation.check();
+      final draw = Stopwatch()..start();
       final applied = _appliedRender(frame, settings);
       final uniforms = frame.encoding == 'mono_u16_rg'
           ? MonochromeShader.uniforms(frame, applied)
@@ -646,6 +665,7 @@ class RayKitViewerState extends State<RayKitViewer> {
         uniforms,
         settings,
         cancellation,
+        timing: (readUs: readUs, draw: draw),
       );
       cancellation.check();
       final neighbor = index + (index < previous ? -1 : 1);
@@ -736,8 +756,9 @@ class RayKitViewerState extends State<RayKitViewer> {
     FrameRaster raster,
     List<double>? uniforms,
     Json settings,
-    RayKitCancellation token,
-  ) async {
+    RayKitCancellation token, {
+    ({int readUs, Stopwatch draw})? timing,
+  }) async {
     final view = _view;
     final spacing = _readPair(frame.geometry['display_spacing_xy'] as List);
     final key = (
@@ -810,6 +831,10 @@ class RayKitViewerState extends State<RayKitViewer> {
         renderer: raster.texture ? 'shader' : 'cpu',
       );
       _presentations++;
+      if (timing != null) {
+        _frameReadUs = timing.readUs;
+        _frameDrawUs = timing.draw.elapsedMicroseconds;
+      }
       widget.onPresented?.call(presented);
     });
     await Future.any([done.future, token.cancelled]);
@@ -1271,6 +1296,8 @@ class RayKitViewerState extends State<RayKitViewer> {
     _uniforms = null;
     _mapping = null;
     _presented = null;
+    _frameReadUs = null;
+    _frameDrawUs = null;
     _presentedTransform = null;
     _editIndex = null;
     _segmentation?.raster.dispose();

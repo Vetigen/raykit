@@ -448,6 +448,99 @@ class _AcceptanceState extends State<_Acceptance> {
     await WidgetsBinding.instance.endOfFrame;
   }
 
+  Future<Json> _startup(String name) async {
+    const coldFixtures = ['benchmark-signed12.dcm', 'cine-350.dcm'];
+    if (!coldFixtures.contains(name))
+      throw StateError('Unknown startup fixture');
+    final directory = Platform.environment['RAYKIT_STARTUP_SOURCE_DIR'];
+    if (directory == null) throw StateError('Set RAYKIT_STARTUP_SOURCE_DIR');
+    _assets[name] = File('$directory/$name');
+    final fixture = _manifest[name] as Json;
+    final expected = fixture['expected'] as Json;
+    final cine = name == 'cine-350.dcm';
+    final probe = cine ? <Object?>[0, 0] : expected['sample'] as List;
+    final before = ProcessInfo.currentRss;
+    final opens = <Json>[];
+    final seekMs = <double>[];
+    final afterClose = <int>[];
+
+    Future<void> verify(int index) async {
+      final frame = _primary.presented!;
+      if (frame.source['frame'] != index ||
+          frame.source['content_sha256'] != fixture['sha256']) {
+        throw StateError('Presented source or frame mismatch');
+      }
+      final sample = await _primary.samplePresented(
+        probe[1] as int,
+        probe[0] as int,
+      );
+      if (cine) {
+        final reference =
+            (expected['rgb_at_0_0'] as Json)['$index'] as List? ??
+            [32 + index % 192, 64 + (index * 3) % 128, 64 + (index * 7) % 128];
+        final actual = sample['values'] as List;
+        for (var c = 0; c < 3; c++) {
+          if (((reference[c] as int) - (actual[c] as int)).abs() >
+              (expected['tolerance'] as int)) {
+            throw StateError('Cine color differs from its reference');
+          }
+        }
+      } else if (sample['stored'] != probe[2]) {
+        throw StateError('Radiograph differs from its signed reference');
+      }
+    }
+
+    for (var cycle = 0; cycle <= 10; cycle++) {
+      final action = Stopwatch()..start();
+      await _open(name);
+      final first = action.elapsedMicroseconds;
+      final session = _primary.session!;
+      if (session.inspection.data['verification'] != 'full_source') {
+        throw StateError('Startup requires full source verification');
+      }
+      await verify(0);
+      final stats = await session.stats();
+      final source = stats['session'] as Json;
+      opens.add({
+        'first_original_us': first,
+        'renderer': _primary.presented!.renderer,
+        'timing': {
+          ...?stats['open_timing'] as Json?,
+          'file_read_us': stats['full_source_file_read_us'],
+          'hash_us': source['full_source_hash_us'],
+          'parse_us': source['full_source_parse_us'],
+          'frame_read_us': _primary.displayStats['frame_read_us'],
+          'frame_draw_us': _primary.displayStats['frame_draw_us'],
+        },
+      });
+      if (cine && cycle == 0) {
+        for (final index in [
+          175,
+          349,
+          for (var i = 0; i < 20; i++) (i * 53) % 350,
+        ]) {
+          final seek = Stopwatch()..start();
+          await _primary.scrub(index);
+          seekMs.add(seek.elapsedMicroseconds / 1000);
+          await verify(index);
+        }
+      }
+      await _closePanels();
+      if (_primary.presented != null || !session.isClosed) {
+        throw StateError('A closed source retained a frame or session');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 70));
+      afterClose.add(ProcessInfo.currentRss);
+    }
+    return {
+      'fixture': name,
+      'opens': opens,
+      'seek_ms': seekMs,
+      'rss_before_bytes': before,
+      'rss_after_close_bytes': afterClose,
+    };
+  }
+
   Future<void> _run() async {
     final before = ProcessInfo.currentRss;
     try {
@@ -459,6 +552,13 @@ class _AcceptanceState extends State<_Acceptance> {
         const Duration(milliseconds: 50),
         (_) => _rss.add(ProcessInfo.currentRss),
       );
+      final startup = Platform.environment['RAYKIT_STARTUP_FIXTURE'];
+      if (startup != null) {
+        _results['startup'] = await _startup(startup);
+        _results['rss'] = {'sampled_peak_bytes': _rss.reduce(math.max)};
+        setState(() => _status = 'Startup verification complete');
+        return;
+      }
       _results['cpu'] = await _radiograph(RayKitDisplayMode.cpu);
       _results['shader'] = await _radiograph(RayKitDisplayMode.shader);
       _results['scrub'] = await _cine();

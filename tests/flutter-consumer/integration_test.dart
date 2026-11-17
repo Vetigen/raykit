@@ -9,5 +9,6 @@ void main() {
     tester,
   ) async {
     await tester.runAsync(verifyInstalledRayKit);
+    await verifyPresentedCt(tester);
   });
 }

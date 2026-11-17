@@ -32,14 +32,23 @@ function verifySample(drawn, index, expected) {
   return { frame: index, source_id: drawn.source_id, sample, delta, reported_frame_work_ms: drawn.work_ms ?? null };
 }
 
-window.runRaykitBenchmark = async (backend, fixture, expected, options) => {
+window.runRaykitBenchmark = (...args) => new Promise(resolve => {
+  const open = document.querySelector('#open-synthetic');
+  open.addEventListener('click', () => resolve(measure(...args)), { once: true });
+  open.click();
+});
+
+async function measure(backend, fixture, expected, options) {
   const started = performance.now();
+  const traceBefore = window.raykitWorkerTraces?.length ?? 0;
   let engine;
   try {
     const module = await loaders[backend]();
     const moduleReady = performance.now();
     const bytes = await (await fetch(fixture, { cache: 'no-store' })).arrayBuffer();
+    const read = performance.now();
     const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))).map(v => v.toString(16).padStart(2, '0')).join('');
+    const hashed = performance.now();
     if (hash !== expected.sha256) throw new Error('Fixture identity mismatch');
     const count = expected.expected.frames;
     const file = new File([bytes], fixture, { type: 'application/dicom' });
@@ -68,7 +77,19 @@ window.runRaykitBenchmark = async (backend, fixture, expected, options) => {
         : { window: await outcome(performance.now(), range.map(i => () => engine.window(-3180 + i * 25, 300 + i * 13))),
           pan_zoom: await outcome(performance.now(), range.map(i => () => engine.panZoom(Math.sin(i) * 2, Math.cos(i) * 2, 1 + i * 0.02))) };
     }
+    const worker = backend === 'raykit' ? window.raykitWorkerTraces?.[traceBefore] : undefined;
+    const clock = performance.timeOrigin;
+    const phases = worker && {
+      worker_start_ms: worker.ready - worker.created,
+      source_transfer_ms: worker.received - worker.sent,
+      worker_hash_ms: worker.hashed - worker.hashing,
+      first_render_ms: clock + engine.first.at - worker.frame[engine.first.request_id],
+    };
+    if (phases && !Object.values(phases).every(time => Number.isFinite(time) && time >= 0)) {
+      throw new Error('Worker timing is missing or reversed');
+    }
     return { opened: true, backend: engine.name, module_ms: moduleReady - started, source_ms: sourceReady - moduleReady,
+      user_open_ms: engine.first.at - started, file_read_ms: read - moduleReady, source_pin_check_ms: hashed - read, phases,
       first_original_ms: firstMs, first_original: first,
       full_series_ms: engine.seriesReadyAt == null ? null : engine.seriesReadyAt - sourceReady,
       seek, interaction, stats, js_heap_bytes: performance.memory?.usedJSHeapSize ?? null,
@@ -79,7 +100,7 @@ window.runRaykitBenchmark = async (backend, fixture, expected, options) => {
     const message = error?.message ?? error?.error?.message ?? String(error);
     return { opened: false, processed_ms: performance.now() - started, error: message };
   } finally { engine?.close(); }
-};
+}
 
 async function playback(engine, count) {
   const sourceIntervalMs = 1000 / 35;

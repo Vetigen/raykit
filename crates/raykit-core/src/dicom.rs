@@ -230,16 +230,6 @@ impl File {
         Ok((meta.pos, information))
     }
 
-    pub(crate) fn parse(
-        bytes: Vec<u8>,
-        limits: Limits,
-        expected_sha256: Option<&str>,
-    ) -> Result<Self> {
-        Self::check_source_size(bytes.len(), limits)?;
-        let digest = source_digest(&bytes);
-        Self::parse_with_digest(bytes, limits, expected_sha256, digest)
-    }
-
     #[cfg(target_arch = "wasm32")]
     pub(crate) async fn parse_in_worker(
         bytes: Vec<u8>,
@@ -261,7 +251,7 @@ impl File {
         Ok(())
     }
 
-    fn parse_with_digest(
+    pub(crate) fn parse_with_digest(
         bytes: Vec<u8>,
         limits: Limits,
         expected_sha256: Option<&str>,

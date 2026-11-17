@@ -29,8 +29,11 @@ use the runner's local signing settings. Apple Developer signing and
 notarization require separate setup. [GitHub runner labels](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
 
 The web matrix installs both npm tarballs in a fresh application for Chromium,
-Firefox and Playwright WebKit. The Flutter SDK test installs the source archive
-outside the checkout and compiles its native asset. Android checks the compiled
+Firefox and Playwright WebKit. It runs the source cancellation, verified index,
+independent pixels and panel revocation checks against the installed packages.
+The Flutter SDK test installs the source archive outside the checkout, compiles
+its native asset, draws the CT and exercises source replacement and revocation.
+Android checks the compiled
 ARM64 APK, native library and assets. iOS checks an unsigned device link and
 runs the packaged SDK against the CT on an iPhone simulator. Physical device
 and Safari acceptance are tracked in the [support matrix](support.md).
@@ -73,8 +76,8 @@ run checks existing packages against the same candidate before proceeding.
 Make `ci-required` a required check for `main`. Apply a tag ruleset to `v*`
 that limits creation to release maintainers and prevents updates and deletion.
 Create the `release` environment with required reviewers and selected tag
-deployments matching `v*`. Enable prevention of self-review when an independent
-reviewer is available. The release preflight checks protection on the tag, a
+deployments matching `v*`. Prevent self-review and disable administrator
+bypass. The release preflight checks protection on the tag, a
 passing main-push CI run for its SHA, and the environment's reviewers and tag
 policy. [GitHub environment configuration](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
 

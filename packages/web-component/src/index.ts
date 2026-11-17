@@ -155,20 +155,10 @@ export class RaykitViewer extends HTMLElement {
     const panel = this.#panel;
     if (!panel) throw new RaykitError('closed');
     const generation = ++panel.generation;
-    panel.records = [];
-    panel.segmentation = undefined;
-    panel.pointer = undefined;
-    panel.preset = undefined;
-    panel.draft = [];
-    panel.editing = undefined;
-    panel.playing = false;
-    panel.sliderTarget = undefined;
-    panel.frame = undefined;
+    const loading = panel.viewport.load(source, options);
     this.#status('Opening source…');
-    this.#result('');
-    this.#controls();
     try {
-      const opened = await panel.viewport.load(source, options);
+      const opened = await loading;
       if (generation !== panel.generation || panel !== this.#panel) return;
       const info = opened.inspection;
       if (!info.capabilities.frame_access) {
@@ -363,8 +353,23 @@ export class RaykitViewer extends HTMLElement {
     });
     viewport.addEventListener('diagnostic', event => this.#error((event as CustomEvent<RaykitError>).detail));
     viewport.addEventListener('closed', () => {
+      panel.records = [];
+      panel.segmentation = undefined;
+      panel.pointer = undefined;
+      panel.preset = undefined;
+      panel.draft = [];
+      panel.editing = undefined;
+      panel.playing = false;
+      panel.sliderTarget = undefined;
+      panel.frame = undefined;
+      if (this.#drag?.panel === panel) this.#drag = undefined;
       label.hidden = true;
       scale.hidden = true;
+      if (panel === this.#panel) {
+        this.#status('Source closed.');
+        this.#result('');
+        this.#controls();
+      }
       this.#paint(panel);
       this.dispatchEvent(new CustomEvent('raykit-closed', { detail: { panel: this.#panels.indexOf(panel) } }));
     });

@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { chromium, firefox, webkit } from 'playwright-core';
 import { serve } from './static-server.mjs';
 
 const browserName = process.env.RAYKIT_BROWSER ?? 'chromium';
-const paths = { sdk: new URL('../packages/web/dist/', import.meta.url), viewer: new URL('../examples/web/dist/', import.meta.url) };
+const exampleDist = resolve(process.env.RAYKIT_EXAMPLE_DIST ?? 'examples/web/dist');
+const sdkDist = resolve(process.env.RAYKIT_WEB_DIST ?? 'packages/web/dist');
+const paths = { sdk: pathToFileURL(sdkDist + sep), viewer: pathToFileURL(exampleDist + sep) };
 const manifest = JSON.parse(await readFile('fixtures/generated/manifest.json', 'utf8'));
 const fixtures = ['benchmark-signed12.dcm', 'cine-350.dcm'];
 const rows = fixtures.map(name => ({ name, ...manifest[name] }));
@@ -37,7 +41,7 @@ function instrumentWorker(fallback) {
 }
 
 function serveInstrumented(fallback) {
-  return serve('examples/web/dist', (req, res, next) => {
+  return serve(exampleDist, (req, res, next) => {
     const pathname = new URL(req.url, 'http://localhost').pathname;
     const sdk = pathname.startsWith('/sdk/');
     const worker = pathname === '/sdk/worker.js' || /^\/assets\/worker-[\w-]+\.js$/.test(pathname);
@@ -180,6 +184,9 @@ try {
         const outcome = work => work.then(() => 'opened', error => error.code);
         const hash = await outcome(viewer.open(cine, { expected_sha256: '0'.repeat(64), prepare_first_frame: true }));
         const badHash = { code: hash, drawn: present.length, closed: last().closed };
+        const wrongFile = await outcome(viewer.open(small, { expected_sha256: rows[1].sha256 }));
+        const truncated = await outcome(viewer.open(cine.slice(0, cine.size - 1), { expected_size: cine.size }));
+        const rejectedDraws = present.length;
         const before = window.sourceTest.workers.length;
         const limit = await outcome(viewer.open(cine, { limits: { source_bytes: cine.size - 1 } }));
         const size = await outcome(open(small, { expected_size: small.size + 1 }));
@@ -241,10 +248,11 @@ try {
         const session = await digesting;
         const copiedSha = session.inspection.content_sha256;
         session.close();
-        return { badHash, limit, size, preCancelled, rejectedBeforeWorker, streamedLimit, streamedLimitClosed, wasmLimit, oversizedHashed,
+        return { badHash, wrongFile, truncated, rejectedDraws, limit, size, preCancelled, rejectedBeforeWorker, streamedLimit, streamedLimitClosed, wasmLimit, oversizedHashed,
           io, aborted, replaced, cancelledHash, disposed, copiedSha, openWorkers: window.sourceTest.workers.filter(worker => !worker.closed).length };
       }, { rows, fallback });
-      assert.deepEqual(lifecycle, { badHash: { code: 'integrity', drawn: 0, closed: 1 }, limit: 'limit', size: 'integrity',
+      assert.deepEqual(lifecycle, { badHash: { code: 'integrity', drawn: 0, closed: 1 }, wrongFile: 'integrity',
+        truncated: 'integrity', rejectedDraws: 0, limit: 'limit', size: 'integrity',
         preCancelled: 'cancelled', rejectedBeforeWorker: true, streamedLimit: 'limit', streamedLimitClosed: 1,
         wasmLimit: 'limit', oversizedHashed: false,
         io: { code: 'io', eager: true, closed: 1 }, aborted: { code: 'cancelled', eager: true, closed: 1 },

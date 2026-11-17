@@ -1,10 +1,72 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:raykit/raykit.dart';
+
+Future<void> untilPresented(WidgetTester tester, bool Function() ready) async {
+  final deadline = Stopwatch()..start();
+  while (!ready() && deadline.elapsed < const Duration(seconds: 15)) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+    await tester.pump();
+  }
+  expect(
+    ready(),
+    isTrue,
+    reason: 'The viewer did not reach the expected state',
+  );
+}
+
+Future<void> verifyPresentedCt(WidgetTester tester) async {
+  final content = (await tester.runAsync(
+    () => rootBundle.load('assets/raykit/comparison-ct.dcm'),
+  ))!;
+  final reference =
+      jsonDecode(
+            (await tester.runAsync(
+              () => rootBundle.loadString(
+                'assets/raykit/comparison-reference.json',
+              ),
+            ))!,
+          )
+          as Json;
+  final controller = RayKitViewerController();
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: RayKitViewer(
+          source: RayKitSource.bytes(
+            content.buffer.asUint8List(
+              content.offsetInBytes,
+              content.lengthInBytes,
+            ),
+          ),
+          options: RayKitOpenOptions(
+            expectedSha256: reference['sha256'] as String,
+          ),
+          initialFrame: reference['frame'] as int,
+          controller: controller,
+        ),
+      ),
+    ),
+  );
+  await untilPresented(tester, () => controller.presented != null);
+  expect(controller.presented!.source['content_sha256'], reference['sha256']);
+  expect(controller.presented!.source['frame'], reference['frame']);
+  final [x as int, y as int] = reference['pixel'] as List;
+  final sample = (await tester.runAsync(
+    () => controller.samplePresented(x, y),
+  ))!;
+  expect(sample['stored'], reference['stored']);
+  expect(sample['modality'], reference['modality']);
+  await tester.pumpWidget(const SizedBox());
+}
 
 Future<void> verifyInstalledRayKit() async {
   final reference =
@@ -72,14 +134,15 @@ Future<void> verifyInstalledRayKit() async {
         ),
       ),
     );
-    debugPrint(
-      jsonEncode({
-        'sample': sample,
-        'rgba_sha256': reference['rgba_sha256'],
-        'length_mm': 7,
-        'tamper_rejected': true,
-      }),
-    );
+    final evidence = jsonEncode({
+      'sample': sample,
+      'rgba_sha256': reference['rgba_sha256'],
+      'length_mm': 7,
+      'tamper_rejected': true,
+    });
+    final report = Platform.environment['RAYKIT_FLUTTER_EVIDENCE'];
+    if (report != null) await File(report).writeAsString(evidence);
+    debugPrint(evidence);
   } finally {
     await session.close();
   }
