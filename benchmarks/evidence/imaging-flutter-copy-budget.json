@@ -1,0 +1,75 @@
+{
+  "flutter": "3.44.9",
+  "cpu": "AMD Ryzen 9 9900X",
+  "cpu_affinity": "8-11,20-23",
+  "variants": {
+    "before": {
+      "revision": "dacd04d94fdb06f6a3c18afe2d5d958feb403090",
+      "fixture_sha256": "186821af7da3ab392a266cfd7c4c2449b6a5c39074c07d13c135d963a66fa9b2",
+      "os": "Linux 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026",
+      "dart": "3.12.2 (stable) (Tue Jun 9 01:11:39 2026 -0700) on \"linux_x64\"",
+      "runtime": "Flutter widget raster test",
+      "initial_rss_bytes": 141848576,
+      "process_max_rss_bytes": 284614656,
+      "native_input_copy_bytes": null,
+      "output_bytes_per_windowed_frame": [
+        2097152,
+        2097152,
+        2097152,
+        2097152,
+        2097152
+      ],
+      "windowed_seek_ms": [
+        52.366,
+        60.798,
+        56.953,
+        60.926,
+        52.376
+      ],
+      "windowed_seek_summary_ms": {
+        "n": 5,
+        "median": 56.953,
+        "p95": 60.926
+      },
+      "output_bytes_summary": {
+        "n": 5,
+        "median": 2097152,
+        "p95": 2097152
+      }
+    },
+    "after": {
+      "revision": "e204eac8d42689ab47c76ebf1ff9b92de37ed477",
+      "fixture_sha256": "186821af7da3ab392a266cfd7c4c2449b6a5c39074c07d13c135d963a66fa9b2",
+      "os": "Linux 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026",
+      "dart": "3.12.2 (stable) (Tue Jun 9 01:11:39 2026 -0700) on \"linux_x64\"",
+      "runtime": "Flutter widget raster test",
+      "initial_rss_bytes": 141090816,
+      "process_max_rss_bytes": 239288320,
+      "native_input_copy_bytes": 0,
+      "output_bytes_per_windowed_frame": [
+        1048576,
+        1048576,
+        1048576,
+        1048576,
+        1048576
+      ],
+      "windowed_seek_ms": [
+        42.116,
+        35.504,
+        30.432,
+        33.119,
+        32.31
+      ],
+      "windowed_seek_summary_ms": {
+        "n": 5,
+        "median": 33.119,
+        "p95": 42.116
+      },
+      "output_bytes_summary": {
+        "n": 5,
+        "median": 1048576,
+        "p95": 1048576
+      }
+    }
+  }
+}

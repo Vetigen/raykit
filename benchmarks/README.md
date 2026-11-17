@@ -123,6 +123,106 @@ Each row contains five cold and five same-page openings. Firefox 132.0 used RayK
 | Playwright WebKit WebGL2 | Signed radiograph | 38.0 / 72.0 | 37.0 / 73.0 | 30.0 / 31.0 | 30.0 / 31.0 | — |
 | Playwright WebKit WebGL2 | 350-frame US | 107.0 / 138.0 | 76.0 / 107.0 | 94.0 / 104.0 | 61.0 / 61.0 | 17.0 → 17.0 |
 
+## Bounded imaging and continuous input
+
+`imaging.mjs` runs the same generated source bytes in two installed web distributions. The baseline distribution is the package built from `dacd04d94fdb06f6a3c18afe2d5d958feb403090`. The runner checks its WASM digest. Use `RAYKIT_BASELINE_SDK=/path/to/extracted/package/dist` to point to that package. It alternates the build order by repetition and opens a new browser for each trial. The 40 drag targets arrive at 8 ms intervals independently of frame completion. Forward drag and direction reversal are recorded separately. Release-to-exact-draw, unique intermediate frames, decode calls and copied pixels are measured from the same presentation events. Sequential seek and the cold and same-page first draws use the separate `compare.mjs` timing method above.
+
+```sh
+npm run fixtures
+npm run build:web
+npm run benchmark:build
+RAYKIT_ENGINES=raykit RAYKIT_REPEATS=12 RAYKIT_CINE_REPEATS=12 node benchmarks/compare.mjs
+RAYKIT_IMAGING_REPEATS=8 node benchmarks/imaging.mjs
+RAYKIT_BROWSER=firefox RAYKIT_IMAGING_REPEATS=5 node benchmarks/imaging.mjs
+```
+
+To rerun the first-original method on the preserved benchmark distribution for `dacd04d`, set `RAYKIT_BENCHMARK_DIST` to that built folder and `RAYKIT_BENCHMARK_REVISION` to its commit. Both runs use the frame identity and pixel checks before accepting a timing. The independent indexed-sample run distinguishes manifest generation and bytes from source bytes read. Its HTTP source is served over local loopback with the full length and a stable strong ETag. It measures a verified first draw rather than inferring latency from the size of the range. The Web Crypto overlap arm keeps source verification as a prerequisite for every observable frame.
+
+The reslice run compares hashes of the complete small-phantom RGBA images on both builds, including moved planes and five window changes. Axis, oblique MIP, plane move and rewindow times are recorded separately. The large phantom uses 300 RLE slices. Slice cache counters cover decoded modality arrays. The encoded source, working plane, output buffer, WASM reserve and renderer RSS have separate meanings. Renderer RSS is sampled every 50 ms on Linux Chromium. Texture and raster byte estimates cover logical uploaded resources and omit backend scratch allocations.
+
+The Flutter [profile acceptance target](../examples/flutter/README.md#profile-acceptance) measures the same native display and session entry points, records packed shader and CPU results separately, and includes ten foreground minutes of cine. Flutter software raster and Linux profile results have their own runtime labels. The mobile profiles in the support matrix remain open until exercised on physical devices. [Support matrix](../docs/support.md#platform-and-installation-evidence)
+
+### First original frame after the imaging work
+
+The baseline and imaging distributions used the same Ryzen 9 9900X, Linux kernel, Chromium 131.0.6778.33 and SwiftShader profile, with the benchmark pinned to the same eight cores and their SMT siblings. The imaging distribution was built from `e204eac`. Two intervening README-only commits changed the checkout label captured by some runs. The signed-radiograph figures below use a separate alternating sequence of six three-run batches per arm after a variable startup tail in the initial sequential run. First draw timings start when the verified test `File` is available. [Chromium cold and warm observations](evidence/imaging-first-original-chromium.json), [Alternating signed-radiograph observations](evidence/imaging-signed-startup.json)
+
+| Source | Opens per build | Cold before → after (median / p95 ms) | Same-page reopen before → after (median / p95 ms) |
+| --- | ---: | ---: | ---: |
+| Signed radiograph, alternating batches | 18 | 32.1 / 37.3 → 33.2 / 40.1 | 29.1 / 38.9 → 29.4 / 35.6 |
+| 350-frame cine | 12 | 61.5 / 69.5 → 59.0 / 84.6 | 56.4 / 151.8 → 61.8 / 69.9 |
+
+The imaging build stayed within the 100 ms cold cine target in this profile. Cine same-page median increased by about 5 ms in this run while its p95 decreased. Worker first-frame work stayed around 12 ms and the rapid sequential seek p95 was 17.1 ms on both builds over 240 requests each. The raw observations show additional same-page variation with similar Worker decode times. The cine renderer's sampled RSS peak median/p95 increased from 330.0 / 332.3 to 335.4 / 339.2 MiB. The WASM asset grew from 1,693,909 to 1,818,629 bytes, or 548,849 to 584,546 bytes with gzip. [Chromium observations](evidence/imaging-first-original-chromium.json)
+
+Playwright WebKit 18.2 ran five openings per fixture in the Ubuntu 24.04 container. The imaging build's WebGL2 signed cold and reopen medians were 36 and 30 ms. Cine cold and reopen medians were 76 and 61 ms, with p95 of 108 and 64 ms. Real Safari remains a separate acceptance row. [Playwright WebKit observations](evidence/imaging-first-original-webkit.json)
+
+### WebGL startup cost
+
+Creating a viewport used to initialize a WebGL program and textures. Loading a source disposed those resources and the first draw built them again. With `f128339`, the first draw initializes the renderer once. The Worker and WASM digests match `e204eac`. The signed fixture's first Worker frame took 1.4 ms median in each build. [Bundled viewer recheck](evidence/imaging-webgl-recheck.json)
+
+The existing Vite comparison measured 12 openings per source and build in four alternating batches on Chromium 131.0.6778.33, Linux and SwiftShader. The same-page run creates a new viewport. Times start at the prepared local file and end at the first verified draw event.
+
+| Source | Cold before → after (median / p95 ms) | Same-page before → after (median / p95 ms) |
+| --- | ---: | ---: |
+| Small signed radiograph | 32.4 / 40.6 → 20.4 / 32.4 | 30.3 / 38.8 → 22.3 / 28.3 |
+| 350-frame cine | 60.6 / 66.0 → 48.4 / 53.3 | 58.4 / 64.3 → 39.9 / 42.0 |
+
+Cine sequential seek p95 was 16.9 → 17.0 ms across 240 requests per build. Every first draw checked the source SHA, frame index and original sample. This profile measures a local prepared file. Network time and display refresh require separate timing. [Workload and raw observations](evidence/imaging-webgl-recheck.json)
+
+The direct distribution comparison ran 24 repetitions per source and build. It counted two WebGL context requests on the earlier cold load and one on the new load. The cold signed radiograph was 33.5 / 41.0 → 22.2 / 31.1 ms and the cold cine was 59.2 / 62.3 → 46.2 / 62.0 ms. Reopening in the **same viewport** after a 200 ms wait took 16.7 / 19.7 → 24.0 / 31.5 ms for the radiograph and 47.6 / 48.8 → 51.5 / 65.2 ms for cine. [Direct package observations](evidence/imaging-webgl-startup.json)
+
+An instrumented repeat found the extra time in synchronous viewport closure before the next Worker factory call. Median closure was 0.9 → 11.1 ms for the signed fixture and 1.1 → 10.3 ms for cine. Preparing WebGL early during reopen or retaining the renderer program while clearing source textures both left the same-viewport medians above their controls. In a separate Firefox CPU experiment, preparing pixels before an animation callback lowered cold medians by 1.0 and 4.5 ms and raised p95 on both fixtures. [Startup experiments and phase observations](evidence/imaging-startup-experiments.json)
+
+```sh
+RAYKIT_STARTUP_BASELINE=/path/to/extracted/e204eac/package/dist \
+  RAYKIT_STARTUP_SDK=/path/to/extracted/f128339/package/dist \
+  RAYKIT_STARTUP_REVISION=f128339dd8facf8a36de4c2ed617cc5e75c2a76c \
+  RAYKIT_REPEATS=24 node benchmarks/cold-start.mjs
+```
+
+### Drag, reformat and indexed reads
+
+Chromium used eight repetitions per arm. Firefox 132.0 used five and drew through the CPU path. Latency fields show median / p95 in ms. Intermediate frames and decode calls are medians. [Chromium observations](evidence/imaging-chromium.json), [Firefox observations](evidence/imaging-firefox.json)
+
+| Profile and gesture | Intermediate frames, before → after | Decodes, before → after | Release-to-exact draw, before → after |
+| --- | ---: | ---: | ---: |
+| Chromium forward | 2 → 18 | 39 → 20 | 14.0 / 16.7 → 15.2 / 22.0 |
+| Chromium reversal | 2 → 18 | 39 → 20 | 11.2 / 29.1 → 15.0 / 23.3 |
+| Firefox forward | 0 → 5 | 9 → 7 | 88 / 94 → 63 / 73 |
+| Firefox reversal | 0 → 5 | 9 → 7 | 85 / 88 → 61 / 67 |
+
+On Chromium's forward drag the median decoded volume was 127.9 → 65.6 MiB. This counts work over all requests during the gesture. A visible in-flight frame can occupy part of one refresh interval when the precise target arrives. The release cost is listed separately from the additional frames shown during motion.
+
+The 512 × 512 small-phantom MIP matched the previous build's RGBA digest on the first plane, moved plane and every tested window. On Chromium, the first MIP was 43.4 / 43.5 → 42.4 / 44.0 ms. Rewindowing it was 43.3 / 43.8 → 1.6 / 1.7 ms. On Firefox, rewindowing was 291 / 293 → 10 / 11 ms. Each rewindow arm measured five changes per trial. [Chromium observations](evidence/imaging-chromium.json), [Firefox observations](evidence/imaging-firefox.json)
+
+| 512 × 512 × 300 CT, 512px output | Chromium median / p95 ms | Firefox median / p95 ms |
+| --- | ---: | ---: |
+| Build the acquisition | 1.1 / 1.6 | 2 / 2 |
+| Axial | 9.6 / 10.5 | 44 / 45 |
+| Coronal | 258.9 / 272.7 | 2,480 / 2,490 |
+| Oblique MIP | 369.4 / 375.0 | 2,927 / 2,943 |
+| Move the oblique MIP | 369.4 / 376.5 | 2,924 / 2,950 |
+| Rewindow the same plane | 1.6 / 1.6 | 11 / 12 |
+
+The large RLE CT kept 9,896,334 source bytes, at most 16 MiB of modality slices and 1 MiB of cached plane values in this run. Its logical `f32` volume was 300 MiB. The first axial, coronal and MIP operations differ in their required slices. The Firefox CPU profile still takes seconds to compute a new large reformatted plane. It uses the same bounded cache and yields to cancellation while working. The samples for CT and MR also agreed with pydicom at the known patient point. [Large-volume records](evidence/imaging-chromium.json), [Independent pixel reference](evidence/imaging-reference.json)
+
+The 350-frame JPEG index was 39,124 bytes and took 18.9 / 20.3 ms to build in Chromium. With that trusted manifest available, frame 0, 175 and 349 read 27,074, 29,250 and 28,212 source bytes respectively. The original instance is 9,766,844 bytes. Chromium's first indexed draw measured 42.8 / 46.9 ms from a local Blob and 53.9 / 60.6 ms from loopback HTTP. These reads have different input costs from a pre-materialized full Blob. The full-source Web Crypto overlap experiment measured 41.3 / 47.7 → 37.3 / 45.5 ms on Chromium and 90 / 90 → 82 / 82 ms on Firefox. The overlap remains opt-in for a host that wants speculative JPEG preparation. Failed or cancelled source verification emits no original frame. [Indexed and overlap observations](evidence/imaging-chromium.json)
+
+### Flutter copy and rendering evidence
+
+The same viewer gesture selected W/L on the same 512px RLE CT in both Flutter build trees. Five subsequent seeks each produced two 1 MiB RGBA payloads on the baseline and one 1 MiB payload on the current build. The local-file open on the current build reported zero Dart source staging copies. The first build's Dart-copy counter is unavailable. A 2048 × 2048 RGBA frame occupies 16 MiB per payload. The Flutter test compares ownership and bytes under the same Linux software raster test. [Raw copy measurements](evidence/imaging-flutter-copy-budget.json)
+
+```sh
+# Use the same test and generated assets with the unpacked baseline or current Flutter package.
+cd examples/flutter
+flutter test --concurrency=1 --dart-define=RAYKIT_REVISION=COMMIT_SHA test/copy_budget_benchmark_test.dart
+```
+
+The shader checks signed and unsigned input, padding, narrow windows, the detail chart's steps, line pairs and edges, and a quarter-turn at 2×. Its pixels matched the CPU result within one output level on the checked Flutter raster backend. Browser WASM and Dart used the same independent digests for original samples and CPU RGBA. Calibrated ruler, angle, VHS, Norberg and TPLO records reopened against the same source and landmarks. [Independent pixel reference](evidence/imaging-reference.json), [Browser quality results](evidence/imaging-browser-quality.json), [Package verification](evidence/imaging-package-verification.json)
+
+The Linux Flutter 3.44.9 profile app ran on a Ryzen 9 9900X with Xvfb and software GL. Across 60 adjustments on the 2048px chart, W/L latency was 50.2 / 67.0 ms with the CPU raster and 16.9 / 17.4 ms with the packed shader. Both display modes reused the raster for pan and zoom. Five native cine opens measured 49.6 / 50.0 ms for the full local file and 33.3 / 35.1 ms with the pinned index ready. CT and MR first oblique MIP medians were 483.4 and 482.0 ms. Rewindowing those planes took 2.1 ms median and each acquisition peaked at 16 MiB of modality slice cache plus 1 MiB for the cached plane. [Linux profile observations](evidence/imaging-flutter-linux-profile.json)
+
+The `65ca3c4` app completed 600.02 foreground seconds. It recorded 20,999 cine frames and zero scheduler skips. The first and last minutes recorded 2,100 and 2,101 presentations, with p95 intervals of 34.2 and 33.8 ms. The display counters accumulated 96,347,817,760 image upload bytes over the run. The following transition to four panels exposed a controller detachment race. The `5fe1ffe` profile reran that transition, landed at frames `[349,300,251,202]` and closed all panels. The widget test also returned native session counts to their starting value. The separate four-panel run sampled a 639 MiB process peak and 639 MiB immediately after close. The RSS includes retained process allocations and renderer memory. [Linux profile observations](evidence/imaging-flutter-linux-profile.json)
+
 ## Historical comparison
 
 The earlier Chromium report at `38577b6` timed the adapter's return and an additional animation tick in `first_ms`. DWV returned at `loadend` after loading the entire series. On the 350-frame cine its cold median through the additional tick was 1,659.2 ms. Its separately captured first `renderend` median was 102.0 ms from the adapter's load call. RayKit's 252.8 ms historical median also included the additional tick. The corrected before/after runs timestamp each engine's draw event and validate its original frame. [Historical raw comparison](evidence/chromium-comparison.json)

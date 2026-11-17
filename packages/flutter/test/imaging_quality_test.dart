@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -7,6 +8,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:crypto/crypto.dart';
+import 'package:ffi/ffi.dart';
 import 'package:raykit/raykit.dart';
 import 'package:raykit/src/display.dart';
 import 'package:raykit/src/native.dart' as native;
@@ -14,6 +16,41 @@ import 'package:raykit/src/native.dart' as native;
 File fixture(String name) => File('../../fixtures/generated/$name.dcm');
 
 void main() {
+  test(
+    'public descriptor source retains its duplicate after the host closes the descriptor',
+    () async {
+      if (Platform.isWindows) return;
+      final library = DynamicLibrary.process();
+      final open = library
+          .lookupFunction<
+            Int32 Function(Pointer<Utf8>, Int32),
+            int Function(Pointer<Utf8>, int)
+          >('open');
+      final close = library
+          .lookupFunction<Int32 Function(Int32), int Function(int)>('close');
+      final path = fixture('cine-fragments').absolute.path;
+      final full = await RayKitSession.open(RayKitSource.file(File(path)));
+      final manifest = await full.createFrameIndex();
+      final expected = await full.sample(4, 0, 0);
+      await full.close();
+      final fd = using((arena) => open(path.toNativeUtf8(allocator: arena), 0));
+      expect(fd, greaterThanOrEqualTo(0));
+      final RayKitSession partial;
+      try {
+        partial = await RayKitSession.open(
+          RayKitSource.descriptor(fd, index: manifest),
+        );
+      } finally {
+        expect(close(fd), 0);
+      }
+      try {
+        expect(await partial.sample(4, 0, 0), expected);
+      } finally {
+        await partial.close();
+      }
+    },
+  );
+
   test(
     'Dart agrees with independent pixel digests and all portable measurements',
     () async {
@@ -40,6 +77,36 @@ void main() {
           );
         } finally {
           await source.close();
+        }
+      }
+      final color = await RayKitSession.open(
+        RayKitSource.file(fixture('us-ybr-422')),
+      );
+      try {
+        final rgba = await color.render(0, {});
+        final values = (reference['ybr422_rgb'] as List).cast<List>();
+        for (final (i, rgb) in values.indexed) {
+          for (var c = 0; c < 3; c++) {
+            expect(
+              (rgba[i * 4 + c] - (rgb[c] as int)).abs(),
+              lessThanOrEqualTo(1),
+            );
+          }
+        }
+      } finally {
+        await color.close();
+      }
+      for (final entry in (reference['lut_values'] as Json).entries) {
+        final lut = await RayKitSession.open(
+          RayKitSource.file(fixture(entry.key)),
+        );
+        try {
+          final pixels = await lut.render(0, {});
+          expect([
+            for (var n = 0; n < pixels.length; n += 4) pixels[n],
+          ], entry.value);
+        } finally {
+          await lut.close();
         }
       }
       final cases =
@@ -376,6 +443,81 @@ void main() {
       } finally {
         await lut.close();
       }
+      for (final (name, settings, regions) in [
+        (
+          'unsigned16-rle',
+          {
+            'window': {'center': 32768, 'width': 65536},
+          },
+          [(0, 0, 2)],
+        ),
+        (
+          'detail-signed12',
+          {
+            'window': {'center': -1500, 'width': 4, 'function': 'linear_exact'},
+            'palette': 'hot',
+          },
+          [
+            (0, 0, 8),
+            (124, 8, 8),
+            (998, 547, 8),
+            (1020, 1600, 8),
+            (2040, 2040, 8),
+          ],
+        ),
+      ]) {
+        final source = await RayKitSession.open(
+          RayKitSource.file(fixture(name)),
+        );
+        try {
+          final frame = await source.readFrame(
+            0,
+            texture16: true,
+            render: settings,
+          );
+          expect(frame.encoding, 'mono_u16_rg');
+          final cpu = await source.render(0, settings);
+          final packed = await decodeRgba(
+            frame.pixels,
+            frame.columns,
+            frame.rows,
+          );
+          try {
+            final uniforms = MonochromeShader.uniforms(frame, settings)!;
+            for (final (left, top, width) in regions) {
+              final recorder = ui.PictureRecorder();
+              final canvas = ui.Canvas(recorder)
+                ..translate(0.5 - left, 0.5 - top);
+              gpu!.draw(canvas, packed, uniforms);
+              final picture = recorder.endRecording();
+              final image = await picture.toImage(width, width);
+              try {
+                final bytes = (await image.toByteData(
+                  format: ui.ImageByteFormat.rawRgba,
+                ))!.buffer.asUint8List();
+                for (var y = 0; y < width; y++) {
+                  for (var x = 0; x < width; x++) {
+                    final pixel = ((top + y) * frame.columns + left + x) * 4;
+                    for (var c = 0; c < 4; c++) {
+                      expect(
+                        (bytes[(y * width + x) * 4 + c] - cpu[pixel + c]).abs(),
+                        lessThanOrEqualTo(1),
+                      );
+                    }
+                  }
+                }
+              } finally {
+                image.dispose();
+                picture.dispose();
+              }
+            }
+          } finally {
+            packed.dispose();
+          }
+        } finally {
+          await source.close();
+        }
+      }
     });
   });
 
@@ -477,6 +619,173 @@ void main() {
       );
       await tester.pumpWidget(const SizedBox());
       await waitFor(tester, () => native.liveSessions() == before);
+    },
+  );
+
+  testWidgets('an exact stop completes cine playback during a presentation', (
+    tester,
+  ) async {
+    final controller = RayKitViewerController();
+    int? pausedFrame;
+    Future<void>? stopping;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RayKitViewer(
+            source: RayKitSource.file(fixture('cine-350')),
+            controller: controller,
+            onPresented: (presented) {
+              final index = presented.source['frame'] as int;
+              if (index > 0 && stopping == null) {
+                pausedFrame = index;
+                stopping = controller.settle();
+              }
+            },
+          ),
+        ),
+      ),
+    );
+    await waitFor(tester, () => controller.presented != null);
+    expect(controller.presented!.source['frame'], 0);
+    final playback = expectLater(controller.play(rate: 8), completes);
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 15)),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+    await waitFor(tester, () => pausedFrame != null);
+    await stopping!;
+    await playback;
+    expect(controller.presented!.source['frame'], pausedFrame);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+    'a controller follows its replacement when one viewer becomes four panels',
+    (tester) async {
+      final controllers = List.generate(4, (_) => RayKitViewerController());
+      final source = RayKitSource.file(fixture('cine-fragments'));
+      final drawn = <int, int>{};
+      final baseline = native.liveSessions();
+      Widget panel(int slot) => RayKitViewer(
+        source: source,
+        controller: controllers[slot],
+        showControls: false,
+        onPresented: (frame) => drawn[slot] = frame.source['frame'] as int,
+      );
+      Widget app(Widget body) => MaterialApp(home: Scaffold(body: body));
+      await tester.pumpWidget(app(panel(0)));
+      await waitFor(tester, () => drawn[0] == 0);
+      final retired = controllers.first.session!;
+      drawn.clear();
+      await tester.pumpWidget(
+        app(
+          Row(
+            children: [
+              for (var slot = 0; slot < 4; slot++) Expanded(child: panel(slot)),
+            ],
+          ),
+        ),
+      );
+      await waitFor(tester, () => drawn.length == 4);
+      expect(retired.isClosed, true);
+      expect(
+        controllers.where((controller) => controller.session != null).length,
+        4,
+      );
+      final targets = [4, 3, 2, 1];
+      final seeks = Future.wait([
+        for (final (slot, target) in targets.indexed)
+          controllers[slot].seek(target, prefetch: false),
+      ]);
+      await waitFor(
+        tester,
+        () => targets.indexed.every((entry) => drawn[entry.$1] == entry.$2),
+      );
+      await seeks;
+      await tester.pumpWidget(const SizedBox());
+      await waitFor(tester, () => native.liveSessions() == baseline);
+    },
+  );
+
+  testWidgets(
+    'source replacement cancels only its own panel and grayscale seek uses the selected window',
+    (tester) async {
+      final left = RayKitViewerController(), right = RayKitViewerController();
+      final cine = RayKitSource.file(fixture('cine-350'));
+      final ct = RayKitSource.file(fixture('large-enhanced-ct'));
+      final radiograph = RayKitSource.file(fixture('signed12'));
+      final baseline = native.liveSessions();
+      Widget view(RayKitSource source) => MaterialApp(
+        home: Scaffold(
+          body: Row(
+            children: [
+              Expanded(
+                child: RayKitViewer(
+                  source: source,
+                  controller: left,
+                  showControls: false,
+                ),
+              ),
+              Expanded(
+                child: RayKitViewer(
+                  source: ct,
+                  controller: right,
+                  showControls: false,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(view(cine));
+      await waitFor(
+        tester,
+        () => left.presented != null && right.presented != null,
+      );
+      final previous = left.session!;
+      final unchanged = right.session!;
+      final settings = {
+        'window': {'center': 450, 'width': 100, 'function': 'linear'},
+        'palette': 'hot',
+      };
+      final window = right.setRenderOptions(settings);
+      await waitFor(tester, () => right.presented?.render.isNotEmpty ?? false);
+      await window;
+      final before =
+          (await tester.runAsync(unchanged.stats))!['rendered_frames'] as int;
+
+      final superseded = left
+          .scrub(175)
+          .then(
+            (_) => 'presented',
+            onError: (Object e) => (e as RayKitException).code,
+          );
+      final exact = right.seek(150, prefetch: false);
+      await tester.pumpWidget(view(radiograph));
+      await waitFor(
+        tester,
+        () =>
+            left.session?.inspection.instanceUid == '2.25.101' &&
+            right.presented?.source['frame'] == 150,
+      );
+      expect(await superseded, 'cancelled');
+      await exact;
+      expect(previous.isClosed, true);
+      expect(identical(unchanged, right.session), true);
+      expect(right.presented!.render, settings);
+      expect(
+        (await tester.runAsync(unchanged.stats))!['rendered_frames'],
+        before + 1,
+      );
+      expect(
+        (await tester.runAsync(
+          () => right.samplePresented(256, 256),
+        ))!['modality'],
+        448,
+      );
+      await tester.pumpWidget(const SizedBox());
+      await waitFor(tester, () => native.liveSessions() == baseline);
     },
   );
 }

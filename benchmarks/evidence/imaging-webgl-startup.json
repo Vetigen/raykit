@@ -1,0 +1,2658 @@
+{
+  "profile": {
+    "before_commit": "e204eac8d42689ab47c76ebf1ff9b92de37ed477",
+    "after_commit": "f128339dd8facf8a36de4c2ed617cc5e75c2a76c",
+    "platform": "linux",
+    "release": "7.0.0-38-generic",
+    "cpu": "AMD Ryzen 9 9900X 12-Core Processor",
+    "memory_bytes": 67007139840,
+    "cpu_affinity": "0-3,12-15",
+    "browser": "chromium",
+    "browser_version": "131.0.6778.33",
+    "flags": [
+      "--enable-unsafe-webgpu",
+      "--enable-unsafe-swiftshader",
+      "--use-angle=swiftshader",
+      "--enable-precise-memory-info",
+      "--enable-features=Vulkan",
+      "--use-vulkan=swiftshader",
+      "--disable-vulkan-surface"
+    ],
+    "viewport": {
+      "width": 640,
+      "height": 512
+    },
+    "device_scale_factor": 1,
+    "repetitions": 24,
+    "measurement": "prepared-file-to-first-original-draw-event",
+    "same_viewport_reopen_wait_ms": 200,
+    "fixture_hashes": {
+      "benchmark-signed12.dcm": "35eaa0bde4b8e39c08b4b657ae864234e7a68217b767432e4142758a31e7113f",
+      "cine-350.dcm": "fa5e98aeb4fa9fd05211b838f1d4601537a91db840bf187b6c876a1f6b745594"
+    },
+    "assets": {
+      "before": {
+        "viewport.js": "a8c9d0ae8841f1bdd15849f6ff9960a718aa2c2cb001773aa531eeed220a7044",
+        "worker.js": "11e5b095b9b49e95155a57631c03fa0024a072ea4497cab34630db5197a0599f",
+        "generated/raykit_wasm_bg.wasm": "bdeb83f3659efd3656deaab1d8024ab1a4c60184ab1e47ce373d33a49ecb67ab"
+      },
+      "after": {
+        "viewport.js": "9b81f7ea87ff7b5ea169da009ca2a194a02a34e7636f98cb1e3036bb1ea21c30",
+        "worker.js": "11e5b095b9b49e95155a57631c03fa0024a072ea4497cab34630db5197a0599f",
+        "generated/raykit_wasm_bg.wasm": "bdeb83f3659efd3656deaab1d8024ab1a4c60184ab1e47ce373d33a49ecb67ab"
+      }
+    }
+  },
+  "summaries": {
+    "benchmark-signed12.dcm": {
+      "before": {
+        "cold_ms": {
+          "n": 24,
+          "median": 33.449999928474426,
+          "p95": 41
+        },
+        "same_viewport_ms": {
+          "n": 24,
+          "median": 16.649999976158142,
+          "p95": 19.700000047683716
+        },
+        "constructor_ms": {
+          "n": 24,
+          "median": 5.299999952316284,
+          "p95": 5.599999904632568
+        },
+        "cold_worker_frame_ms": {
+          "n": 24,
+          "median": 1.2999999523162842,
+          "p95": 1.4000000953674316
+        },
+        "cold_context_requests": {
+          "n": 24,
+          "median": 2,
+          "p95": 2
+        }
+      },
+      "after": {
+        "cold_ms": {
+          "n": 24,
+          "median": 22.199999928474426,
+          "p95": 31.100000143051147
+        },
+        "same_viewport_ms": {
+          "n": 24,
+          "median": 23.949999928474426,
+          "p95": 31.5
+        },
+        "constructor_ms": {
+          "n": 24,
+          "median": 0.20000004768371582,
+          "p95": 0.40000009536743164
+        },
+        "cold_worker_frame_ms": {
+          "n": 24,
+          "median": 1.2999999523162842,
+          "p95": 1.4000000953674316
+        },
+        "cold_context_requests": {
+          "n": 24,
+          "median": 1,
+          "p95": 1
+        }
+      }
+    },
+    "cine-350.dcm": {
+      "before": {
+        "cold_ms": {
+          "n": 24,
+          "median": 59.200000047683716,
+          "p95": 62.299999952316284
+        },
+        "same_viewport_ms": {
+          "n": 24,
+          "median": 47.549999952316284,
+          "p95": 48.799999952316284
+        },
+        "constructor_ms": {
+          "n": 24,
+          "median": 5.5,
+          "p95": 6.099999904632568
+        },
+        "cold_worker_frame_ms": {
+          "n": 24,
+          "median": 12,
+          "p95": 14.599999904632568
+        },
+        "cold_context_requests": {
+          "n": 24,
+          "median": 2,
+          "p95": 2
+        }
+      },
+      "after": {
+        "cold_ms": {
+          "n": 24,
+          "median": 46.15000009536743,
+          "p95": 62
+        },
+        "same_viewport_ms": {
+          "n": 24,
+          "median": 51.449999928474426,
+          "p95": 65.20000004768372
+        },
+        "constructor_ms": {
+          "n": 24,
+          "median": 0.2999999523162842,
+          "p95": 0.40000009536743164
+        },
+        "cold_worker_frame_ms": {
+          "n": 24,
+          "median": 12.099999904632568,
+          "p95": 13.700000047683716
+        },
+        "cold_context_requests": {
+          "n": 24,
+          "median": 1,
+          "p95": 1
+        }
+      }
+    }
+  },
+  "observations": [
+    {
+      "trial": 0,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.400000095367432,
+      "cold": {
+        "ms": 30.09999990463257,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.4000000953674316
+      },
+      "reopen": {
+        "ms": 18.200000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 0,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.09999990463256836,
+      "cold": {
+        "ms": 21.199999809265137,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 31.5,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      }
+    },
+    {
+      "trial": 0,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.5,
+      "cold": {
+        "ms": 52.89999985694885,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.199999809265137
+      },
+      "reopen": {
+        "ms": 44.200000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 14
+      }
+    },
+    {
+      "trial": 0,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 52.59999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.600000143051147
+      },
+      "reopen": {
+        "ms": 48.5,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.100000143051147
+      }
+    },
+    {
+      "trial": 1,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.3000001907348633,
+      "cold": {
+        "ms": 21.800000190734863,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      },
+      "reopen": {
+        "ms": 25.700000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 1,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.200000047683716,
+      "cold": {
+        "ms": 35.30000019073486,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 17.300000190734863,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 1,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.3000001907348633,
+      "cold": {
+        "ms": 52,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.700000047683716
+      },
+      "reopen": {
+        "ms": 48.40000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.300000190734863
+      }
+    },
+    {
+      "trial": 1,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.799999952316284,
+      "cold": {
+        "ms": 63.799999952316284,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.299999952316284
+      },
+      "reopen": {
+        "ms": 41.59999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 14
+      }
+    },
+    {
+      "trial": 2,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.299999952316284,
+      "cold": {
+        "ms": 38.200000047683716,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.1999998092651367
+      },
+      "reopen": {
+        "ms": 37,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      }
+    },
+    {
+      "trial": 2,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.3000001907348633,
+      "cold": {
+        "ms": 21.100000143051147,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.4000000953674316
+      },
+      "reopen": {
+        "ms": 24.09999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3000001907348633
+      }
+    },
+    {
+      "trial": 2,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.5,
+      "cold": {
+        "ms": 57.799999952316284,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.799999952316284
+      },
+      "reopen": {
+        "ms": 37.700000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.899999856948853
+      }
+    },
+    {
+      "trial": 2,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.40000009536743164,
+      "cold": {
+        "ms": 43.40000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.699999809265137
+      },
+      "reopen": {
+        "ms": 66.40000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 14.100000143051147
+      }
+    },
+    {
+      "trial": 3,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 30.299999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 28.5,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 3,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.099999904632568,
+      "cold": {
+        "ms": 33.19999980926514,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 16.700000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3000001907348633
+      }
+    },
+    {
+      "trial": 3,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 53.89999985694885,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.5
+      },
+      "reopen": {
+        "ms": 49.799999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 14.100000143051147
+      }
+    },
+    {
+      "trial": 3,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.3999998569488525,
+      "cold": {
+        "ms": 62.299999952316284,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.700000047683716
+      },
+      "reopen": {
+        "ms": 48.59999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.400000095367432
+      }
+    },
+    {
+      "trial": 4,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.3999998569488525,
+      "cold": {
+        "ms": 38.69999980926514,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 16,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 4,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.20000004768371582,
+      "cold": {
+        "ms": 22.299999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.1999998092651367
+      },
+      "reopen": {
+        "ms": 19.600000143051147,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 4,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.400000095367432,
+      "cold": {
+        "ms": 53.59999990463257,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.900000095367432
+      },
+      "reopen": {
+        "ms": 48.5,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.5
+      }
+    },
+    {
+      "trial": 4,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.3000001907348633,
+      "cold": {
+        "ms": 45,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.599999904632568
+      },
+      "reopen": {
+        "ms": 57.60000014305115,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.900000095367432
+      }
+    },
+    {
+      "trial": 5,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.20000004768371582,
+      "cold": {
+        "ms": 32.09999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3999998569488525
+      },
+      "reopen": {
+        "ms": 24.299999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3000001907348633
+      }
+    },
+    {
+      "trial": 5,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.5,
+      "cold": {
+        "ms": 34,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3000001907348633
+      },
+      "reopen": {
+        "ms": 16.700000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      }
+    },
+    {
+      "trial": 5,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 46.700000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.600000143051147
+      },
+      "reopen": {
+        "ms": 50.799999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.799999952316284
+      }
+    },
+    {
+      "trial": 5,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.700000047683716,
+      "cold": {
+        "ms": 54.09999990463257,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.900000095367432
+      },
+      "reopen": {
+        "ms": 48.40000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.5
+      }
+    },
+    {
+      "trial": 6,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.599999904632568,
+      "cold": {
+        "ms": 31.699999809265137,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 16.200000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      }
+    },
+    {
+      "trial": 6,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.19999980926513672,
+      "cold": {
+        "ms": 21.5,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      },
+      "reopen": {
+        "ms": 21.600000143051147,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      }
+    },
+    {
+      "trial": 6,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.700000047683716,
+      "cold": {
+        "ms": 62.09999990463257,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.299999952316284
+      },
+      "reopen": {
+        "ms": 48.39999985694885,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.400000095367432
+      }
+    },
+    {
+      "trial": 6,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 60.39999985694885,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.700000047683716
+      },
+      "reopen": {
+        "ms": 48.59999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.400000095367432
+      }
+    },
+    {
+      "trial": 7,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 20.299999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.1999998092651367
+      },
+      "reopen": {
+        "ms": 30,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 7,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.099999904632568,
+      "cold": {
+        "ms": 33,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 16.59999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 7,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 44.59999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.099999904632568
+      },
+      "reopen": {
+        "ms": 54,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.399999856948853
+      }
+    },
+    {
+      "trial": 7,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.400000095367432,
+      "cold": {
+        "ms": 59.90000009536743,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.599999904632568
+      },
+      "reopen": {
+        "ms": 48.59999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.5
+      }
+    },
+    {
+      "trial": 8,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.1000001430511475,
+      "cold": {
+        "ms": 33.700000047683716,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 16.200000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.1999998092651367
+      }
+    },
+    {
+      "trial": 8,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.3000001907348633,
+      "cold": {
+        "ms": 31.100000143051147,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3000001907348633
+      },
+      "reopen": {
+        "ms": 22.200000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 8,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.3999998569488525,
+      "cold": {
+        "ms": 55.09999990463257,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.700000047683716
+      },
+      "reopen": {
+        "ms": 43.799999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.900000095367432
+      }
+    },
+    {
+      "trial": 8,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 42.19999980926514,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.600000143051147
+      },
+      "reopen": {
+        "ms": 54.39999985694885,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.599999904632568
+      }
+    },
+    {
+      "trial": 9,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.20000004768371582,
+      "cold": {
+        "ms": 23,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 23.40000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 9,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.200000047683716,
+      "cold": {
+        "ms": 30,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 17,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 9,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.39999985694885254,
+      "cold": {
+        "ms": 43.89999985694885,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.700000047683716
+      },
+      "reopen": {
+        "ms": 50.40000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.599999904632568
+      }
+    },
+    {
+      "trial": 9,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.6000001430511475,
+      "cold": {
+        "ms": 52.700000047683716,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.299999952316284
+      },
+      "reopen": {
+        "ms": 47.200000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.399999856948853
+      }
+    },
+    {
+      "trial": 10,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.299999952316284,
+      "cold": {
+        "ms": 28.40000009536743,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.4000000953674316
+      },
+      "reopen": {
+        "ms": 17.90000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      }
+    },
+    {
+      "trial": 10,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.20000004768371582,
+      "cold": {
+        "ms": 28.90000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.4000000953674316
+      },
+      "reopen": {
+        "ms": 23.09999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.1000001430511475
+      }
+    },
+    {
+      "trial": 10,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.5,
+      "cold": {
+        "ms": 62.299999952316284,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.5
+      },
+      "reopen": {
+        "ms": 42.5,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13
+      }
+    },
+    {
+      "trial": 10,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.3000001907348633,
+      "cold": {
+        "ms": 56.10000014305115,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.600000143051147
+      },
+      "reopen": {
+        "ms": 48.5,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 14.5
+      }
+    },
+    {
+      "trial": 11,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.20000004768371582,
+      "cold": {
+        "ms": 20.799999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 29.40000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 11,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.299999952316284,
+      "cold": {
+        "ms": 29.199999809265137,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 16.09999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.4000000953674316
+      }
+    },
+    {
+      "trial": 11,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 43.59999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.800000190734863
+      },
+      "reopen": {
+        "ms": 52.09999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.799999952316284
+      }
+    },
+    {
+      "trial": 11,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.599999904632568,
+      "cold": {
+        "ms": 59.89999985694885,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.700000047683716
+      },
+      "reopen": {
+        "ms": 52.30000019073486,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.400000095367432
+      }
+    },
+    {
+      "trial": 12,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.5,
+      "cold": {
+        "ms": 29.899999856948853,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3000001907348633
+      },
+      "reopen": {
+        "ms": 16.100000143051147,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 12,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 22,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3000001907348633
+      },
+      "reopen": {
+        "ms": 22.90000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.1999998092651367
+      }
+    },
+    {
+      "trial": 12,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.299999952316284,
+      "cold": {
+        "ms": 53.39999985694885,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12
+      },
+      "reopen": {
+        "ms": 47.39999985694885,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.599999904632568
+      }
+    },
+    {
+      "trial": 12,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 62,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.599999904632568
+      },
+      "reopen": {
+        "ms": 48.700000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12
+      }
+    },
+    {
+      "trial": 13,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.19999980926513672,
+      "cold": {
+        "ms": 20.5,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.1999998092651367
+      },
+      "reopen": {
+        "ms": 23.799999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      }
+    },
+    {
+      "trial": 13,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.299999952316284,
+      "cold": {
+        "ms": 32,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.1999998092651367
+      },
+      "reopen": {
+        "ms": 15.799999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      }
+    },
+    {
+      "trial": 13,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.39999985694885254,
+      "cold": {
+        "ms": 42,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.899999856948853
+      },
+      "reopen": {
+        "ms": 52.200000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.5
+      }
+    },
+    {
+      "trial": 13,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.300000190734863,
+      "cold": {
+        "ms": 59,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.599999904632568
+      },
+      "reopen": {
+        "ms": 39.40000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.399999856948853
+      }
+    },
+    {
+      "trial": 14,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.5,
+      "cold": {
+        "ms": 30.59999990463257,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      },
+      "reopen": {
+        "ms": 19.700000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      }
+    },
+    {
+      "trial": 14,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.20000004768371582,
+      "cold": {
+        "ms": 28.5,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3000001907348633
+      },
+      "reopen": {
+        "ms": 28.59999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.4000000953674316
+      }
+    },
+    {
+      "trial": 14,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.299999952316284,
+      "cold": {
+        "ms": 61.09999990463257,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.199999809265137
+      },
+      "reopen": {
+        "ms": 48.40000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 14
+      }
+    },
+    {
+      "trial": 14,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.5,
+      "cold": {
+        "ms": 44.799999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.700000047683716
+      },
+      "reopen": {
+        "ms": 56.299999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12
+      }
+    },
+    {
+      "trial": 15,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 27.200000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 27.5,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.4000000953674316
+      }
+    },
+    {
+      "trial": 15,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.599999904632568,
+      "cold": {
+        "ms": 31.59999990463257,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 17.200000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 15,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.40000009536743164,
+      "cold": {
+        "ms": 45.60000014305115,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.299999952316284
+      },
+      "reopen": {
+        "ms": 49.59999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.299999952316284
+      }
+    },
+    {
+      "trial": 15,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.599999904632568,
+      "cold": {
+        "ms": 60.09999990463257,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.799999952316284
+      },
+      "reopen": {
+        "ms": 47.39999985694885,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.700000047683716
+      }
+    },
+    {
+      "trial": 16,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.6000001430511475,
+      "cold": {
+        "ms": 41,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 18.699999809265137,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 16,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 27.299999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.4000000953674316
+      },
+      "reopen": {
+        "ms": 47.40000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.5
+      }
+    },
+    {
+      "trial": 16,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 6.400000095367432,
+      "cold": {
+        "ms": 59.700000047683716,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 14
+      },
+      "reopen": {
+        "ms": 48.200000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.600000143051147
+      }
+    },
+    {
+      "trial": 16,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.40000009536743164,
+      "cold": {
+        "ms": 62,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 15.400000095367432
+      },
+      "reopen": {
+        "ms": 65,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 14.5
+      }
+    },
+    {
+      "trial": 17,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.20000004768371582,
+      "cold": {
+        "ms": 22.09999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3000001907348633
+      },
+      "reopen": {
+        "ms": 21.90000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 17,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.300000190734863,
+      "cold": {
+        "ms": 30.5,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 15.799999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.4000000953674316
+      }
+    },
+    {
+      "trial": 17,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 58.299999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.100000143051147
+      },
+      "reopen": {
+        "ms": 48.80000019073486,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 14.100000143051147
+      }
+    },
+    {
+      "trial": 17,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.200000047683716,
+      "cold": {
+        "ms": 59.10000014305115,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12
+      },
+      "reopen": {
+        "ms": 41.19999980926514,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.299999952316284
+      }
+    },
+    {
+      "trial": 18,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5,
+      "cold": {
+        "ms": 36.799999952316284,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 16.100000143051147,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.1999998092651367
+      }
+    },
+    {
+      "trial": 18,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.20000004768371582,
+      "cold": {
+        "ms": 30.799999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      },
+      "reopen": {
+        "ms": 21,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 18,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.299999952316284,
+      "cold": {
+        "ms": 58.09999990463257,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12
+      },
+      "reopen": {
+        "ms": 47.700000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.599999904632568
+      }
+    },
+    {
+      "trial": 18,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.20000004768371582,
+      "cold": {
+        "ms": 59.5,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.5
+      },
+      "reopen": {
+        "ms": 48.59999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.5
+      }
+    },
+    {
+      "trial": 19,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.40000009536743164,
+      "cold": {
+        "ms": 21,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.1999998092651367
+      },
+      "reopen": {
+        "ms": 21.700000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 19,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.299999952316284,
+      "cold": {
+        "ms": 42.5,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3000001907348633
+      },
+      "reopen": {
+        "ms": 16.09999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 19,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 43.39999985694885,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.199999809265137
+      },
+      "reopen": {
+        "ms": 53.10000014305115,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.5
+      }
+    },
+    {
+      "trial": 19,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.5,
+      "cold": {
+        "ms": 55.200000047683716,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.900000095367432
+      },
+      "reopen": {
+        "ms": 48.09999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.899999856948853
+      }
+    },
+    {
+      "trial": 20,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.099999904632568,
+      "cold": {
+        "ms": 34.40000009536743,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 16.09999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      }
+    },
+    {
+      "trial": 20,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.20000004768371582,
+      "cold": {
+        "ms": 20,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 23.799999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 20,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 6.099999904632568,
+      "cold": {
+        "ms": 54.5,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.799999952316284
+      },
+      "reopen": {
+        "ms": 46.59999990463257,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.400000095367432
+      }
+    },
+    {
+      "trial": 20,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.20000004768371582,
+      "cold": {
+        "ms": 53.40000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.700000047683716
+      },
+      "reopen": {
+        "ms": 65.20000004768372,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.799999952316284
+      }
+    },
+    {
+      "trial": 21,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.20000004768371582,
+      "cold": {
+        "ms": 19.90000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3000001907348633
+      },
+      "reopen": {
+        "ms": 28.299999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.1999998092651367
+      }
+    },
+    {
+      "trial": 21,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.099999904632568,
+      "cold": {
+        "ms": 36.799999952316284,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.4000000953674316
+      },
+      "reopen": {
+        "ms": 15.899999856948853,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 21,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 58.200000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.799999952316284
+      },
+      "reopen": {
+        "ms": 48.60000014305115,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.700000047683716
+      }
+    },
+    {
+      "trial": 21,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.3999998569488525,
+      "cold": {
+        "ms": 59.299999952316284,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 14.599999904632568
+      },
+      "reopen": {
+        "ms": 48.200000047683716,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.899999856948853
+      }
+    },
+    {
+      "trial": 22,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5.299999952316284,
+      "cold": {
+        "ms": 39.700000047683716,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      },
+      "reopen": {
+        "ms": 18.299999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      }
+    },
+    {
+      "trial": 22,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.40000009536743164,
+      "cold": {
+        "ms": 30.40000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3000001907348633
+      },
+      "reopen": {
+        "ms": 27.5,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2000000476837158
+      }
+    },
+    {
+      "trial": 22,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.700000047683716,
+      "cold": {
+        "ms": 59.700000047683716,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 14.799999952316284
+      },
+      "reopen": {
+        "ms": 42.40000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.899999856948853
+      }
+    },
+    {
+      "trial": 22,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 44.299999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12
+      },
+      "reopen": {
+        "ms": 55.299999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.700000047683716
+      }
+    },
+    {
+      "trial": 23,
+      "variant": "after",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 0.09999990463256836,
+      "cold": {
+        "ms": 30.199999809265137,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 21.90000009536743,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.3000001907348633
+      }
+    },
+    {
+      "trial": 23,
+      "variant": "before",
+      "fixture": "benchmark-signed12.dcm",
+      "constructor_ms": 5,
+      "cold": {
+        "ms": 35,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      },
+      "reopen": {
+        "ms": 19.600000143051147,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": -1540,
+        "delta": 0,
+        "worker_frame_ms": 1.2999999523162842
+      }
+    },
+    {
+      "trial": 23,
+      "variant": "after",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 0.2999999523162842,
+      "cold": {
+        "ms": 41.69999980926514,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 12.099999904632568
+      },
+      "reopen": {
+        "ms": 54.19999980926514,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.5
+      }
+    },
+    {
+      "trial": 23,
+      "variant": "before",
+      "fixture": "cine-350.dcm",
+      "constructor_ms": 5.299999952316284,
+      "cold": {
+        "ms": 59.39999985694885,
+        "context_requests": 2,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 11.599999904632568
+      },
+      "reopen": {
+        "ms": 48.799999952316284,
+        "context_requests": 1,
+        "renderer": "webgl2",
+        "sample": [
+          32,
+          64,
+          63
+        ],
+        "delta": 1,
+        "worker_frame_ms": 13.400000095367432
+      }
+    }
+  ]
+}

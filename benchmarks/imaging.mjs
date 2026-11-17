@@ -224,6 +224,7 @@ const summary = Object.fromEntries(['before', 'after'].map(variant => {
 }));
 const profile = { before: reference, after: current, wasm_sha256: { before: baselineWasm, after: currentWasm },
   browser: browserName, version, platform: platform(), release: release(), cpu: cpus()[0].model, host_memory: totalmem(), repeats,
+  cpu_affinity: /^Cpus_allowed_list:\s*(.+)$/m.exec(await readFile('/proc/self/status', 'utf8').catch(() => ''))?.[1] ?? null,
   viewport: [640, 512], dpr: 1, input_interval_ms: 8, fixture_hashes: Object.fromEntries(['cine-350.dcm', 'enhanced-ct-oblique.dcm',
     'large-enhanced-ct.dcm'].map(name => [name, manifest[name].sha256])) };
 await mkdir('benchmarks/results', { recursive: true });

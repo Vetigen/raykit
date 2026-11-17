@@ -28,6 +28,20 @@ try {
         pixels[name] = { stored_sha256: await hash(stored.pixels), rgba_sha256: await hash(await source.render(0, {})) };
       } finally { source.close(); }
     }
+    let ybrDelta = 0;
+    const ybr = await api.open(await blob('us-ybr-422'));
+    try {
+      const rgb = await ybr.render(0, {});
+      reference.ybr422_rgb.forEach((pixel, i) => pixel.forEach((sample, c) => {
+        ybrDelta = Math.max(ybrDelta, Math.abs(sample - rgb[i * 4 + c]));
+      }));
+    } finally { ybr.close(); }
+    const lut = {};
+    for (const name of Object.keys(reference.lut_values)) {
+      const source = await api.open(await blob(name));
+      try { lut[name] = Array.from(await source.render(0, {})).filter((_, i) => i % 4 === 0); }
+      finally { source.close(); }
+    }
     await viewer.open(await blob('signed12'), { revision: 'pinned-radiograph' });
     const controls = viewer.viewport;
     const session = controls.session;
@@ -73,9 +87,12 @@ try {
         details = max;
       } finally { display.dispose(); }
     }
-    return { pixels, measurements, mapped: match.pixel, geometry, details, renderer: controls.presented.renderer, isolated: crossOriginIsolated };
+    return { pixels, measurements, mapped: match.pixel, geometry, details, ybrDelta, lut,
+      renderer: controls.presented.renderer, isolated: crossOriginIsolated };
   }, { reference, cases });
   assert.deepEqual(checks.pixels, reference.pixel_signatures);
+  assert.ok(checks.ybrDelta <= 1);
+  assert.deepEqual(checks.lut, reference.lut_values);
   for (const [i, row] of checks.measurements.entries()) {
     const expected = cases[i];
     assert.equal(row.source.instance_uid, '2.25.101');

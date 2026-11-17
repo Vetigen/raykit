@@ -1,0 +1,43 @@
+{
+  "artifact_source_commit": "5fe1ffe0a5584fd343430cf41b0e95022a67e390",
+  "archives": {
+    "raykit-web-0.1.0.tgz": {
+      "sha256": "ad083ae1062cb9ebab0cadfa53c612731f7e5d8fbd9761fbd7a74c7f157a5ffb",
+      "bytes": 642736
+    },
+    "raykit-web-component-0.1.0.tgz": {
+      "sha256": "247aeec4bd756d299258eef9df8f1df26e2b7a561d788e64d9831cdf4fdc3a84",
+      "bytes": 8709
+    },
+    "raykit-flutter-0.1.0.tar.gz": {
+      "sha256": "cacb3ada55d1ffa030e0488a11a3a2c23c911a8dfbad88971839eabc85bd5d80",
+      "bytes": 127978
+    }
+  },
+  "android": {
+    "artifact_source_commit": "5fe1ffe0a5584fd343430cf41b0e95022a67e390",
+    "mode": "profile",
+    "sdk": 36,
+    "ndk": "28.2.13676358",
+    "target": "android-arm64",
+    "apk_sha256": "f74dfcfc5dd9906f39fc3be2c8ff5f9c13bf50b902997927ac9724faba6a349b",
+    "apk_bytes": 33949989,
+    "native_library_sha256": "0d416619054ab1c8c758b0df1169c6de89515abc0311a1ce093726dc92e7da5c",
+    "fixture_hashes": {
+      "cine-350.dcm": "fa5e98aeb4fa9fd05211b838f1d4601537a91db840bf187b6c876a1f6b745594",
+      "signed12.dcm": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+      "detail-signed12.dcm": "22c6e34aeb35e77e7bb4b5a48b705e868858c82c5f63865e34e97e999f0f9c5c",
+      "large-enhanced-ct.dcm": "186821af7da3ab392a266cfd7c4c2449b6a5c39074c07d13c135d963a66fa9b2",
+      "large-enhanced-mr.dcm": "ec8f57d3616790f13c854f010caf77329ec52b58566ea2589e5f42ad2ff07428"
+    }
+  },
+  "ios": {
+    "target": "aarch64-apple-ios",
+    "rust": "1.97.1",
+    "validation": "cargo check"
+  },
+  "independent_consumers": [
+    "Chromium 131.0.6778.33",
+    "Flutter 3.44.9 Linux native asset"
+  ]
+}

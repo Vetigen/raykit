@@ -7,7 +7,7 @@ from pathlib import Path
 import highdicom
 import numpy as np
 import pydicom
-from pydicom.pixels import pixel_array
+from pydicom.pixels import apply_modality_lut, apply_voi_lut, pixel_array
 
 root = Path(__file__).resolve().parent.parent / "fixtures" / "generated"
 manifest = json.loads((root / "manifest.json").read_text())
@@ -60,6 +60,14 @@ np.testing.assert_array_equal(pixel_array(root / "unsigned16-rle.dcm").ravel(), 
 np.testing.assert_array_equal(pixel_array(root / "us-rgb-planar.dcm", raw=True)[0, 0], [12, 34, 56])
 ybr = pixel_array(root / "us-ybr-422.dcm", raw=True)
 np.testing.assert_array_equal(ybr.reshape(-1, 3), manifest["us-ybr-422.dcm"]["expected"]["stored_ybr"])
+color_rgb = pixel_array(root / "us-ybr-422.dcm").reshape(-1, 3).tolist()
+lut_values = {}
+for name in ["dx-luts", "io-luts"]:
+    ds = pydicom.dcmread(root / f"{name}.dcm")
+    stored = pixel_array(root / f"{name}.dcm")
+    np.testing.assert_array_equal(stored.ravel(), [0, 1, 2, 3])
+    lut_values[name] = apply_voi_lut(apply_modality_lut(stored, ds), ds).ravel().tolist()
+    assert lut_values[name] == [0, 64, 128, 192]
 for name in ["large-enhanced-ct", "large-enhanced-mr"]:
     ds = pydicom.dcmread(root / f"{name}.dcm", stop_before_pixels=True)
     assert int(ds.NumberOfFrames) == 300
@@ -77,5 +85,6 @@ np.testing.assert_allclose(coordinates.value, [[3.5, 5.5], [9.5, 21.5]], atol=1e
 image = coordinates.ContentSequence[0].ReferencedSOPSequence[0]
 assert image.ReferencedSOPInstanceUID == "2.25.101" and image.ReferencedFrameNumber == 1
 print(json.dumps({"pydicom": pydicom.__version__, "highdicom": highdicom.__version__, "codec_deltas": codec_deltas,
-                  "pixel_signatures": signatures, "sr": {"value": measurement.value, "unit": measurement.unit.value}, "errors": errors}, indent=2))
+                  "pixel_signatures": signatures, "ybr422_rgb": color_rgb, "lut_values": lut_values,
+                  "sr": {"value": measurement.value, "unit": measurement.unit.value}, "errors": errors}, indent=2))
 assert not errors

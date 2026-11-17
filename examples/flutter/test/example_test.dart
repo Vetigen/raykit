@@ -124,9 +124,36 @@ void main() {
         tester,
         () => find.textContaining('300 source slices').evaluate().isNotEmpty,
       );
+      final volumeSource = controller().session!;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await until(tester, () => volumeSource.isClosed);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await until(
+        tester,
+        () => find
+            .text('Open the volume again to restore its session')
+            .evaluate()
+            .isNotEmpty,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(RayKitVolumeView),
+          matching: find.byType(RawImage),
+        ),
+        findsNothing,
+      );
       final navigator = tester.state<NavigatorState>(find.byType(Navigator));
       navigator.pop();
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await until(
+        tester,
+        () =>
+            controller().session != volumeSource &&
+            controller().presented != null,
+      );
       await tester.tap(find.byTooltip('Close image'));
       await tester.pump();
       expect(find.byType(RayKitViewer), findsNothing);

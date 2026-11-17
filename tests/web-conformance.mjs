@@ -55,15 +55,33 @@ try {
   });
 
   const releaseOriginal = Promise.withResolvers();
+  const releaseLast = Promise.withResolvers();
   await page.route('**/instances/2.25.913', async route => { await releaseOriginal.promise; await route.continue(); });
+  await page.route('**/instances/2.25.912', async route => { await releaseLast.promise; await route.continue(); });
   try {
     await page.locator('#open-dicomweb').click();
     await page.locator('#series-preview').waitFor({ state: 'visible' });
     await page.waitForFunction(() => document.querySelector('#series-preview img').naturalWidth === 4);
     assert.equal(await viewer.evaluate(viewer => viewer.viewport.session), undefined);
   } finally { releaseOriginal.resolve(); }
+  let inProgress;
+  try {
+    await page.waitForFunction(() => document.querySelector('#volume-status').value === '2/3 original instances available.');
+    inProgress = await viewer.evaluate(async viewer => {
+      const vp = viewer.viewport;
+      const record = await vp.session.measure(0, { id: 'live-append-distance', method: 'raykit:length', version: 1,
+        points: [{ x: 1, y: 1 }, { x: 5, y: 4 }], parameters: { require_mm: true } });
+      await viewer.restoreMeasurement(record);
+      return { record, revision: vp.presented.revision };
+    });
+  } finally { releaseLast.resolve(); }
   await page.waitForFunction(() => document.querySelector('#volume-status').value === '3/3 original instances available.');
   assert.equal(await page.locator('#series-preview').isHidden(), true);
+  const recordAfterAppend = await viewer.evaluate(async viewer => ({
+    record: await viewer.viewport.session.reopenMeasurement(viewer.measurements[0]),
+    revision: viewer.viewport.presented.revision,
+  }));
+  assert.deepEqual(recordAfterAppend, inProgress);
   const series = await viewer.evaluate(async viewer => {
     const session = viewer.viewport.session;
     const result = await session.volumeCandidates();

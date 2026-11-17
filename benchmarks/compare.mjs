@@ -16,6 +16,8 @@ const browserType = { chromium, firefox, webkit }[browserName];
 const distribution = process.env.RAYKIT_BENCHMARK_DIST ?? 'benchmarks/dist';
 assert.ok(browserType, `Unknown benchmark browser ${browserName}`);
 const selected = (process.env.RAYKIT_ENGINES ?? (browserName === 'chromium' ? 'raykit,webgpu,dwv,cornerstone' : 'raykit,dwv,cornerstone')).split(',');
+const fixtureNames = (process.env.RAYKIT_FIXTURES ?? 'benchmark-signed12.dcm,cine-350.dcm').split(',');
+assert.ok(fixtureNames.every(name => ['benchmark-signed12.dcm', 'cine-350.dcm'].includes(name)));
 assert.ok(Number.isSafeInteger(repetitions) && repetitions > 0 && Number.isSafeInteger(cineRepetitions) && cineRepetitions > 0);
 const manifest = JSON.parse(await readFile('fixtures/generated/manifest.json', 'utf8'));
 const service = await serve(distribution);
@@ -79,7 +81,7 @@ let browserVersion;
 try {
   for (const backend of selected) {
     if (!['raykit', 'webgpu', 'dwv', 'cornerstone'].includes(backend)) throw new Error(`Unknown benchmark engine ${backend}`);
-    for (const fixture of ['benchmark-signed12.dcm', 'cine-350.dcm']) {
+    for (const fixture of fixtureNames) {
       if (backend === 'webgpu' && fixture === 'cine-350.dcm') continue;
       const count = fixture === 'cine-350.dcm' ? cineRepetitions : repetitions;
       for (let i = 0; i < count; i++) {
@@ -104,7 +106,7 @@ try {
 } finally { service.close(); }
 
 const summary = [];
-for (const backend of selected) for (const fixture of ['benchmark-signed12.dcm', 'cine-350.dcm']) {
+for (const backend of selected) for (const fixture of fixtureNames) {
   const results = raw.filter(r => r.backend === backend && r.fixture === fixture);
   if (!results.length) continue;
   const completed = results.filter(r => r.cold.opened);
@@ -140,12 +142,13 @@ function git(args) {
   catch { return null; }
 }
 const result = { profile: { checkout_revision: process.env.RAYKIT_BENCHMARK_REVISION ?? git(['rev-parse', 'HEAD']), platform: platform(), release: release(), cpu: cpus()[0]?.model, totalMemory: totalmem(),
+  cpu_affinity: /^Cpus_allowed_list:\s*(.+)$/m.exec(await readFile('/proc/self/status', 'utf8').catch(() => ''))?.[1] ?? null,
   measurement: 'first-original-draw-event',
   browser: browserName, browserVersion, flags: args, viewport_px: [640, 512], deviceScaleFactor: 1, repeats: repetitions, cineRepeats: cineRepetitions,
   versions: { dwv: '0.36.4', cornerstone3d: '5.19.4', jpeg_decoder: '0.3.2',
     oxiarc_jpeg: '0.4.2', pure_jpegls: '2.1.0', openjpeg2_pure_rs: '0.1.1' },
   wasmVariant: process.env.RAYKIT_WASM_VARIANT ?? 'full', isolated: false },
-  fixture_hashes: Object.fromEntries(['benchmark-signed12.dcm', 'cine-350.dcm'].map(f => [f, manifest[f].sha256])),
+  fixture_hashes: Object.fromEntries(fixtureNames.map(f => [f, manifest[f].sha256])),
   assetSizes, summary, raw };
 await mkdir('benchmarks/results', { recursive: true });
 await writeFile('benchmarks/results/compare.json', JSON.stringify(result, null, 2));

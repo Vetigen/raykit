@@ -1,0 +1,602 @@
+{
+  "artifact_source_commit": "e204eac8d42689ab47c76ebf1ff9b92de37ed477",
+  "browsers": {
+    "chromium": {
+      "engine": "chromium",
+      "version": "131.0.6778.33",
+      "pixels": {
+        "signed12": {
+          "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+          "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+        },
+        "signed12-implicit": {
+          "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+          "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+        },
+        "signed12-big-endian": {
+          "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+          "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+        },
+        "signed12-deflated": {
+          "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+          "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+        },
+        "detail-signed12": {
+          "stored_sha256": "479d401d3c43cd00d4d7a37de7fbdc9bb2d736fe754da12440c6a1a74fe7fdd8",
+          "rgba_sha256": "4b70ac63fbe7b37f79a51a0cd708826c964a47bff0f548a90c73881e968a7f9e"
+        }
+      },
+      "measurements": [
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:length",
+          "version": 1,
+          "units": [
+            "millimeter"
+          ],
+          "values": [
+            5
+          ]
+        },
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:angle",
+          "version": 1,
+          "units": [
+            "degree"
+          ],
+          "values": [
+            90
+          ]
+        },
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:canine-vhs",
+          "version": 1,
+          "units": [
+            "vertebra",
+            "vertebra",
+            "vertebra"
+          ],
+          "values": [
+            2.5,
+            1,
+            3.5
+          ]
+        },
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:norberg",
+          "version": 1,
+          "units": [
+            "degree",
+            "degree"
+          ],
+          "values": [
+            90,
+            90
+          ]
+        },
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:tplo",
+          "version": 1,
+          "units": [
+            "degree",
+            "degree",
+            "millimeter",
+            "millimeter"
+          ],
+          "values": [
+            26.56505117707799,
+            14.56505117707799,
+            2.5352417752659893,
+            10
+          ]
+        }
+      ],
+      "mapped": {
+        "x": 10,
+        "y": 11.999999999999996
+      },
+      "geometry": [
+        "geometry",
+        "geometry"
+      ],
+      "details": 0,
+      "ybrDelta": 0,
+      "lut": {
+        "dx-luts": [
+          0,
+          64,
+          128,
+          192
+        ],
+        "io-luts": [
+          0,
+          64,
+          128,
+          192
+        ]
+      },
+      "renderer": "webgl2",
+      "isolated": false,
+      "volume": {
+        "value": 448,
+        "stats": {
+          "active_pixel_bytes_upper_bound": 1048576,
+          "output_copy_bytes": 1572864,
+          "peak_output_bytes": 1048576,
+          "plane_cache_bytes": 262144,
+          "plane_cache_hits": 0,
+          "plane_work_bytes": 0,
+          "planes_computed": 2,
+          "rendered_frame_bytes": 0,
+          "rendered_frames": 0,
+          "retained_dataset_bytes": 9896334,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 2097152,
+            "dataset_elements": 3933,
+            "decoded_frames": 2,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 6000,
+            "frame_index_input_bytes": 0,
+            "peak_cached_pixel_bytes": 2097152,
+            "produced_pixel_bytes": 2097152,
+            "range_reads": 0,
+            "resident_dataset_bytes": 9896334,
+            "source_bytes": 9896334,
+            "source_read_bytes": 9896334
+          },
+          "volume": {
+            "decoded_slices": 307,
+            "peak_slice_cache_bytes": 16777216,
+            "slice_cache_bytes": 16777216,
+            "slice_cache_hits": 137494,
+            "slice_cache_limit_bytes": 16777216
+          },
+          "wasm_linear_memory_bytes": 32112640,
+          "wasm_input_copy_bytes": 9896334,
+          "wasm_output_copy_bytes": 1572864,
+          "indexed_range_read_bytes": 0,
+          "indexed_full_fallback_bytes": 0,
+          "range_requests": 0
+        }
+      }
+    },
+    "firefox": {
+      "engine": "firefox",
+      "version": "132.0",
+      "pixels": {
+        "signed12": {
+          "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+          "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+        },
+        "signed12-implicit": {
+          "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+          "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+        },
+        "signed12-big-endian": {
+          "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+          "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+        },
+        "signed12-deflated": {
+          "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+          "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+        },
+        "detail-signed12": {
+          "stored_sha256": "479d401d3c43cd00d4d7a37de7fbdc9bb2d736fe754da12440c6a1a74fe7fdd8",
+          "rgba_sha256": "4b70ac63fbe7b37f79a51a0cd708826c964a47bff0f548a90c73881e968a7f9e"
+        }
+      },
+      "measurements": [
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:length",
+          "version": 1,
+          "units": [
+            "millimeter"
+          ],
+          "values": [
+            5
+          ]
+        },
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:angle",
+          "version": 1,
+          "units": [
+            "degree"
+          ],
+          "values": [
+            90
+          ]
+        },
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:canine-vhs",
+          "version": 1,
+          "units": [
+            "vertebra",
+            "vertebra",
+            "vertebra"
+          ],
+          "values": [
+            2.5,
+            1,
+            3.5
+          ]
+        },
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:norberg",
+          "version": 1,
+          "units": [
+            "degree",
+            "degree"
+          ],
+          "values": [
+            90,
+            90
+          ]
+        },
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:tplo",
+          "version": 1,
+          "units": [
+            "degree",
+            "degree",
+            "millimeter",
+            "millimeter"
+          ],
+          "values": [
+            26.56505117707799,
+            14.56505117707799,
+            2.5352417752659893,
+            10
+          ]
+        }
+      ],
+      "mapped": {
+        "x": 10,
+        "y": 11.999999999999996
+      },
+      "geometry": [
+        "geometry",
+        "geometry"
+      ],
+      "details": null,
+      "ybrDelta": 0,
+      "lut": {
+        "dx-luts": [
+          0,
+          64,
+          128,
+          192
+        ],
+        "io-luts": [
+          0,
+          64,
+          128,
+          192
+        ]
+      },
+      "renderer": "cpu",
+      "isolated": false,
+      "volume": {
+        "value": 448,
+        "stats": {
+          "active_pixel_bytes_upper_bound": 1048576,
+          "output_copy_bytes": 2621440,
+          "peak_output_bytes": 1048576,
+          "plane_cache_bytes": 262144,
+          "plane_cache_hits": 0,
+          "plane_work_bytes": 0,
+          "planes_computed": 2,
+          "rendered_frame_bytes": 1048576,
+          "rendered_frames": 1,
+          "retained_dataset_bytes": 9896334,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 2097152,
+            "dataset_elements": 3933,
+            "decoded_frames": 2,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 6000,
+            "frame_index_input_bytes": 0,
+            "peak_cached_pixel_bytes": 2097152,
+            "produced_pixel_bytes": 2097152,
+            "range_reads": 0,
+            "resident_dataset_bytes": 9896334,
+            "source_bytes": 9896334,
+            "source_read_bytes": 9896334
+          },
+          "volume": {
+            "decoded_slices": 307,
+            "peak_slice_cache_bytes": 16777216,
+            "slice_cache_bytes": 16777216,
+            "slice_cache_hits": 137494,
+            "slice_cache_limit_bytes": 16777216
+          },
+          "wasm_linear_memory_bytes": 32112640,
+          "wasm_input_copy_bytes": 9896334,
+          "wasm_output_copy_bytes": 2621440,
+          "indexed_range_read_bytes": 0,
+          "indexed_full_fallback_bytes": 0,
+          "range_requests": 0
+        }
+      }
+    },
+    "webkit": {
+      "engine": "webkit",
+      "version": "18.2",
+      "pixels": {
+        "signed12": {
+          "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+          "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+        },
+        "signed12-implicit": {
+          "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+          "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+        },
+        "signed12-big-endian": {
+          "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+          "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+        },
+        "signed12-deflated": {
+          "stored_sha256": "c8824898bc330dcc5846354c04720b4987d41a54e1e5feabee1a0e0257f50d47",
+          "rgba_sha256": "039f04b90f2518db69d8185e54ad1c53cb8c3a5736a0d8091ea1ed2f3de88c95"
+        },
+        "detail-signed12": {
+          "stored_sha256": "479d401d3c43cd00d4d7a37de7fbdc9bb2d736fe754da12440c6a1a74fe7fdd8",
+          "rgba_sha256": "4b70ac63fbe7b37f79a51a0cd708826c964a47bff0f548a90c73881e968a7f9e"
+        }
+      },
+      "measurements": [
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:length",
+          "version": 1,
+          "units": [
+            "millimeter"
+          ],
+          "values": [
+            5
+          ]
+        },
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:angle",
+          "version": 1,
+          "units": [
+            "degree"
+          ],
+          "values": [
+            90
+          ]
+        },
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:canine-vhs",
+          "version": 1,
+          "units": [
+            "vertebra",
+            "vertebra",
+            "vertebra"
+          ],
+          "values": [
+            2.5,
+            1,
+            3.5
+          ]
+        },
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:norberg",
+          "version": 1,
+          "units": [
+            "degree",
+            "degree"
+          ],
+          "values": [
+            90,
+            90
+          ]
+        },
+        {
+          "source": {
+            "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+            "instance_uid": "2.25.101",
+            "content_sha256": "f8f43b02b35f4ec7adca1f7217a3e9eebd23cd883f93fb2a5b2854fb1a9d70fd",
+            "frame_of_reference_uid": null,
+            "frame": 0
+          },
+          "coordinate_system": "source_pixel_centers",
+          "method": "raykit:tplo",
+          "version": 1,
+          "units": [
+            "degree",
+            "degree",
+            "millimeter",
+            "millimeter"
+          ],
+          "values": [
+            26.56505117707799,
+            14.56505117707799,
+            2.5352417752659893,
+            10
+          ]
+        }
+      ],
+      "mapped": {
+        "x": 10,
+        "y": 11.999999999999996
+      },
+      "geometry": [
+        "geometry",
+        "geometry"
+      ],
+      "details": 0,
+      "ybrDelta": 0,
+      "lut": {
+        "dx-luts": [
+          0,
+          64,
+          128,
+          192
+        ],
+        "io-luts": [
+          0,
+          64,
+          128,
+          192
+        ]
+      },
+      "renderer": "webgl2",
+      "isolated": false,
+      "volume": {
+        "value": 448,
+        "stats": {
+          "active_pixel_bytes_upper_bound": 1048576,
+          "output_copy_bytes": 1572864,
+          "peak_output_bytes": 1048576,
+          "plane_cache_bytes": 262144,
+          "plane_cache_hits": 0,
+          "plane_work_bytes": 0,
+          "planes_computed": 2,
+          "rendered_frame_bytes": 0,
+          "rendered_frames": 0,
+          "retained_dataset_bytes": 9896334,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 2097152,
+            "dataset_elements": 3933,
+            "decoded_frames": 2,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 6000,
+            "frame_index_input_bytes": 0,
+            "peak_cached_pixel_bytes": 2097152,
+            "produced_pixel_bytes": 2097152,
+            "range_reads": 0,
+            "resident_dataset_bytes": 9896334,
+            "source_bytes": 9896334,
+            "source_read_bytes": 9896334
+          },
+          "volume": {
+            "decoded_slices": 307,
+            "peak_slice_cache_bytes": 16777216,
+            "slice_cache_bytes": 16777216,
+            "slice_cache_hits": 137494,
+            "slice_cache_limit_bytes": 16777216
+          },
+          "wasm_linear_memory_bytes": 32112640,
+          "wasm_input_copy_bytes": 9896334,
+          "wasm_output_copy_bytes": 1572864,
+          "indexed_range_read_bytes": 0,
+          "indexed_full_fallback_bytes": 0,
+          "range_requests": 0
+        }
+      }
+    }
+  }
+}

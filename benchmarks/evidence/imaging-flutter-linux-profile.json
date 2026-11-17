@@ -1,0 +1,936 @@
+{
+  "continuous_600_seconds": {
+    "commit": "65ca3c407e35938979b3f625a96d8b83195de192",
+    "device": "Ryzen 9 9900X, Xvfb, 1024x768",
+    "os": "linux",
+    "os_version": "Linux 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026",
+    "dart": "3.12.2 (stable) (Tue Jun 9 01:11:39 2026 -0700) on \"linux_x64\"",
+    "repeats": 5,
+    "fixture_hashes": {
+      "detail-signed12.dcm": "22c6e34aeb35e77e7bb4b5a48b705e868858c82c5f63865e34e97e999f0f9c5c",
+      "cine-350.dcm": "fa5e98aeb4fa9fd05211b838f1d4601537a91db840bf187b6c876a1f6b745594",
+      "large-enhanced-ct.dcm": "186821af7da3ab392a266cfd7c4c2449b6a5c39074c07d13c135d963a66fa9b2",
+      "large-enhanced-mr.dcm": "ec8f57d3616790f13c854f010caf77329ec52b58566ea2589e5f42ad2ff07428"
+    },
+    "observations": {
+      "cpu": {
+        "renderer": "cpu",
+        "open_ms": {
+          "n": 5,
+          "median": 83.215,
+          "p95": 93.266
+        },
+        "reopen_ms": {
+          "n": 5,
+          "median": 83.29,
+          "p95": 83.432
+        },
+        "window_ms": {
+          "n": 60,
+          "median": 50.195,
+          "p95": 66.998
+        },
+        "pose_ms": {
+          "n": 60,
+          "median": 16.622999999999998,
+          "p95": 17.544
+        },
+        "session": {
+          "active_pixel_bytes_upper_bound": 16777216,
+          "output_copy_bytes": 218103808,
+          "peak_output_bytes": 16777216,
+          "plane_cache_bytes": 0,
+          "plane_cache_hits": 0,
+          "plane_work_bytes": 0,
+          "planes_computed": 0,
+          "rendered_frame_bytes": 218103808,
+          "rendered_frames": 13,
+          "retained_dataset_bytes": 8389122,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 16777216,
+            "dataset_elements": 19,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "frame_index_input_bytes": 0,
+            "peak_cached_pixel_bytes": 16777216,
+            "produced_pixel_bytes": 16777216,
+            "range_reads": 0,
+            "resident_dataset_bytes": 8389122,
+            "source_bytes": 8389122,
+            "source_read_bytes": 8389122
+          },
+          "volume": null,
+          "native_input_copy_bytes": 0,
+          "native_output_copy_bytes": 218103808
+        },
+        "display": {
+          "prepared_images": 14,
+          "image_upload_bytes": 234881024,
+          "image_paints": 25,
+          "presentations": 26,
+          "cine_shown": 0,
+          "cine_skipped": 0,
+          "image_bytes_estimate": 16777216,
+          "shader_texture_bytes_estimate": 0
+        }
+      },
+      "shader": {
+        "renderer": "shader",
+        "open_ms": {
+          "n": 5,
+          "median": 50.726,
+          "p95": 51.021
+        },
+        "reopen_ms": {
+          "n": 5,
+          "median": 66.66,
+          "p95": 69.249
+        },
+        "window_ms": {
+          "n": 60,
+          "median": 16.8885,
+          "p95": 17.402
+        },
+        "pose_ms": {
+          "n": 60,
+          "median": 16.786,
+          "p95": 17.293
+        },
+        "session": {
+          "active_pixel_bytes_upper_bound": 16777216,
+          "output_copy_bytes": 16777216,
+          "peak_output_bytes": 16777216,
+          "plane_cache_bytes": 0,
+          "plane_cache_hits": 0,
+          "plane_work_bytes": 0,
+          "planes_computed": 0,
+          "rendered_frame_bytes": 0,
+          "rendered_frames": 0,
+          "retained_dataset_bytes": 8389122,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 16777216,
+            "dataset_elements": 19,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "frame_index_input_bytes": 0,
+            "peak_cached_pixel_bytes": 16777216,
+            "produced_pixel_bytes": 16777216,
+            "range_reads": 0,
+            "resident_dataset_bytes": 8389122,
+            "source_bytes": 8389122,
+            "source_read_bytes": 8389122
+          },
+          "volume": null,
+          "native_input_copy_bytes": 0,
+          "native_output_copy_bytes": 16777216
+        },
+        "display": {
+          "prepared_images": 2,
+          "image_upload_bytes": 33554432,
+          "image_paints": 25,
+          "presentations": 26,
+          "cine_shown": 0,
+          "cine_skipped": 0,
+          "image_bytes_estimate": 16777216,
+          "shader_texture_bytes_estimate": 16777216
+        }
+      },
+      "scrub": {
+        "seek_ms": {
+          "n": 20,
+          "median": 24.764,
+          "p95": 33.507
+        },
+        "release_ms": {
+          "n": 5,
+          "median": 27.32,
+          "p95": 33.254
+        },
+        "intermediate_frames": {
+          "n": 5,
+          "median": 18.0,
+          "p95": 19.0
+        },
+        "decode_count": {
+          "n": 5,
+          "median": 20.0,
+          "p95": 21.0
+        },
+        "output_copy_bytes": {
+          "n": 5,
+          "median": 91728000.0,
+          "p95": 96314400.0
+        },
+        "end_sample": [
+          189,
+          87,
+          75
+        ]
+      },
+      "indexed": {
+        "build_ms": {
+          "n": 5,
+          "median": 11.294,
+          "p95": 11.45
+        },
+        "manifest_bytes": 39124,
+        "full_first_ms": {
+          "n": 5,
+          "median": 49.615,
+          "p95": 50.014
+        },
+        "indexed_ms": [
+          {
+            "n": 5,
+            "median": 33.255,
+            "p95": 35.073
+          },
+          {
+            "n": 5,
+            "median": 10.659,
+            "p95": 11.109
+          },
+          {
+            "n": 5,
+            "median": 12.203,
+            "p95": 29.205
+          }
+        ],
+        "range_bytes": [
+          27074,
+          29250,
+          28212
+        ],
+        "stats": {
+          "active_pixel_bytes_upper_bound": 3439800,
+          "output_copy_bytes": 13759200,
+          "peak_output_bytes": 4586400,
+          "plane_cache_bytes": 0,
+          "plane_cache_hits": 0,
+          "plane_work_bytes": 0,
+          "planes_computed": 0,
+          "rendered_frame_bytes": 13759200,
+          "rendered_frames": 3,
+          "retained_dataset_bytes": 496,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 6879600,
+            "dataset_elements": 17,
+            "decoded_frames": 3,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 69376,
+            "frame_index_input_bytes": 39124,
+            "peak_cached_pixel_bytes": 6879600,
+            "produced_pixel_bytes": 10319400,
+            "range_reads": 3,
+            "resident_dataset_bytes": 496,
+            "source_bytes": 9766844,
+            "source_read_bytes": 84536
+          },
+          "volume": null,
+          "native_input_copy_bytes": 0,
+          "native_output_copy_bytes": 13759200
+        }
+      },
+      "ct": {
+        "build_ms": {
+          "n": 5,
+          "median": 1.505,
+          "p95": 1.524
+        },
+        "axial_ms": {
+          "n": 5,
+          "median": 20.727,
+          "p95": 22.094
+        },
+        "coronal_ms": {
+          "n": 5,
+          "median": 261.162,
+          "p95": 261.955
+        },
+        "mip_ms": {
+          "n": 5,
+          "median": 483.428,
+          "p95": 486.546
+        },
+        "moved_ms": {
+          "n": 5,
+          "median": 482.386,
+          "p95": 485.394
+        },
+        "window_ms": {
+          "n": 25,
+          "median": 2.065,
+          "p95": 3.595
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 1048576,
+          "output_copy_bytes": 10485760,
+          "peak_output_bytes": 1048576,
+          "plane_cache_bytes": 1048576,
+          "plane_cache_hits": 5,
+          "plane_work_bytes": 0,
+          "planes_computed": 4,
+          "rendered_frame_bytes": 1048576,
+          "rendered_frames": 1,
+          "retained_dataset_bytes": 9896334,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 2097152,
+            "dataset_elements": 3933,
+            "decoded_frames": 2,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 12000,
+            "frame_index_input_bytes": 0,
+            "peak_cached_pixel_bytes": 2097152,
+            "produced_pixel_bytes": 2097152,
+            "range_reads": 0,
+            "resident_dataset_bytes": 9896334,
+            "source_bytes": 9896334,
+            "source_read_bytes": 9896334
+          },
+          "volume": {
+            "decoded_slices": 810,
+            "peak_slice_cache_bytes": 16777216,
+            "slice_cache_bytes": 16777216,
+            "slice_cache_hits": 15900684,
+            "slice_cache_limit_bytes": 16777216
+          },
+          "native_input_copy_bytes": 0,
+          "native_output_copy_bytes": 10485760
+        }
+      },
+      "mr": {
+        "build_ms": {
+          "n": 5,
+          "median": 1.528,
+          "p95": 1.542
+        },
+        "axial_ms": {
+          "n": 5,
+          "median": 20.854,
+          "p95": 22.294
+        },
+        "coronal_ms": {
+          "n": 5,
+          "median": 260.822,
+          "p95": 266.335
+        },
+        "mip_ms": {
+          "n": 5,
+          "median": 481.976,
+          "p95": 495.076
+        },
+        "moved_ms": {
+          "n": 5,
+          "median": 484.617,
+          "p95": 495.797
+        },
+        "window_ms": {
+          "n": 25,
+          "median": 2.124,
+          "p95": 3.807
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 1048576,
+          "output_copy_bytes": 10485760,
+          "peak_output_bytes": 1048576,
+          "plane_cache_bytes": 1048576,
+          "plane_cache_hits": 5,
+          "plane_work_bytes": 0,
+          "planes_computed": 4,
+          "rendered_frame_bytes": 1048576,
+          "rendered_frames": 1,
+          "retained_dataset_bytes": 9896334,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 2097152,
+            "dataset_elements": 3933,
+            "decoded_frames": 2,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 12000,
+            "frame_index_input_bytes": 0,
+            "peak_cached_pixel_bytes": 2097152,
+            "produced_pixel_bytes": 2097152,
+            "range_reads": 0,
+            "resident_dataset_bytes": 9896334,
+            "source_bytes": 9896334,
+            "source_read_bytes": 9896334
+          },
+          "volume": {
+            "decoded_slices": 810,
+            "peak_slice_cache_bytes": 16777216,
+            "slice_cache_bytes": 16777216,
+            "slice_cache_hits": 15900684,
+            "slice_cache_limit_bytes": 16777216
+          },
+          "native_input_copy_bytes": 0,
+          "native_output_copy_bytes": 10485760
+        }
+      },
+      "soak": {
+        "seconds": 600.015431,
+        "first_window": {
+          "shown": 2100,
+          "interval_ms": {
+            "n": 2099,
+            "median": 32.952,
+            "p95": 34.205
+          },
+          "build_ms": {
+            "n": 2103,
+            "median": 0.165,
+            "p95": 0.208
+          },
+          "raster_ms": {
+            "n": 2103,
+            "median": 1.43,
+            "p95": 1.696
+          }
+        },
+        "last_window": {
+          "shown": 2101,
+          "interval_ms": {
+            "n": 2100,
+            "median": 32.364,
+            "p95": 33.821
+          },
+          "build_ms": {
+            "n": 2100,
+            "median": 0.159,
+            "p95": 0.215
+          },
+          "raster_ms": {
+            "n": 2100,
+            "median": 1.433,
+            "p95": 1.649
+          }
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 3439800,
+          "output_copy_bytes": 96323572800,
+          "peak_output_bytes": 4586400,
+          "plane_cache_bytes": 0,
+          "plane_cache_hits": 0,
+          "plane_work_bytes": 0,
+          "planes_computed": 0,
+          "rendered_frame_bytes": 96323572800,
+          "rendered_frames": 21002,
+          "retained_dataset_bytes": 9766844,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 6879600,
+            "dataset_elements": 18,
+            "decoded_frames": 21001,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 14000,
+            "frame_index_input_bytes": 0,
+            "peak_cached_pixel_bytes": 6879600,
+            "produced_pixel_bytes": 72239239800,
+            "range_reads": 0,
+            "resident_dataset_bytes": 9766844,
+            "source_bytes": 9766844,
+            "source_read_bytes": 9766844
+          },
+          "volume": null,
+          "native_input_copy_bytes": 0,
+          "native_output_copy_bytes": 96323572800
+        },
+        "display": {
+          "prepared_images": 21015,
+          "image_upload_bytes": 96347817760,
+          "image_paints": 21025,
+          "presentations": 21025,
+          "cine_shown": 20999,
+          "cine_skipped": 0,
+          "image_bytes_estimate": 4586400,
+          "shader_texture_bytes_estimate": 0
+        }
+      },
+      "error": "closed"
+    },
+    "flutter": "3.44.9",
+    "profile": {
+      "mode": "profile",
+      "display": "X11 / Xvfb",
+      "software_gl": true,
+      "affinity": "8-11,20-23"
+    }
+  },
+  "four_panel_verification": {
+    "commit": "5fe1ffe0a5584fd343430cf41b0e95022a67e390",
+    "device": "Ryzen 9 9900X, Xvfb, 1024x768",
+    "os": "linux",
+    "os_version": "Linux 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026",
+    "dart": "3.12.2 (stable) (Tue Jun 9 01:11:39 2026 -0700) on \"linux_x64\"",
+    "repeats": 5,
+    "fixture_hashes": {
+      "detail-signed12.dcm": "22c6e34aeb35e77e7bb4b5a48b705e868858c82c5f63865e34e97e999f0f9c5c",
+      "cine-350.dcm": "fa5e98aeb4fa9fd05211b838f1d4601537a91db840bf187b6c876a1f6b745594",
+      "large-enhanced-ct.dcm": "186821af7da3ab392a266cfd7c4c2449b6a5c39074c07d13c135d963a66fa9b2",
+      "large-enhanced-mr.dcm": "ec8f57d3616790f13c854f010caf77329ec52b58566ea2589e5f42ad2ff07428"
+    },
+    "observations": {
+      "cpu": {
+        "renderer": "cpu",
+        "open_ms": {
+          "n": 5,
+          "median": 83.325,
+          "p95": 83.891
+        },
+        "reopen_ms": {
+          "n": 5,
+          "median": 83.046,
+          "p95": 83.689
+        },
+        "window_ms": {
+          "n": 60,
+          "median": 50.7585,
+          "p95": 67.197
+        },
+        "pose_ms": {
+          "n": 60,
+          "median": 16.457,
+          "p95": 17.396
+        },
+        "session": {
+          "active_pixel_bytes_upper_bound": 16777216,
+          "output_copy_bytes": 218103808,
+          "peak_output_bytes": 16777216,
+          "plane_cache_bytes": 0,
+          "plane_cache_hits": 0,
+          "plane_work_bytes": 0,
+          "planes_computed": 0,
+          "rendered_frame_bytes": 218103808,
+          "rendered_frames": 13,
+          "retained_dataset_bytes": 8389122,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 16777216,
+            "dataset_elements": 19,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "frame_index_input_bytes": 0,
+            "peak_cached_pixel_bytes": 16777216,
+            "produced_pixel_bytes": 16777216,
+            "range_reads": 0,
+            "resident_dataset_bytes": 8389122,
+            "source_bytes": 8389122,
+            "source_read_bytes": 8389122
+          },
+          "volume": null,
+          "native_input_copy_bytes": 0,
+          "native_output_copy_bytes": 218103808
+        },
+        "display": {
+          "prepared_images": 14,
+          "image_upload_bytes": 234881024,
+          "image_paints": 25,
+          "presentations": 26,
+          "cine_shown": 0,
+          "cine_skipped": 0,
+          "image_bytes_estimate": 16777216,
+          "shader_texture_bytes_estimate": 0
+        }
+      },
+      "shader": {
+        "renderer": "shader",
+        "open_ms": {
+          "n": 5,
+          "median": 49.947,
+          "p95": 50.556
+        },
+        "reopen_ms": {
+          "n": 5,
+          "median": 50.037,
+          "p95": 65.623
+        },
+        "window_ms": {
+          "n": 60,
+          "median": 16.5365,
+          "p95": 17.381
+        },
+        "pose_ms": {
+          "n": 60,
+          "median": 16.572499999999998,
+          "p95": 17.405
+        },
+        "session": {
+          "active_pixel_bytes_upper_bound": 16777216,
+          "output_copy_bytes": 16777216,
+          "peak_output_bytes": 16777216,
+          "plane_cache_bytes": 0,
+          "plane_cache_hits": 0,
+          "plane_work_bytes": 0,
+          "planes_computed": 0,
+          "rendered_frame_bytes": 0,
+          "rendered_frames": 0,
+          "retained_dataset_bytes": 8389122,
+          "session": {
+            "cached_frames": 1,
+            "cached_pixel_bytes": 16777216,
+            "dataset_elements": 19,
+            "decoded_frames": 1,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 0,
+            "frame_index_input_bytes": 0,
+            "peak_cached_pixel_bytes": 16777216,
+            "produced_pixel_bytes": 16777216,
+            "range_reads": 0,
+            "resident_dataset_bytes": 8389122,
+            "source_bytes": 8389122,
+            "source_read_bytes": 8389122
+          },
+          "volume": null,
+          "native_input_copy_bytes": 0,
+          "native_output_copy_bytes": 16777216
+        },
+        "display": {
+          "prepared_images": 2,
+          "image_upload_bytes": 33554432,
+          "image_paints": 25,
+          "presentations": 26,
+          "cine_shown": 0,
+          "cine_skipped": 0,
+          "image_bytes_estimate": 16777216,
+          "shader_texture_bytes_estimate": 16777216
+        }
+      },
+      "scrub": {
+        "seek_ms": {
+          "n": 20,
+          "median": 17.451,
+          "p95": 33.263
+        },
+        "release_ms": {
+          "n": 5,
+          "median": 19.417,
+          "p95": 32.465
+        },
+        "intermediate_frames": {
+          "n": 5,
+          "median": 18.0,
+          "p95": 19.0
+        },
+        "decode_count": {
+          "n": 5,
+          "median": 20.0,
+          "p95": 21.0
+        },
+        "output_copy_bytes": {
+          "n": 5,
+          "median": 91728000.0,
+          "p95": 96314400.0
+        },
+        "end_sample": [
+          189,
+          87,
+          75
+        ]
+      },
+      "indexed": {
+        "build_ms": {
+          "n": 5,
+          "median": 12.832,
+          "p95": 13.071
+        },
+        "manifest_bytes": 39124,
+        "full_first_ms": {
+          "n": 5,
+          "median": 48.888,
+          "p95": 49.377
+        },
+        "indexed_ms": [
+          {
+            "n": 5,
+            "median": 32.902,
+            "p95": 33.843
+          },
+          {
+            "n": 5,
+            "median": 14.384,
+            "p95": 15.382
+          },
+          {
+            "n": 5,
+            "median": 16.443,
+            "p95": 16.854
+          }
+        ],
+        "range_bytes": [
+          27074,
+          29250,
+          28212
+        ],
+        "stats": {
+          "active_pixel_bytes_upper_bound": 3439800,
+          "output_copy_bytes": 13759200,
+          "peak_output_bytes": 4586400,
+          "plane_cache_bytes": 0,
+          "plane_cache_hits": 0,
+          "plane_work_bytes": 0,
+          "planes_computed": 0,
+          "rendered_frame_bytes": 13759200,
+          "rendered_frames": 3,
+          "retained_dataset_bytes": 496,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 6879600,
+            "dataset_elements": 17,
+            "decoded_frames": 3,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 69376,
+            "frame_index_input_bytes": 39124,
+            "peak_cached_pixel_bytes": 6879600,
+            "produced_pixel_bytes": 10319400,
+            "range_reads": 3,
+            "resident_dataset_bytes": 496,
+            "source_bytes": 9766844,
+            "source_read_bytes": 84536
+          },
+          "volume": null,
+          "native_input_copy_bytes": 0,
+          "native_output_copy_bytes": 13759200
+        }
+      },
+      "ct": {
+        "build_ms": {
+          "n": 5,
+          "median": 1.509,
+          "p95": 1.518
+        },
+        "axial_ms": {
+          "n": 5,
+          "median": 21.378,
+          "p95": 21.983
+        },
+        "coronal_ms": {
+          "n": 5,
+          "median": 267.878,
+          "p95": 271.993
+        },
+        "mip_ms": {
+          "n": 5,
+          "median": 495.56,
+          "p95": 501.8
+        },
+        "moved_ms": {
+          "n": 5,
+          "median": 495.748,
+          "p95": 499.595
+        },
+        "window_ms": {
+          "n": 25,
+          "median": 2.13,
+          "p95": 2.314
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 1048576,
+          "output_copy_bytes": 10485760,
+          "peak_output_bytes": 1048576,
+          "plane_cache_bytes": 1048576,
+          "plane_cache_hits": 5,
+          "plane_work_bytes": 0,
+          "planes_computed": 4,
+          "rendered_frame_bytes": 1048576,
+          "rendered_frames": 1,
+          "retained_dataset_bytes": 9896334,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 2097152,
+            "dataset_elements": 3933,
+            "decoded_frames": 2,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 12000,
+            "frame_index_input_bytes": 0,
+            "peak_cached_pixel_bytes": 2097152,
+            "produced_pixel_bytes": 2097152,
+            "range_reads": 0,
+            "resident_dataset_bytes": 9896334,
+            "source_bytes": 9896334,
+            "source_read_bytes": 9896334
+          },
+          "volume": {
+            "decoded_slices": 810,
+            "peak_slice_cache_bytes": 16777216,
+            "slice_cache_bytes": 16777216,
+            "slice_cache_hits": 15900684,
+            "slice_cache_limit_bytes": 16777216
+          },
+          "native_input_copy_bytes": 0,
+          "native_output_copy_bytes": 10485760
+        }
+      },
+      "mr": {
+        "build_ms": {
+          "n": 5,
+          "median": 1.525,
+          "p95": 1.536
+        },
+        "axial_ms": {
+          "n": 5,
+          "median": 21.727,
+          "p95": 25.1
+        },
+        "coronal_ms": {
+          "n": 5,
+          "median": 263.978,
+          "p95": 266.476
+        },
+        "mip_ms": {
+          "n": 5,
+          "median": 488.692,
+          "p95": 488.787
+        },
+        "moved_ms": {
+          "n": 5,
+          "median": 488.711,
+          "p95": 489.549
+        },
+        "window_ms": {
+          "n": 25,
+          "median": 1.97,
+          "p95": 2.395
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 1048576,
+          "output_copy_bytes": 10485760,
+          "peak_output_bytes": 1048576,
+          "plane_cache_bytes": 1048576,
+          "plane_cache_hits": 5,
+          "plane_work_bytes": 0,
+          "planes_computed": 4,
+          "rendered_frame_bytes": 1048576,
+          "rendered_frames": 1,
+          "retained_dataset_bytes": 9896334,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 2097152,
+            "dataset_elements": 3933,
+            "decoded_frames": 2,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 12000,
+            "frame_index_input_bytes": 0,
+            "peak_cached_pixel_bytes": 2097152,
+            "produced_pixel_bytes": 2097152,
+            "range_reads": 0,
+            "resident_dataset_bytes": 9896334,
+            "source_bytes": 9896334,
+            "source_read_bytes": 9896334
+          },
+          "volume": {
+            "decoded_slices": 810,
+            "peak_slice_cache_bytes": 16777216,
+            "slice_cache_bytes": 16777216,
+            "slice_cache_hits": 15900684,
+            "slice_cache_limit_bytes": 16777216
+          },
+          "native_input_copy_bytes": 0,
+          "native_output_copy_bytes": 10485760
+        }
+      },
+      "soak": {
+        "seconds": 5.016529,
+        "first_window": {
+          "shown": 69,
+          "interval_ms": {
+            "n": 68,
+            "median": 33.1515,
+            "p95": 34.17
+          },
+          "build_ms": {
+            "n": 72,
+            "median": 0.161,
+            "p95": 0.223
+          },
+          "raster_ms": {
+            "n": 72,
+            "median": 1.4315,
+            "p95": 1.708
+          }
+        },
+        "last_window": {
+          "shown": 70,
+          "interval_ms": {
+            "n": 69,
+            "median": 32.981,
+            "p95": 34.079
+          },
+          "build_ms": {
+            "n": 71,
+            "median": 0.163,
+            "p95": 0.188
+          },
+          "raster_ms": {
+            "n": 71,
+            "median": 1.458,
+            "p95": 1.715
+          }
+        },
+        "stats": {
+          "active_pixel_bytes_upper_bound": 3439800,
+          "output_copy_bytes": 811792800,
+          "peak_output_bytes": 4586400,
+          "plane_cache_bytes": 0,
+          "plane_cache_hits": 0,
+          "plane_work_bytes": 0,
+          "planes_computed": 0,
+          "rendered_frame_bytes": 811792800,
+          "rendered_frames": 177,
+          "retained_dataset_bytes": 9766844,
+          "session": {
+            "cached_frames": 2,
+            "cached_pixel_bytes": 6879600,
+            "dataset_elements": 18,
+            "decoded_frames": 176,
+            "fragment_copy_bytes": 0,
+            "frame_index_bytes": 14000,
+            "frame_index_input_bytes": 0,
+            "peak_cached_pixel_bytes": 6879600,
+            "produced_pixel_bytes": 605404800,
+            "range_reads": 0,
+            "resident_dataset_bytes": 9766844,
+            "source_bytes": 9766844,
+            "source_read_bytes": 9766844
+          },
+          "volume": null,
+          "native_input_copy_bytes": 0,
+          "native_output_copy_bytes": 811792800
+        },
+        "display": {
+          "prepared_images": 189,
+          "image_upload_bytes": 831451360,
+          "image_paints": 200,
+          "presentations": 200,
+          "cine_shown": 174,
+          "cine_skipped": 0,
+          "image_bytes_estimate": 4586400,
+          "shader_texture_bytes_estimate": 0
+        }
+      },
+      "four_panels": [
+        349,
+        300,
+        251,
+        202
+      ],
+      "rss": {
+        "before_bytes": 188862464,
+        "sampled_peak_bytes": 669868032,
+        "after_closed_bytes": 670015488
+      }
+    },
+    "flutter": "3.44.9",
+    "profile": {
+      "mode": "profile",
+      "display": "X11 / Xvfb",
+      "software_gl": true,
+      "affinity": "8-11,20-23"
+    }
+  }
+}
