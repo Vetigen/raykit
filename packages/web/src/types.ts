@@ -128,6 +128,7 @@ export interface Frame {
   encoding: 'rgba8' | 'mono_i32_le' | 'rgb8' | 'ybr_full8';
   pixels: Uint8Array<ArrayBuffer>;
   requestId: number;
+  workerReadMs: number;
 }
 export type Sample = { kind: 'monochrome'; stored: number; modality: number; padding: boolean }
   | { kind: 'color'; space: 'rgb' | 'ybr_full'; values: Triple };

@@ -115,24 +115,26 @@ export async function create(host, file, count) {
       await new Promise(requestAnimationFrame);
     };
     await present();
-    const exact = { center: -3180, width: 2, function: 'linear_exact' };
-    const precision = frame.format;
-    const probe = document.createElement('canvas'); probe.width = precision.columns; probe.height = precision.rows;
-    const probeRenderer = new Candidate(device, probe, frame);
-    let grayError = 0;
-    try {
-      const gpu = await probeRenderer.draw({ origin: { x: 0.5, y: 0.5 }, x_axis: [1, 0], y_axis: [0, 1] }, exact, true);
-      const cpu = await session.render(0, { window: exact });
-      for (let i = 0; i < gpu.length; i++) grayError = Math.max(grayError, Math.abs(gpu[i] - cpu[i]));
-    } finally { probeRenderer.close(); }
-    if (grayError > 1) throw new Error(`WebGPU gray error ${grayError}`);
+    const verify = async () => {
+      const exact = { center: -3180, width: 2, function: 'linear_exact' };
+      const probe = document.createElement('canvas'); probe.width = frame.format.columns; probe.height = frame.format.rows;
+      const probeRenderer = new Candidate(device, probe, frame);
+      try {
+        const gpu = await probeRenderer.draw({ origin: { x: 0.5, y: 0.5 }, x_axis: [1, 0], y_axis: [0, 1] }, exact, true);
+        const cpu = await session.render(0, { window: exact });
+        let grayError = 0;
+        for (let i = 0; i < gpu.length; i++) grayError = Math.max(grayError, Math.abs(gpu[i] - cpu[i]));
+        if (grayError > 1) throw new Error(`WebGPU gray error ${grayError}`);
+        return grayError;
+      } finally { probeRenderer.close(); }
+    };
     return {
       name: 'RayKit WebGPU candidate', count,
       seek() { return present(); },
       async sample(index, row, col) { return (await session.sample(index, col, row)).stored; },
       window(center, width) { window = { center, width }; return present(); },
       async panZoom(x, y, zoom) { mapping = (await session.transform(0, { ...view, pan: [x, y], zoom })).transform; await present(); },
-      async metrics() { return { gray_error: grayError, adapter: adapter.info?.description ?? '', ...(await session.stats()) }; },
+      async metrics() { return { gray_error: await verify(), adapter: adapter.info?.description ?? '', ...(await session.stats()) }; },
       close() { engine.close(); session.close(); device.destroy(); host.replaceChildren(); },
     };
   } catch (error) { engine?.close(); session.close(); device.destroy(); throw error; }

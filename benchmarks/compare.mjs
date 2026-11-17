@@ -43,6 +43,8 @@ async function run(browser, cdp, backend, fixture, full) {
   let peak = {};
   let timer;
   let poll;
+  let crashed = false;
+  page.on('crash', () => { crashed = true; });
   try {
     const baseline = await browserMemory(cdp).catch(() => ({}));
     const sample = async () => {
@@ -52,15 +54,15 @@ async function run(browser, cdp, backend, fixture, full) {
     poll = setInterval(() => void sample(), 50);
     await page.goto(service.url);
     await page.waitForFunction(() => typeof window.runRaykitBenchmark === 'function');
-    const quality = backend === 'raykit' && fixture.startsWith('benchmark-') && full
-      ? await page.evaluate(() => window.verifyRaykitGpu()) : undefined;
     const result = await Promise.race([page.evaluate(async ({ backend, fixture, manifest, full }) => {
       const cold = await window.runRaykitBenchmark(backend, fixture, manifest, { full });
       const warm = cold.opened ? await window.runRaykitBenchmark(backend, fixture, manifest, { full: false }) : undefined;
       return { cold, warm };
     }, { backend, fixture, manifest: manifest[fixture], full }), new Promise(resolve => {
       timer = setTimeout(() => resolve({ cold: { opened: false, error: 'Scenario exceeded 45-second run limit' } }), 45_000);
-    })]);
+    })]).catch(error => ({ cold: { opened: false, error: crashed ? 'Chromium page crashed during the scenario' : error.message } }));
+    const quality = result.cold.opened && backend === 'raykit' && fixture.startsWith('benchmark-') && full
+      ? await page.evaluate(() => window.verifyRaykitGpu()) : undefined;
     await sample();
     return { backend, fixture, quality, baseline_rss_bytes: baseline, sampled_peak_rss_bytes: peak, ...result };
   } finally { clearInterval(poll); clearTimeout(timer); await page.close(); }
@@ -109,6 +111,7 @@ for (const backend of selected) for (const fixture of ['benchmark-signed12.dcm',
   summary.push({ backend, fixture, successful: completed.length, attempts: results.length,
     cold_present_ms: metrics(all('cold', 'first_ms')), warm_present_ms: metrics(all('warm', 'first_ms')),
     cold_module_ms: metrics(all('cold', 'module_ms')), cold_open_ms: metrics(all('cold', 'frame_open_ms')),
+    first_frame_worker_ms: metrics(all('cold', 'first_decode_and_materialize_ms')),
     seek_present_ms: metrics(all('cold', 'seek').map(r => r.presented_ms)),
     peak_sampled_renderer_rss: metrics(completed.flatMap(r => r.sampled_peak_rss_bytes?.renderer ?? [])),
     interactions, failures: [...new Set(results.flatMap(r => r.cold.error ?? []))] });

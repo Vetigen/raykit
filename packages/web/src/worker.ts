@@ -9,6 +9,7 @@ export interface Reply {
   metadata?: string;
   pixels?: Uint8Array<ArrayBuffer>;
   error?: string;
+  workMs?: number;
 }
 
 const worker = self as DedicatedWorkerGlobalScope;
@@ -51,6 +52,7 @@ worker.onmessage = async (event: MessageEvent<Message>) => {
       }
       case 'command': {
         if (!session) throw '{"code":"closed"}';
+        const started = performance.now();
         const result = session.request(msg.command);
         try {
           let metadata = result.metadata();
@@ -60,7 +62,7 @@ worker.onmessage = async (event: MessageEvent<Message>) => {
             metadata = JSON.stringify({ ...JSON.parse(metadata), wasm_linear_memory_bytes: linear_memory_bytes(),
               wasm_input_copy_bytes: inputCopyBytes, wasm_output_copy_bytes: outputCopyBytes });
           }
-          reply = { id: msg.id, metadata, pixels };
+          reply = { id: msg.id, metadata, pixels, workMs: performance.now() - started };
         } finally {
           result.free();
         }

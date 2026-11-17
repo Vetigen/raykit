@@ -4,9 +4,12 @@ export async function create(host, file, count) {
   const viewport = new RaykitViewport(host);
   try {
     const session = await viewport.load(file);
+    const firstRead = viewport.frame.workerReadMs;
     return {
       name: `RayKit ${viewport.presented?.renderer}`,
       count: session.inspection.frames,
+      firstRead,
+      readTime() { return viewport.frame?.workerReadMs; },
       async seek(index) { await viewport.showFrame(index, false); },
       async sample(index, row, col) {
         const value = await session.sample(index, col, row);

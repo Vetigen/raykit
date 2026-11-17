@@ -7,9 +7,10 @@ const cwd = fileURLToPath(new URL('../', import.meta.url));
 const cargo = args => execFileSync('cargo', args, { cwd, encoding: 'utf8' });
 
 /** Inventory only reachable, non-dev Cargo dependencies for the packaged entry point. */
-export function writeNotices(directory, crate, target) {
+export function writeNotices(directory, crate, target, noDefaults = false) {
   const names = Array.isArray(target) ? target : [target];
-  const trees = names.flatMap(platform => cargo(['tree', '--locked', ...(platform ? ['--target', platform] : []), '-p', crate, '-e', 'normal,build', '--prefix', 'none', '--format', '{p}']).split('\n'));
+  const trees = names.flatMap(platform => cargo(['tree', '--locked', ...(platform ? ['--target', platform] : []), '-p', crate,
+    ...(noDefaults ? ['--no-default-features'] : []), '-e', 'normal,build', '--prefix', 'none', '--format', '{p}']).split('\n'));
   const versions = new Set(trees.flatMap(line => {
     const match = /^([^ ]+) v([^ ]+)/.exec(line);
     return match ? [`${match[1]}@${match[2]}`] : [];

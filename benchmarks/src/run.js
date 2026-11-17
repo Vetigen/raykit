@@ -46,19 +46,21 @@ window.runRaykitBenchmark = async (backend, fixture, expected, options) => {
       const target = count === 1 ? expected.expected.sample[2] : expected.expected.rgb_at_0_0[i];
       const delta = Array.isArray(value) ? Math.max(...value.map((v, idx) => Math.abs(v - target[idx]))) : Math.abs(value - target);
       if (!Number.isFinite(delta) || delta > (expected.expected.tolerance ?? 0)) throw new Error(`Original sample differs for frame ${i}: ${value} vs ${target}`);
-      seek.push({ frame: i, presented_ms: presented - before, sample: value, delta });
+      seek.push({ frame: i, presented_ms: presented - before, sample: value, delta, reported_frame_work_ms: engine.readTime?.(i) ?? null });
     }
     const stats = await engine.metrics();
     let interaction;
     if (options.full) {
       const n = 20;
       const range = Array.from({ length: n }, (_, i) => i);
-      interaction = count > 1 ? { seek: await outcome(performance.now(), range.map(i => () => engine.seek((i * 53) % count))) }
+      interaction = count > 1 ? { seek: await outcome(performance.now(), range.map(i => () => engine.seek((i * 53) % count))),
+        cine: await playback(engine, count) }
         : { window: await outcome(performance.now(), range.map(i => () => engine.window(-3180 + i * 25, 300 + i * 13))),
           pan_zoom: await outcome(performance.now(), range.map(i => () => engine.panZoom(Math.sin(i) * 2, Math.cos(i) * 2, 1 + i * 0.02))) };
     }
     return { opened: true, backend: engine.name, module_ms: moduleReady - started, source_ms: sourceReady - moduleReady,
       frame_open_ms: ready - sourceReady, first_ms: first - sourceReady, engine_first_ms: engine.readyTime ?? null,
+      first_decode_and_materialize_ms: engine.firstRead ?? null,
       seek, interaction, stats, js_heap_bytes: performance.memory?.usedJSHeapSize ?? null,
       assets: performance.getEntriesByType('resource').filter(e => /\.(?:m?js|wasm)$/.test(e.name)).map(e => ({
         name: new URL(e.name).pathname.split('/').pop(), transfer_bytes: e.encodedBodySize,
@@ -68,6 +70,26 @@ window.runRaykitBenchmark = async (backend, fixture, expected, options) => {
     return { opened: false, processed_ms: performance.now() - started, error: message };
   } finally { engine?.close(); }
 };
+
+async function playback(engine, count) {
+  const sourceIntervalMs = 1000 / 35;
+  const started = performance.now();
+  let frame = 0, shown = 0, dropped = 0;
+  const intervals = [];
+  let previous;
+  while (performance.now() - started < 2000) {
+    const due = started + frame * sourceIntervalMs;
+    const wait = due - performance.now();
+    if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
+    const wanted = Math.max(frame, Math.floor((performance.now() - started) / sourceIntervalMs));
+    dropped += wanted - frame;
+    await engine.seek(wanted % count);
+    const now = performance.now();
+    if (previous !== undefined) intervals.push(now - previous);
+    previous = now; ++shown; frame = wanted + 1;
+  }
+  return { source_interval_ms: sourceIntervalMs, shown, dropped, intervals_ms: intervals };
+}
 
 window.verifyRaykitGpu = async () => {
   const { verifyGpu } = await import('./raykit.js');

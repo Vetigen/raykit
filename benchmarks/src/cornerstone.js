@@ -15,11 +15,16 @@ export async function create(host, file, count) {
     await view.setStack(images, 0);
     await paint(host, () => view.render());
     const initial = view.getCamera();
+    const readTimes = new Map();
     return {
       name: 'Cornerstone3D', count,
+      readTime(index) { return readTimes.get(index); },
       async seek(i) { await view.setImageIdIndex(i); await paint(host, () => view.render()); },
       async sample(index, row, col) {
         const image = await imageLoader.loadAndCacheImage(images[index]);
+        if (Number.isFinite(image.totalTimeInMS) && Number.isFinite(image.loadTimeInMS)) {
+          readTimes.set(index, image.totalTimeInMS - image.loadTimeInMS);
+        }
         const pixels = image.getPixelData();
         const components = pixels.length / (image.columns * image.rows);
         const start = (row * image.columns + col) * components;

@@ -154,12 +154,12 @@ export class RaykitSession {
 
   async readFrame(index: number, options: { output?: 'rgba' | 'stored'; signal?: AbortSignal } = {}): Promise<Frame> {
     const reply = await this.#request({ op: 'frame', index, output: options.output }, options.signal);
-    const info = metadata<Omit<Frame, 'pixels' | 'requestId'>>(reply);
+    const info = metadata<Omit<Frame, 'pixels' | 'requestId' | 'workerReadMs'>>(reply);
     if (info.source.frame !== index || info.source.content_sha256 !== this.inspection.content_sha256) {
       throw new RaykitError('integrity', 'Frame reply does not match source and index');
     }
     if (!reply.pixels) throw new RaykitError('internal', 'Missing decoded pixels');
-    return { ...info, pixels: reply.pixels, requestId: reply.id };
+    return { ...info, pixels: reply.pixels, requestId: reply.id, workerReadMs: reply.workMs ?? 0 };
   }
 
   async render(index: number, options: RenderOptions, signal?: AbortSignal): Promise<Uint8Array<ArrayBuffer>> {
