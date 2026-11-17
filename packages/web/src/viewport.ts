@@ -55,7 +55,6 @@ export class RaykitViewport extends EventTarget {
       canvas.hidden = true;
       surface.prepend(canvas);
     }
-    this.#initGPU();
     this.#gpuCanvas.addEventListener('webglcontextlost', this.#gpuLost);
     this.#gpuCanvas.addEventListener('webglcontextrestored', this.#gpuRestored);
     this.#resize = new ResizeObserver(() => this.#redraw());
