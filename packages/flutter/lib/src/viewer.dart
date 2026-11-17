@@ -18,6 +18,10 @@ class RayKitViewerController {
   RayKitViewerState get _attached =>
       _viewer ?? (throw const RayKitException('closed'));
 
+  void _detach(RayKitViewerState viewer) {
+    if (identical(_viewer, viewer)) _viewer = null;
+  }
+
   Future<void> seek(int index, {bool prefetch = true}) async {
     final viewer = _attached;
     viewer._pause();
@@ -262,7 +266,7 @@ class RayKitViewerState extends State<RayKitViewer> {
   void didUpdateWidget(RayKitViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.controller, widget.controller)) {
-      oldWidget.controller?._viewer = null;
+      oldWidget.controller?._detach(this);
       widget.controller?._viewer = this;
     }
     if (!identical(oldWidget.source, widget.source) ||
@@ -981,7 +985,7 @@ class RayKitViewerState extends State<RayKitViewer> {
 
   @override
   void dispose() {
-    widget.controller?._viewer = null;
+    widget.controller?._detach(this);
     _lifecycle.dispose();
     _target.dispose();
     _radius.dispose();
