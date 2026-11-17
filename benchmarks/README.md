@@ -1,22 +1,44 @@
 # Imaging benchmark
 
-The benchmark runs each engine in an isolated local Chromium process. The input is the same generated Part 10 file for all engines in a scenario. A reference result must pass before its measurements are accepted. The monochrome comparison checks the original signed sample. Cornerstone3D can return a pre-scaled value, which the adapter reverses with the object's affine rescale. The color comparison checks three original frames against the same decoded RGB tolerance. The RayKit WebGL2 and WebGPU candidate shaders use an error limit of one 8-bit level for the signed image and selected fractional coordinates.
+Each repetition launches a fresh browser process and page for the cold opening. The warm opening uses the same page with a new viewport and a fresh source. The runner checks the generated Part 10 file against the fixture SHA-256 before handing a `File` to any engine. Module import and fixture preparation each have their own elapsed time. The first-original and full-series timers share the instant the `File` is ready.
 
 ```sh
+npm ci
 npm run fixtures
 npm run build:web
 npm run benchmark:build
-npx playwright-core install chromium
-npm run benchmark
+npx playwright-core install chromium firefox
+RAYKIT_REPEATS=12 RAYKIT_CINE_REPEATS=12 npm run benchmark
+cp benchmarks/results/compare.json benchmarks/results/chromium.json
+RAYKIT_BROWSER=firefox RAYKIT_REPEATS=5 RAYKIT_CINE_REPEATS=5 npm run benchmark
+cp benchmarks/results/compare.json benchmarks/results/firefox.json
 ```
 
-`RAYKIT_CHROMIUM` selects a local Chromium executable. `RAYKIT_REPEATS` controls monochrome repetitions and `RAYKIT_CINE_REPEATS` controls long-cine repetitions. `RAYKIT_ENGINES` selects a comma-separated subset. Results are written to `benchmarks/results/compare.json`. The test records process RSS through Linux `/proc` and Chromium's process information protocol. Browser and GPU process RSS are separate readings. GPU texture sizes are estimates based on dimensions and formats. WASM capacity includes its buffers, decoder scratch and retained dataset. RSS is a sampled high-water reading that can miss allocations released between polls.
+`RAYKIT_CHROMIUM` selects a local Chromium executable. `RAYKIT_REPEATS` controls radiograph repetitions and `RAYKIT_CINE_REPEATS` controls cine repetitions. `RAYKIT_ENGINES` selects a comma-separated subset. For the before run, use `packages/web/dist` built from SDK commit `5981de9` with `npm run build:web`. Build the benchmark with those artifacts and the current benchmark adapters, then run it with `RAYKIT_ENGINES=raykit`. Rebuild the SDK and benchmark with the optimized source and repeat the same browser, fixture and repetition settings. The reports include fixture and asset hashes. The checkout revision records the base at measurement time. The before and after Worker and WASM hashes identify the measured builds. The same WASM codec profile applies to both SDKs.
 
-The cold run starts on a new page and browser process. The warm run recreates the source and viewport within the same page. Presentation elapsed time starts when the fixture bytes are ready. Module loading and file preparation are also recorded. Interaction runs use each engine's rendering event or animation tick to observe draws. The 60 Hz missed-refresh estimate counts intervals longer than one refresh and depends on these observations. Cine uses a separate 35-frame-per-second source cadence. Failed openings and sample mismatches keep their diagnostics outside timing statistics. The headless run measures the software rendering profile and application presentation. Physical display and GPU-driver timings require separate device checks.
+The adapters timestamp RayKit `presented`, Cornerstone3D `IMAGE_RENDERED` and DWV `renderend` for the selected source and requested original frame. The WebGPU candidate records its draw submission. Each adapter takes the timestamp before sampling the decoded pixels bound to that draw. A successful run checks the signed sample or RGB tolerance on the initial draw and again during frame selection. Color checks include frames 0, 175 and 349. The signed Cornerstone3D sample is converted back to its stored value when the loader has applied an affine rescale. Separate GPU reference probes use a one-level gray tolerance.
+
+DWV reports full-series time at its `loadend` for the same input after a successful decode. The on-demand engines leave `full_series_ms` empty. Interaction and cine durations use the draw timestamps. The fast-seek test requests 20 positions and cine playback follows a separate 35 fps source cadence. The 60 Hz missed-refresh estimate is derived from intervals between observed draws. Failed openings and fixture mismatches are excluded from latency statistics and reported as failures. The events record application drawing. Physical screen refresh and GPU queue completion need device instrumentation.
+
+Chromium on Linux records process RSS with CDP and `/proc` every 50 ms. The renderer total includes dedicated workers and is measured separately from the browser and GPU processes. A short-lived allocation can fall between samples. GPU texture sizes are estimates and WASM capacity already includes the input, decoded buffers and decoder scratch. The Firefox and WebKit reports include timing and sample checks. The Chromium RSS sampler leaves their RSS fields empty.
 
 The DICOM fixtures are generated by `cargo run --locked --release -p raykit-core --example generate-fixtures -- fixtures/generated --long-cine`. `benchmark-signed12` uses a conventional High Bit and sign extension in the allocated word. Additional `signed12` files exercise nonstandard historical packing. No real imaging records are used.
 
 DWV and Cornerstone3D are benchmark-only npm dependencies. The benchmark build copies DWV's published decoder worker scripts to the URL expected by its loader. The WebGPU program is a monochrome comparison candidate. Its benchmark requires a WebGPU-enabled Chromium profile. The default SDK renderer supports WebGL2 with a Rust CPU fallback.
+
+Use `RAYKIT_BROWSER=webkit` on a host with the matching Playwright browser and system libraries. The measurements here use Playwright WebKit 18.2 with the Ubuntu 24.04 libraries in its container.
+
+```sh
+npm run build -w @raykit/example-web
+mkdir -p benchmarks/results
+docker run --rm --init --network none --shm-size=1g \
+  --user "$(id -u):$(id -g)" --workdir /raykit \
+  -v "$PWD:/raykit:ro" -v "$PWD/benchmarks/results:/raykit/benchmarks/results" \
+  -e RAYKIT_BROWSER=webkit -e RAYKIT_REPEATS=5 -e RAYKIT_CINE_REPEATS=5 \
+  mcr.microsoft.com/playwright:v1.49.1-noble \
+  sh -c 'node tests/web-source-open.mjs && node benchmarks/compare.mjs'
+cp benchmarks/results/compare.json benchmarks/results/webkit.json
+```
 
 ## Codec cost and WASM variants
 
@@ -51,8 +73,10 @@ npm run fixtures
 npm run package:local
 npx playwright-core install chromium firefox
 npm run build -w @raykit/example-web
+node tests/web-source-open.mjs
 node tests/web-workflow.mjs
 node tests/web-conformance.mjs
+RAYKIT_BROWSER=firefox node tests/web-source-open.mjs
 RAYKIT_BROWSER=firefox node tests/web-workflow.mjs
 RAYKIT_BROWSER=firefox node tests/web-conformance.mjs
 node tests/packaged-workflows.mjs
@@ -66,36 +90,44 @@ cargo +1.97.1 check --locked -p raykit-ffi --target aarch64-apple-ios
 
 The last two checks require their corresponding Android SDK/NDK or installed Rust target. To run the iOS app, use Xcode on macOS and the standalone Flutter example.
 
-The verification records include the browser workflows, independent DICOM reference results, native geometry extension output, local archive digests and Android binary inspection. [Workflows](evidence/workflows.json), [Package checks](evidence/package-verification.json)
+The source-opening test runs the normal SDK and viewer with Web Crypto enabled and with `crypto.subtle` removed in the actual Worker. It verifies source identity, original pixels, one WASM instance, initialization during a held read, input limits, digest mismatch, abort, replacement and cleanup. The original verification records also include independent DICOM reference results, native geometry extension output, local archive digests and Android binary inspection. [Workflows](evidence/workflows.json), [Package checks](evidence/package-verification.json)
 
-## Measured comparison
+## First original draw on Chromium
 
-The run used commit `38577b6`, Linux x64, Ryzen 9 9900X, headless Chromium 131.0.6778.33 and SwiftShader. The viewport was 640 × 512 at a device scale of 1. There were five radiograph and three cine repetitions per engine. Every compared original sample passed the fixture tolerance. Each latency cell is median / p95 in milliseconds. The renderer RSS column gives the median of sampled per-run peaks in MiB. [Raw comparison](evidence/chromium-comparison.json)
+The before and after runs used Linux x64, Ryzen 9 9900X, headless Chromium 131.0.6778.33 and SwiftShader, with a 640 × 512 viewport and device scale 1. Each row contains 12 cold and 12 same-page openings. Latencies are median / p95 in ms. RSS is median / p95 in MiB across per-run sampled renderer peaks. A p95 uses the nearest rank. The recorded source and pixel checks passed in every run. [Chromium observations](evidence/first-original-chromium.json)
 
-| Engine | Source | Cold first draw | Warm first draw | Renderer RSS |
-| --- | --- | ---: | ---: | ---: |
-| RayKit WebGL2 | Signed radiograph | 43.8 / 49.3 | 48.9 / 49.8 | 195.1 |
-| RayKit WebGPU candidate | Signed radiograph | 42.8 / 43.3 | 30.3 / 30.6 | 191.2 |
-| DWV 0.36.4 | Signed radiograph | 14.0 / 17.0 | 14.0 / 14.1 | 197.7 |
-| Cornerstone3D 5.19.4 | Signed radiograph | 117.1 / 122.7 | 64.1 / 64.5 | 223.8 |
-| RayKit WebGL2 | 350-frame US | 252.8 / 255.9 | 244.9 / 245.6 | 332.0 |
-| DWV 0.36.4 | 350-frame US | 1659.2 / 1692.3 | 1724.1 / 1768.6 | 2240.6 |
-| Cornerstone3D 5.19.4 | 350-frame US | 167.9 / 175.6 | 91.3 / 93.8 | 982.1 |
+| Engine | Fixture | Cold first original | Same-page first original | Cold full series | Renderer peak RSS |
+| --- | --- | ---: | ---: | ---: | ---: |
+| RayKit WebGL2 before | Signed radiograph | 32.0 / 38.6 | 29.9 / 33.9 | — | 197.1 / 206.4 |
+| RayKit WebGL2 after | Signed radiograph | 32.7 / 40.7 | 29.9 / 35.0 | — | 197.7 / 205.2 |
+| WebGPU candidate | Signed radiograph | 20.2 / 31.6 | 29.9 / 30.9 | — | 191.9 / 192.8 |
+| DWV | Signed radiograph | 7.1 / 7.8 | 1.5 / 1.7 | 7.5 / 8.1 | 193.8 / 194.7 |
+| Cornerstone3D | Signed radiograph | 115.4 / 119.1 | 62.7 / 64.7 | — | 224.9 / 227.7 |
+| RayKit WebGL2 before | 350-frame US | 235.0 / 243.1 | 227.0 / 235.2 | — | 330.2 / 332.0 |
+| RayKit WebGL2 after | 350-frame US | 54.9 / 60.7 | 55.0 / 64.3 | — | 332.9 / 338.6 |
+| DWV | 350-frame US | 101.4 / 122.5 | 148.0 / 171.9 | 1,691.4 / 1,763.6 | 2,214.9 / 2,276.5 |
+| Cornerstone3D | 350-frame US | 164.0 / 172.7 | 90.7 / 104.5 | — | 966.5 / 987.4 |
 
-DWV opened the radiograph first in this run. Cornerstone3D opened the ultrasound first. RayKit had the lowest sampled renderer RSS and input latency during rapid seek on the ultrasound. The renderer RSS includes the browser process's rendering infrastructure and browser-worker allocations. The DWV cine buffer itself held 1,203,930,000 decoded bytes.
+Cold cine module import medians after the change were 2.8 ms for RayKit, 35.4 ms for DWV and 94.9 ms for Cornerstone3D. Preparing and verifying the input `File` took 22.6, 22.8 and 23.1 ms respectively. The first-original timings start after both phases.
 
-| Engine | Radiograph W/L input p95 | Pan/zoom input p95 | Cine seek input p95 | Cine estimated missed 60 Hz intervals |
-| --- | ---: | ---: | ---: | ---: |
-| RayKit WebGL2 | 16.8 ms | 16.8 ms | 17.3 ms | 0 |
-| RayKit WebGPU candidate | 16.7 ms | 16.7 ms | — | — |
-| DWV | 16.8 ms | 16.7 ms | 41.4 ms | 58 |
-| Cornerstone3D | 18.1 ms | 17.0 ms | 34.3 ms | 15 |
+RayKit's rapid cine seek p95 was 17.1 ms before and after, across 240 requests per build. DWV and Cornerstone3D recorded 41.9 ms and 33.3 ms. RayKit's initial Worker frame read and output took 12.1 ms median before the change and 11.9 ms after it. The median sampled renderer peak rose by 2.6 MiB and remained below the other tested cine engines. RayKit's Worker made one 9,766,844-byte copy into WASM, and retained two cached RGB frames totaling 6,879,600 bytes after the three frame checks. The browser's Web Crypto implementation can snapshot the input transiently. The WASM asset grew from 1,646,268 to 1,693,909 bytes and from 536,812 to 548,849 bytes with gzip.
 
-The radiograph interactions produced 100 observations per engine with zero estimated missed 60 Hz intervals. The cine seek totals span 60 actions per engine. At the separate two-second 35 fps source cadence, RayKit showed a median of 71 frames with no skipped source frames. Cornerstone3D showed 70 with a median of zero skipped and a p95 of one skipped. DWV showed 63 with seven skipped. The count includes the initial frame. RayKit's measured cine draw intervals were 28.3 ms median and 43.0 ms p95.
+## Firefox and Playwright WebKit
 
-WebGL2 and the WebGPU candidate had zero gray-level error for the narrow signed window and the sampled fractional coordinates. WebGL2 also passed the sigmoid, unit-width and wide-window reference probes. The default renderer uses WebGL2 for the tested grayscale and color paths and uses CPU rendering after context loss or for LUT-based display. The WebGPU experiment covers grayscale.
+Each row contains five cold and five same-page openings. Firefox 132.0 used RayKit's CPU renderer on the Linux host. Playwright WebKit 18.2 used RayKit WebGL2 in the Ubuntu 24.04 container. First-original latencies are median / p95 in ms. The cine seek p95 uses 100 requests per build. The reports include the same draw and pixel checks for DWV and Cornerstone3D. [Firefox observations](evidence/first-original-firefox.json), [Playwright WebKit observations](evidence/first-original-webkit.json)
 
-### RayKit cine memory
+| RayKit profile | Fixture | Cold before | Cold after | Same-page before | Same-page after | Seek p95 before → after |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Firefox CPU | Signed radiograph | 33.0 / 36.0 | 26.0 / 48.0 | 47.0 / 48.0 | 47.0 / 47.0 | — |
+| Firefox CPU | 350-frame US | 241.0 / 244.0 | 91.0 / 102.0 | 232.0 / 237.0 | 82.0 / 83.0 | 59.0 → 59.0 |
+| Playwright WebKit WebGL2 | Signed radiograph | 38.0 / 72.0 | 37.0 / 73.0 | 30.0 / 31.0 | 30.0 / 31.0 | — |
+| Playwright WebKit WebGL2 | 350-frame US | 107.0 / 138.0 | 76.0 / 107.0 | 94.0 / 104.0 | 61.0 / 61.0 | 17.0 → 17.0 |
+
+## Historical comparison
+
+The earlier Chromium report at `38577b6` timed the adapter's return and an additional animation tick in `first_ms`. DWV returned at `loadend` after loading the entire series. On the 350-frame cine its cold median through the additional tick was 1,659.2 ms. Its separately captured first `renderend` median was 102.0 ms from the adapter's load call. RayKit's 252.8 ms historical median also included the additional tick. The corrected before/after runs timestamp each engine's draw event and validate its original frame. [Historical raw comparison](evidence/chromium-comparison.json)
+
+### Historical RayKit cine memory
 
 | Quantity | Observed value |
 | --- | ---: |
@@ -116,15 +148,15 @@ The memory rows overlap. An active frame can share cache storage, source and dec
 
 ### Transfer size and codec choice
 
-The WASM profiles used Rust 1.99.0 and wasm-bindgen 0.2.128. Gzip sizes use the same Node compression settings. The benchmark's local HTTP server serves uncompressed assets.
+The historical WASM profiles used Rust 1.99.0 and wasm-bindgen 0.2.128. The latency columns use the earlier adapter-return and animation-tick method. Gzip sizes use the same Node compression settings. The benchmark's local HTTP server serves uncompressed assets.
 
-| WASM profile | Raw bytes | Gzip bytes | Radiograph cold median / p95 | Cine cold median / p95 | First cine worker median |
+| WASM profile | Raw bytes | Gzip bytes | Radiograph legacy open median / p95 | Cine legacy open median / p95 | First cine worker median |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Baseline scalar | 1,231,875 | 383,562 | 45.7 / 49.3 ms | 253.1 / 253.9 ms | 11.9 ms |
 | Full scalar | 1,646,268 | 536,812 | 43.8 / 49.3 ms | 252.8 / 255.9 ms | 12.4 ms |
 | Full SIMD experiment | 1,655,496 | 541,470 | 47.1 / 49.8 ms | 249.7 / 252.5 ms | 9.1 ms |
 
-Bundling the advanced codecs added 414,393 raw bytes, or 153,250 bytes with gzip. The local first-draw results were similar with and without those codecs. The binary-size difference estimates what a lazy codec download could defer on first opening a baseline image. A real lazy-load transport and network-constrained measurements are future experiments. SIMD reduced first-cine worker time in this run. Full presentation and seek changed by only a few milliseconds. The standard package uses the portable scalar worker. [Baseline comparison](evidence/wasm-baseline.json), [SIMD comparison](evidence/wasm-simd.json)
+Bundling the advanced codecs added 414,393 raw bytes, or 153,250 bytes with gzip. The historical local opening results were similar across the codec profiles. The binary-size difference estimates what a lazy codec download could defer on first opening a baseline image. A real lazy-load transport and network-constrained measurements are future experiments. SIMD reduced first-cine worker time in this run. The standard package uses the portable scalar worker. [Baseline comparison](evidence/wasm-baseline.json), [SIMD comparison](evidence/wasm-simd.json)
 
 The measured DWV and Cornerstone3D main chunks were 876,379 and 3,304,442 bytes, or 238,446 and 929,456 bytes with gzip. Those chunks have separate worker and codec assets. The raw benchmark evidence lists the emitted chunks and the document's resource observations.
 

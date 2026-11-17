@@ -51,6 +51,22 @@ impl OpenOptions {
         }
         serde_json::from_slice(bytes).map_err(|_| Error::InvalidRequest("open options"))
     }
+
+    fn check_primary(&self) -> Result<()> {
+        if self.attachment.is_some() {
+            return Err(Error::InvalidRequest(
+                "primary source cannot be an attachment",
+            ));
+        }
+        Ok(())
+    }
+
+    fn check_expected_size(&self, len: usize) -> Result<()> {
+        if self.expected_size.is_some_and(|size| len != size) {
+            return Err(Error::Integrity("source byte length"));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Deserialize)]
@@ -152,12 +168,21 @@ pub struct BoundSession {
 
 impl BoundSession {
     pub fn open(bytes: Vec<u8>, options: OpenOptions) -> Result<(Self, Reply)> {
-        if options.attachment.is_some() {
-            return Err(Error::InvalidRequest(
-                "primary source cannot be an attachment",
-            ));
-        }
-        let session = Self::checked_source(bytes, options)?;
+        options.check_primary()?;
+        Self::bind(Self::checked_source(bytes, options)?)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn open_in_worker(bytes: Vec<u8>, options: OpenOptions) -> Result<(Self, Reply)> {
+        options.check_primary()?;
+        options.check_expected_size(bytes.len())?;
+        let session =
+            Session::open_in_worker(bytes, options.limits, options.expected_sha256.as_deref())
+                .await?;
+        Self::bind(Self::check_identifiers(session, &options)?)
+    }
+
+    fn bind(session: Session) -> Result<(Self, Reply)> {
         let inspection = json(session.inspection())?;
         Ok((
             Self {
@@ -174,14 +199,13 @@ impl BoundSession {
     }
 
     fn checked_source(bytes: Vec<u8>, options: OpenOptions) -> Result<Session> {
-        if options
-            .expected_size
-            .is_some_and(|size| bytes.len() != size)
-        {
-            return Err(Error::Integrity("source byte length"));
-        }
+        options.check_expected_size(bytes.len())?;
         let session =
             Session::open_verified(bytes, options.limits, options.expected_sha256.as_deref())?;
+        Self::check_identifiers(session, &options)
+    }
+
+    fn check_identifiers(session: Session, options: &OpenOptions) -> Result<Session> {
         let info = session.inspection();
         if options
             .expected_instance_uid

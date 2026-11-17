@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, ops::Range};
 use dicom_core::{DataDictionary, Tag, VR, dictionary::VirtualVr};
 use dicom_dictionary_std::StandardDataDictionary;
 use flate2::{Decompress, FlushDecompress, Status};
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256, digest::Output};
 
 use crate::{Error, Limits, Result, TransferSyntax};
 
@@ -193,19 +193,47 @@ pub(crate) struct File {
 
 impl File {
     pub(crate) fn parse(
-        mut bytes: Vec<u8>,
+        bytes: Vec<u8>,
         limits: Limits,
         expected_sha256: Option<&str>,
     ) -> Result<Self> {
+        Self::check_source_size(bytes.len(), limits)?;
+        let digest = source_digest(&bytes);
+        Self::parse_with_digest(bytes, limits, expected_sha256, digest)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) async fn parse_in_worker(
+        bytes: Vec<u8>,
+        limits: Limits,
+        expected_sha256: Option<&str>,
+    ) -> Result<Self> {
+        Self::check_source_size(bytes.len(), limits)?;
+        let digest = web_crypto_digest(&bytes)
+            .await
+            .unwrap_or_else(|| source_digest(&bytes));
+        Self::parse_with_digest(bytes, limits, expected_sha256, digest)
+    }
+
+    fn check_source_size(size: usize, limits: Limits) -> Result<()> {
         limits.validate()?;
-        let source_bytes = bytes.len();
-        if source_bytes > limits.source_bytes {
+        if size > limits.source_bytes {
             return Err(Error::Limit("source bytes"));
         }
-        let sha256 = format!("{:x}", Sha256::digest(&bytes));
+        Ok(())
+    }
+
+    fn parse_with_digest(
+        mut bytes: Vec<u8>,
+        limits: Limits,
+        expected_sha256: Option<&str>,
+        digest: Output<Sha256>,
+    ) -> Result<Self> {
+        let sha256 = format!("{digest:x}");
         if expected_sha256.is_some_and(|hash| !sha256.eq_ignore_ascii_case(hash)) {
             return Err(Error::Integrity("source SHA-256"));
         }
+        let source_bytes = bytes.len();
         if bytes.get(128..132) != Some(b"DICM") {
             return Err(Error::InvalidDicom("Part 10 signature"));
         }
@@ -272,6 +300,47 @@ impl File {
             elements,
         })
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn source_digest(bytes: &[u8]) -> Output<Sha256> {
+    Sha256::digest(bytes)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn source_digest(bytes: &[u8]) -> Output<Sha256> {
+    let mut hasher = Sha256::new();
+    for chunk in bytes.chunks(16 * 1024) {
+        hasher.update(chunk);
+    }
+    hasher.finalize()
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn web_crypto_digest(bytes: &[u8]) -> Option<Output<Sha256>> {
+    use wasm_bindgen::JsCast;
+
+    let worker: web_sys::WorkerGlobalScope = js_sys::global().unchecked_into();
+    let crypto = worker.crypto().ok().filter(|crypto| crypto.is_object())?;
+    let subtle = crypto.subtle();
+    if !subtle.is_object() {
+        return None;
+    }
+    // Web Crypto snapshots a view of the parser's owned bytes before returning its promise.
+    let result = subtle
+        .digest_with_str_and_u8_array("SHA-256", bytes)
+        .ok()?
+        .await
+        .ok()?
+        .dyn_into::<js_sys::ArrayBuffer>()
+        .ok()?;
+    let result = js_sys::Uint8Array::new(&result);
+    let mut digest = Output::<Sha256>::default();
+    if result.length() as usize != digest.len() {
+        return None;
+    }
+    result.copy_to(&mut digest);
+    Some(digest)
 }
 
 fn inflate_dataset(data: &[u8], max: usize) -> Result<Vec<u8>> {

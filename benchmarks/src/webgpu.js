@@ -1,4 +1,5 @@
 import { open } from '@raykit/web';
+import { originalPixel } from './presentation.js';
 
 const shaders = `
 struct Params { size: vec4<u32>, originX: vec4<f32>, axisYWindow: vec4<f32>, flags: vec4<i32>, padding: vec4<i32> }
@@ -80,7 +81,7 @@ class Candidate {
       encoder.copyTextureToBuffer({ texture }, { buffer, bytesPerRow: stride }, [this.canvas.width, this.canvas.height]);
     }
     device.queue.submit([encoder.finish()]);
-    if (!buffer) return;
+    if (!buffer) return performance.now();
     await buffer.mapAsync(GPUMapMode.READ);
     try {
       const padded = new Uint8Array(buffer.getMappedRange());
@@ -93,12 +94,12 @@ class Candidate {
   close() { this.storage.destroy(); this.uniforms.destroy(); this.context.unconfigure(); }
 }
 
-export async function create(host, file, count) {
+export async function create(host, file, count, probe) {
   if (count !== 1) throw new Error('WebGPU candidate implements signed monochrome only');
   const adapter = await navigator.gpu?.requestAdapter();
   if (!adapter) throw new Error('WebGPU adapter unavailable');
   const device = await adapter.requestDevice();
-  const session = await open(file);
+  const session = await open(file, { expected_sha256: probe.sha256 });
   let engine;
   try {
     const frame = await session.readFrame(0, { output: 'stored' });
@@ -109,11 +110,13 @@ export async function create(host, file, count) {
     const view = { viewport: [canvas.width, canvas.height], pan: [0, 0], zoom: 1, quarter_turns: 0 };
     let window = frame.display.voi.window ?? frame.display.automatic_window;
     let mapping = (await session.transform(0, view)).transform;
-    const present = async () => {
+    const present = async point => {
       await new Promise(requestAnimationFrame);
-      await engine.draw(mapping, window);
+      const at = await engine.draw(mapping, window);
+      return { at, frame: frame.source.frame, source_id: frame.source.content_sha256,
+        sample: point && originalPixel(frame, point), work_ms: frame.workerReadMs };
     };
-    await present();
+    const first = await present(probe);
     const verify = async () => {
       const exact = { center: -3180, width: 2, function: 'linear_exact' };
       const probe = document.createElement('canvas'); probe.width = frame.format.columns; probe.height = frame.format.rows;
@@ -142,11 +145,10 @@ export async function create(host, file, count) {
       } finally { probeRenderer.close(); }
     };
     return {
-      name: 'RayKit WebGPU candidate', count,
-      seek() { return present(); },
-      async sample(index, row, col) { return (await session.sample(index, col, row)).stored; },
+      name: 'RayKit WebGPU candidate', count: session.inspection.frames, first,
+      seek(_index, point) { return present(point); },
       window(center, width) { window = { center, width }; return present(); },
-      async panZoom(x, y, zoom) { mapping = (await session.transform(0, { ...view, pan: [x, y], zoom })).transform; await present(); },
+      async panZoom(x, y, zoom) { mapping = (await session.transform(0, { ...view, pan: [x, y], zoom })).transform; return present(); },
       async metrics() { return { ...(await verify()), adapter: adapter.info?.description ?? '', ...(await session.stats()) }; },
       close() { engine.close(); session.close(); device.destroy(); host.replaceChildren(); },
     };

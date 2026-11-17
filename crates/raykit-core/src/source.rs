@@ -323,7 +323,20 @@ impl Session {
         limits: Limits,
         expected_sha256: Option<&str>,
     ) -> Result<Self> {
-        let file = File::parse(bytes, limits, expected_sha256)?;
+        Self::inspect_file(File::parse(bytes, limits, expected_sha256)?, limits)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn open_in_worker(
+        bytes: Vec<u8>,
+        limits: Limits,
+        expected_sha256: Option<&str>,
+    ) -> Result<Self> {
+        let file = File::parse_in_worker(bytes, limits, expected_sha256).await?;
+        Self::inspect_file(file, limits)
+    }
+
+    fn inspect_file(file: File, limits: Limits) -> Result<Self> {
         let d = &file.dataset;
         let object = Object::from_uid(&file.class_uid);
         let video = file.syntax.video();

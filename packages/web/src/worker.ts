@@ -13,7 +13,8 @@ export interface Reply {
 }
 
 const worker = self as DedicatedWorkerGlobalScope;
-let initialization: ReturnType<typeof init> | undefined;
+// Start loading WASM while the caller is still reading the source.
+const initialized = init().then(() => true, () => false);
 let session: WasmSession | undefined;
 let inputCopyBytes = 0;
 let outputCopyBytes = 0;
@@ -22,13 +23,13 @@ worker.onmessage = async (event: MessageEvent<Message>) => {
   const msg = event.data;
   let reply: Reply;
   try {
-    await (initialization ??= init());
+    if (!await initialized) throw '{"code":"internal","detail":"WASM initialization failed"}';
     switch (msg.op) {
       case 'open': {
         session?.free();
         session = undefined;
         const bytes = new Uint8Array(msg.bytes);
-        session = new WasmSession(bytes, msg.options);
+        session = await WasmSession.open_in_worker(bytes, msg.options);
         inputCopyBytes = bytes.byteLength;
         outputCopyBytes = 0;
         reply = { id: msg.id, metadata: session.inspection() };

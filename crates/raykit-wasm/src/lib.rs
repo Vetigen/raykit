@@ -45,6 +45,18 @@ impl WasmSession {
         })
     }
 
+    #[cfg(target_arch = "wasm32")]
+    pub async fn open_in_worker(bytes: Box<[u8]>, options: String) -> Result<WasmSession, JsValue> {
+        let options = OpenOptions::parse(options.as_bytes()).map_err(failure)?;
+        let (session, reply) = BoundSession::open_in_worker(bytes.into_vec(), options)
+            .await
+            .map_err(failure)?;
+        Ok(Self {
+            session,
+            inspection: reply.metadata,
+        })
+    }
+
     pub fn inspection(&self) -> String {
         self.inspection.clone()
     }

@@ -32,7 +32,8 @@ Dependent MPEG/AVC/HEVC objects have a host-container path where the encapsulate
 | --- | --- |
 | Chromium 131.0.6778.33, Linux x64 | Separate package installation and complete headless web workflows. Software WebGL2, checked CPU fallback after context loss, signed samples and 350-frame navigation. |
 | Firefox 132.0, Linux x64 | Complete headless web workflows on the CPU renderer. Samples, 350-frame navigation, codecs, volume, interchange and shared views. |
-| Safari | Safari runtime verification requires an Apple host. Playwright WebKit on the Linux host could not launch because required system libraries were unavailable. |
+| Playwright WebKit 18.2, Linux x64 | Headless verification in the Ubuntu 24.04 Playwright container. The SDK and viewer passed signed and cine source-opening checks with Web Crypto and the Rust fallback. |
+| Safari | Safari runtime verification on an Apple host remains open. |
 | Windows WebView2 | Static WebView host path documented. Windows runtime verification remains open. |
 | macOS WKWebView | Static WebView host path documented. macOS runtime verification remains open. |
 | Flutter, Linux x64 | Flutter 3.44.9 with the native asset build hook, C ABI, isolate and widget tests. Tested after extracting the Flutter archive into an independent directory. |

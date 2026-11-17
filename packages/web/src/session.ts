@@ -1,6 +1,6 @@
 import { RaykitError } from './types.js';
 import type { EngineCapabilities, Frame, Inspection, MappedPoint, Measurement, MeasurementRequest,
-  OpenOptions, Presentation, Reader, RenderOptions, Sample, ScreenPoint, SegmentationOverlay, SliceImage, SliceRequest, Source, SrOptions,
+  OpenOptions, Presentation, Reader, RenderOptions, Sample, ScreenPoint, SegmentationOverlay, SliceImage, SliceRequest, Source, SourceBytes, SrOptions,
   Stats, Triple, View, Volume, VolumeCandidates, WindowLevel } from './types.js';
 import type { Message, Reply } from './worker.js';
 
@@ -63,17 +63,33 @@ export async function collect(stream: ReadableStream<Uint8Array>, ceiling: numbe
   }
 }
 
-async function sourceBuffer(source: Source, ceiling: number, signal: AbortSignal): Promise<ArrayBuffer> {
+function isSourceBytes(source: Source): source is SourceBytes {
+  return source instanceof Blob || source instanceof ArrayBuffer || source instanceof Uint8Array;
+}
+
+function checkSourceSize(bytes: SourceBytes, ceiling: number, expectedSize?: number): void {
+  const count = bytes instanceof Blob ? bytes.size : bytes.byteLength;
+  if (count > ceiling) throw new RaykitError('limit', 'Source bytes');
+  if (expectedSize !== undefined && Number.isInteger(expectedSize) && expectedSize >= 0 && expectedSize <= 0xffffffff &&
+      count !== expectedSize) {
+    throw new RaykitError('integrity', 'source byte length');
+  }
+}
+
+async function sourceBuffer(source: Source, ceiling: number, signal: AbortSignal, expectedSize?: number): Promise<ArrayBuffer> {
   checkAbort(signal);
-  let bytes: Awaited<ReturnType<Reader['read']>>;
   try {
-    bytes = (source instanceof Blob || source instanceof ArrayBuffer || source instanceof Uint8Array)
-      ? source : await withAbort(source.read(signal, ceiling), signal);
-    if (bytes instanceof ReadableStream) return await collect(bytes, ceiling, signal);
-    const count = bytes instanceof Blob ? bytes.size : bytes.byteLength;
-    if (count > ceiling) throw new RaykitError('limit', 'Source bytes');
-    if (bytes instanceof Blob) return await withAbort(bytes.arrayBuffer(), signal);
-    return bytes instanceof ArrayBuffer ? bytes.slice(0) : Uint8Array.from(bytes).buffer;
+    const bytes = isSourceBytes(source) ? source : await withAbort(source.read(signal, ceiling), signal);
+    if (bytes instanceof ReadableStream) {
+      const owned = await collect(bytes, ceiling, signal);
+      checkSourceSize(owned, ceiling, expectedSize);
+      return owned;
+    }
+    checkSourceSize(bytes, ceiling, expectedSize);
+    const owned = bytes instanceof Blob ? await withAbort(bytes.arrayBuffer(), signal)
+      : bytes instanceof ArrayBuffer ? bytes.slice(0) : Uint8Array.from(bytes).buffer;
+    checkSourceSize(owned, ceiling, expectedSize);
+    return owned;
   } catch (error) {
     if (signal.aborted) throw new RaykitError('cancelled');
     if (error instanceof RaykitError) throw error;
@@ -264,9 +280,11 @@ export async function open(source: Source, options: OpenOptions = {}): Promise<R
   try {
     const max = settings.limits?.source_bytes ?? sourceCeiling;
     if (!Number.isSafeInteger(max) || max < 0 || max > sourceCeiling) throw new RaykitError('limit', 'Source limit');
-    const bytes = await sourceBuffer(source, max, scope.signal);
     checkAbort(scope.signal);
+    if (isSourceBytes(source)) checkSourceSize(source, max, settings.expected_size);
     channel = new Channel(workerFactory);
+    const bytes = await sourceBuffer(source, max, scope.signal, settings.expected_size);
+    checkAbort(scope.signal);
     const reply = await channel.run({ op: 'open', bytes, options: JSON.stringify({ ...settings, ...sourceIdentity(source) }) }, scope.signal, [bytes]);
     checkAbort(scope.signal);
     const info = metadata<Inspection>(reply);

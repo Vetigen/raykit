@@ -1,33 +1,32 @@
 import { RaykitViewport, WebGlRenderer } from '@raykit/web';
+import { observeDraw, originalPixel } from './presentation.js';
 
-export async function create(host, file, count) {
+export async function create(host, file, count, probe) {
   const viewport = new RaykitViewport(host);
+  let session;
+  const present = (index, draw, point) => observeDraw(viewport, 'presented', ({ detail }) => {
+    if (detail.source.frame !== index) return;
+    const frame = viewport.frame;
+    if (detail.quality !== 'original' || detail.source.content_sha256 !== probe.sha256 ||
+        detail.source !== frame?.source || detail.requestId !== frame.requestId) {
+      throw new Error('Presented RayKit frame does not match the selected source');
+    }
+    return { at: detail.time, source_id: detail.source.content_sha256, frame: index,
+      sample: point && originalPixel(frame, point), work_ms: frame.workerReadMs };
+  }, draw);
   try {
-    const session = await viewport.load(file);
-    const firstRead = viewport.frame.workerReadMs;
+    const first = await present(0, async () => { session = await viewport.load(file, { expected_sha256: probe.sha256 }); }, probe);
     return {
       name: `RayKit ${viewport.presented?.renderer}`,
       count: session.inspection.frames,
-      firstRead,
-      readTime() { return viewport.frame?.workerReadMs; },
-      async seek(index) { await viewport.showFrame(index, false); },
-      async sample(index, row, col) {
-        const value = await session.sample(index, col, row);
-        return value.kind === 'color' ? value.values : value.stored;
-      },
-      window(center, width) { return presented(viewport, () => viewport.setRenderOptions({ window: { center, width, function: 'linear' } })); },
-      panZoom(x, y, zoom) { return presented(viewport, () => viewport.setView({ pan: [x, y], zoom, quarter_turns: 0 })); },
+      first,
+      seek(index, point) { return present(index, () => viewport.showFrame(index, false), point); },
+      window(center, width) { return present(0, () => viewport.setRenderOptions({ window: { center, width, function: 'linear' } })); },
+      panZoom(x, y, zoom) { return present(0, () => viewport.setView({ pan: [x, y], zoom, quarter_turns: 0 })); },
       async metrics() { return { ...(await session.stats()), texture_bytes_estimate: viewport.textureBytes }; },
       close() { viewport.dispose(); },
     };
   } catch (error) { viewport.dispose(); throw error; }
-}
-
-function presented(viewport, update) {
-  return new Promise(resolve => {
-    viewport.addEventListener('presented', resolve, { once: true });
-    update();
-  });
 }
 
 export async function verifyGpu(host, file) {
