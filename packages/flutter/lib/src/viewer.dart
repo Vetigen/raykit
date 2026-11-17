@@ -907,6 +907,8 @@ class RayKitViewerState extends State<RayKitViewer> {
           _cineShown++;
         }
       }
+    } on RayKitException catch (error) {
+      if (error.code != 'cancelled' || generation == _playGeneration) rethrow;
     } finally {
       if (mounted && generation == _playGeneration) {
         setState(() => _playing = false);
