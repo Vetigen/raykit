@@ -1,0 +1,25 @@
+name: Prepare RayKit WASM build
+description: Install the exact wasm-bindgen CLI and locked npm dependencies
+inputs:
+  bindgen:
+    description: wasm-bindgen version from Cargo.lock
+    required: true
+  rust:
+    description: Rust compiler version
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+      with:
+        path: ~/.cargo/bin/wasm-bindgen
+        key: wasm-bindgen-${{ runner.os }}-${{ runner.arch }}-${{ inputs.rust }}-${{ inputs.bindgen }}
+    - shell: bash
+      env:
+        BINDGEN_VERSION: ${{ inputs.bindgen }}
+      run: |
+        rustup target add wasm32-unknown-unknown
+        if [[ "$(wasm-bindgen --version 2>/dev/null || true)" != "wasm-bindgen $BINDGEN_VERSION" ]]; then
+          cargo install --locked --version "$BINDGEN_VERSION" wasm-bindgen-cli
+        fi
+        npm ci --ignore-scripts

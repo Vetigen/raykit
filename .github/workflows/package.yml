@@ -1,0 +1,534 @@
+name: Package RayKit
+on:
+  workflow_call:
+    inputs:
+      commit:
+        type: string
+        required: true
+      rehearsal:
+        type: string
+        default: ''
+      digest:
+        type: string
+        default: ''
+    outputs:
+      artifact:
+        value: ${{ jobs.reuse.outputs.artifact || jobs.report.outputs.artifact }}
+      digest:
+        value: ${{ jobs.reuse.outputs.digest || jobs.report.outputs.digest }}
+      node:
+        value: ${{ jobs.versions.outputs.node }}
+      nodeBuild:
+        value: ${{ jobs.versions.outputs.nodeBuild }}
+      npm:
+        value: ${{ jobs.versions.outputs.npm }}
+      python:
+        value: ${{ jobs.versions.outputs.python }}
+      flutter:
+        value: ${{ jobs.versions.outputs.flutter }}
+      flutterMinimum:
+        value: ${{ jobs.versions.outputs.flutterMinimum }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_BUILD_JOBS: 4
+  COMMIT: ${{ inputs.commit }}
+  SHARD: artifacts/shard
+  RAYKIT_ARTIFACTS: artifacts/shard/files
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  versions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.versions.outputs.version }}
+      node: ${{ steps.versions.outputs.node }}
+      nodeBuild: ${{ steps.versions.outputs.nodeBuild }}
+      npm: ${{ steps.versions.outputs.npm }}
+      python: ${{ steps.versions.outputs.python }}
+      flutter: ${{ steps.versions.outputs.flutter }}
+      flutterMinimum: ${{ steps.versions.outputs.flutterMinimum }}
+      rust: ${{ steps.versions.outputs.rust }}
+      bindgen: ${{ steps.versions.outputs.bindgen }}
+      native: ${{ steps.versions.outputs.native }}
+      desktop: ${{ steps.versions.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - id: versions
+        run: |
+          test "$(git rev-parse HEAD)" = "$COMMIT"
+          python3 scripts/release.py check
+
+  reuse:
+    if: inputs.rehearsal != ''
+    needs: versions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      artifact: raykit-approved-candidate
+      digest: ${{ inputs.digest }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REHEARSAL: ${{ inputs.rehearsal }}
+          DIGEST: ${{ inputs.digest }}
+        run: python3 scripts/release_gate.py rehearsal "$REHEARSAL" "$DIGEST"
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          artifact-ids: ${{ steps.candidate.outputs.artifact_id }}
+          path: ${{ runner.temp }}/candidate
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.rehearsal }}
+      - env:
+          DIGEST: ${{ inputs.digest }}
+        run: python3 scripts/release.py verify "$RUNNER_TEMP/candidate" "$COMMIT" "$DIGEST" --tag "$GITHUB_REF_NAME"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: raykit-approved-candidate
+          path: ${{ runner.temp }}/candidate/
+          retention-days: 7
+          compression-level: 0
+          overwrite: true
+          if-no-files-found: error
+
+  fixtures:
+    if: inputs.rehearsal == ''
+    needs: versions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/toolchain
+        with:
+          node: ${{ needs.versions.outputs.node }}
+          python: ${{ needs.versions.outputs.python }}
+      - run: npm run fixtures && npm run fixtures:delivery
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: raykit-fixtures
+          path: fixtures/generated/
+          compression-level: 0
+          retention-days: 3
+          overwrite: true
+          if-no-files-found: error
+
+  portable:
+    if: inputs.rehearsal == ''
+    needs: versions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/toolchain
+        with:
+          node: ${{ needs.versions.outputs.nodeBuild }}
+          python: ${{ needs.versions.outputs.python }}
+      - uses: ./.github/actions/web-toolchain
+        with:
+          bindgen: ${{ needs.versions.outputs.bindgen }}
+          rust: ${{ needs.versions.outputs.rust }}
+      - run: python -m pip install 'build==1.3.0'
+      - run: node scripts/package-local.mjs --web --flutter --python-source
+      - run: python scripts/release.py shard "$SHARD" portable "$COMMIT"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: raykit-shard-portable
+          path: ${{ env.SHARD }}/
+          retention-days: 3
+          compression-level: 0
+          overwrite: true
+          if-no-files-found: error
+
+  cargo:
+    needs: [versions, fixtures]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-fixtures
+          path: fixtures/generated
+      - run: |
+          mkdir -p "$RAYKIT_ARTIFACTS"
+          cargo package --workspace --locked --target-dir "$RUNNER_TEMP/cargo"
+          cp "$RUNNER_TEMP/cargo/package/"*.crate "$RAYKIT_ARTIFACTS/"
+          python3 tests/cargo-install.py --packages "$RAYKIT_ARTIFACTS" > "$RUNNER_TEMP/cargo.json"
+          python3 scripts/release.py shard "$SHARD" cargo "$COMMIT" --evidence "$RUNNER_TEMP/cargo.json"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: raykit-shard-cargo
+          path: ${{ env.SHARD }}/
+          retention-days: 3
+          overwrite: true
+          if-no-files-found: error
+
+  native:
+    needs: [versions, portable, fixtures]
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        target: ${{ fromJSON(needs.versions.outputs.native) }}
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 40
+    env:
+      RAYKIT_EXPECT_TARGET: ${{ matrix.target.rust }}
+      RAYKIT_NATIVE_EVIDENCE_DIR: artifacts/native-evidence
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/toolchain
+        with:
+          node: ${{ needs.versions.outputs.node }}
+          python: ${{ needs.versions.outputs.python }}
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-shard-portable
+          path: ${{ runner.temp }}/portable
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-fixtures
+          path: fixtures/generated
+      - if: runner.os != 'Linux'
+        run: python -m pip install 'build==1.3.0'
+      - if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        with:
+          arch: ${{ matrix.target.arch == 'arm64' && 'arm64' || 'x64' }}
+      - run: node scripts/package-native.mjs
+      - env:
+          VERSION: ${{ needs.versions.outputs.version }}
+        run: |
+          addon_host_dir="$RUNNER_TEMP/portable/files"
+          cp "$addon_host_dir/raykit-node-$VERSION.tgz" "$RAYKIT_ARTIFACTS/"
+          node tests/native-delivery.mjs
+          rm "$RAYKIT_ARTIFACTS/raykit-node-$VERSION.tgz"
+          python scripts/release.py shard "$SHARD" "native-$RAYKIT_EXPECT_TARGET" "$COMMIT" --evidence "$RAYKIT_NATIVE_EVIDENCE_DIR/acceptance.json"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: raykit-shard-native-${{ matrix.target.rust }}
+          path: ${{ env.SHARD }}/
+          retention-days: 3
+          compression-level: 0
+          overwrite: true
+          if-no-files-found: error
+
+  python-source:
+    needs: [versions, portable, fixtures]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/toolchain
+        with:
+          node: ${{ needs.versions.outputs.node }}
+          python: ${{ needs.versions.outputs.python }}
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-shard-portable
+          path: ${{ runner.temp }}/portable
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-fixtures
+          path: fixtures/generated
+      - run: |
+          RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node tests/python-source.mjs
+          python scripts/release.py shard "$SHARD" python-source "$COMMIT"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: raykit-shard-python-source
+          path: ${{ env.SHARD }}/
+          retention-days: 3
+          overwrite: true
+          if-no-files-found: error
+
+  web:
+    needs: [versions, portable, fixtures]
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      RAYKIT_BROWSER: ${{ matrix.browser }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/toolchain
+        with:
+          node: ${{ needs.versions.outputs.nodeBuild }}
+          python: ${{ needs.versions.outputs.python }}
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-shard-portable
+          path: ${{ runner.temp }}/portable
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-fixtures
+          path: fixtures/generated
+      - run: npm ci --ignore-scripts
+      - run: npx --no-install playwright-core install --with-deps "$RAYKIT_BROWSER"
+      - run: |
+          RAYKIT_WEB_EVIDENCE="$RUNNER_TEMP/browser.json" RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node tests/packaged-workflows.mjs --web
+          python scripts/release.py shard "$SHARD" "web-$RAYKIT_BROWSER" "$COMMIT" --evidence "$RUNNER_TEMP/browser.json"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: raykit-shard-web-${{ matrix.browser }}
+          path: ${{ env.SHARD }}/
+          retention-days: 3
+          overwrite: true
+          if-no-files-found: error
+
+  flutter:
+    needs: [versions, portable, fixtures]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/toolchain
+        with:
+          node: ${{ needs.versions.outputs.node }}
+          python: ${{ needs.versions.outputs.python }}
+          flutter: ${{ needs.versions.outputs.flutterMinimum }}
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-shard-portable
+          path: ${{ runner.temp }}/portable
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-fixtures
+          path: fixtures/generated
+      - run: |
+          node scripts/prepare-examples.mjs --assets-only
+          RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node scripts/prepare-flutter-consumer.mjs "$RUNNER_TEMP/consumer"
+      - run: flutter pub publish --dry-run
+        working-directory: ${{ runner.temp }}/consumer/packages/raykit
+      - run: flutter test --no-pub --concurrency=1 test/package_test.dart test/example_test.dart
+        working-directory: ${{ runner.temp }}/consumer/examples/flutter
+      - run: python scripts/release.py shard "$SHARD" flutter "$COMMIT"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: raykit-shard-flutter
+          path: ${{ env.SHARD }}/
+          retention-days: 3
+          overwrite: true
+          if-no-files-found: error
+
+  desktop:
+    needs: [versions, portable, fixtures]
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        target: ${{ fromJSON(needs.versions.outputs.desktop) }}
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 45
+    env:
+      DESKTOP: ${{ matrix.target.desktop }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/toolchain
+        with:
+          node: ${{ needs.versions.outputs.node }}
+          python: ${{ needs.versions.outputs.python }}
+          flutter: ${{ needs.versions.outputs.flutter }}
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-shard-portable
+          path: ${{ runner.temp }}/portable
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-fixtures
+          path: fixtures/generated
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang cmake ninja-build pkg-config libgtk-3-dev xvfb xauth libgl1-mesa-dri
+      - run: |
+          node scripts/prepare-examples.mjs --assets-only
+          RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node scripts/prepare-flutter-consumer.mjs "$RUNNER_TEMP/consumer"
+          RAYKIT_FLUTTER_APP="$RUNNER_TEMP/consumer/examples/flutter" node scripts/package-desktop.mjs
+      - env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            xvfb-run -a node tests/desktop-delivery.mjs > "$RUNNER_TEMP/desktop.json"
+          else
+            node tests/desktop-delivery.mjs > "$RUNNER_TEMP/desktop.json"
+          fi
+          python scripts/release.py shard "$SHARD" "desktop-$DESKTOP" "$COMMIT" --evidence "$RUNNER_TEMP/desktop.json"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: raykit-shard-desktop-${{ matrix.target.desktop }}
+          path: ${{ env.SHARD }}/
+          retention-days: 3
+          compression-level: 0
+          overwrite: true
+          if-no-files-found: error
+
+  android:
+    needs: [versions, portable, fixtures]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/toolchain
+        with:
+          node: ${{ needs.versions.outputs.node }}
+          python: ${{ needs.versions.outputs.python }}
+          flutter: ${{ needs.versions.outputs.flutter }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-shard-portable
+          path: ${{ runner.temp }}/portable
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-fixtures
+          path: fixtures/generated
+      - run: sdkmanager 'platforms;android-36' 'ndk;28.2.13676358'
+      - run: |
+          node scripts/prepare-examples.mjs --assets-only
+          RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node scripts/prepare-flutter-consumer.mjs "$RUNNER_TEMP/consumer"
+      - working-directory: ${{ runner.temp }}/consumer/examples/flutter
+        run: flutter build apk --release --target-platform android-arm64 --no-pub
+      - run: |
+          python3 tests/android-archive.py "$RUNNER_TEMP/consumer/examples/flutter/build/app/outputs/flutter-apk/app-release.apk" > "$RUNNER_TEMP/android.json"
+          python3 scripts/release.py shard "$SHARD" android "$COMMIT" --evidence "$RUNNER_TEMP/android.json"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: raykit-shard-android
+          path: ${{ env.SHARD }}/
+          retention-days: 3
+          overwrite: true
+          if-no-files-found: error
+
+  ios:
+    needs: [versions, portable, fixtures]
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/toolchain
+        with:
+          node: ${{ needs.versions.outputs.node }}
+          python: ${{ needs.versions.outputs.python }}
+          flutter: ${{ needs.versions.outputs.flutter }}
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-shard-portable
+          path: ${{ runner.temp }}/portable
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: raykit-fixtures
+          path: fixtures/generated
+      - run: |
+          node scripts/prepare-examples.mjs --assets-only
+          RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node scripts/prepare-flutter-consumer.mjs "$RUNNER_TEMP/consumer" --integration
+      - working-directory: ${{ runner.temp }}/consumer/examples/flutter
+        run: flutter build ios --release --no-codesign --no-pub
+      - working-directory: ${{ runner.temp }}/consumer/examples/flutter
+        run: |
+          simulator=$(xcrun simctl list devices available -j | jq -er '[.devices | to_entries | reverse[] | select(.key | contains("iOS")) | .value[] | select(.name | startswith("iPhone"))][0].udid')
+          if ! xcrun simctl list devices booted | grep -Fq "$simulator"; then
+            xcrun simctl boot "$simulator"
+          fi
+          xcrun simctl bootstatus "$simulator" -b
+          flutter test --no-pub -d "$simulator" integration_test/release_test.dart
+          jq -n --arg xcode "$(xcodebuild -version)" --arg simulator "$simulator" \
+            '{device_link:"passed",simulator_runtime:"passed",physical_device:"not run",xcode:$xcode,simulator:$simulator}' > "$RUNNER_TEMP/ios.json"
+      - run: python3 scripts/release.py shard "$SHARD" ios "$COMMIT" --evidence "$RUNNER_TEMP/ios.json"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: raykit-shard-ios
+          path: ${{ env.SHARD }}/
+          retention-days: 3
+          overwrite: true
+          if-no-files-found: error
+
+  report:
+    if: always() && inputs.rehearsal == ''
+    needs: [versions, fixtures, portable, cargo, native, python-source, web, flutter, desktop, android, ios]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      artifact: raykit-candidate-${{ steps.report.outputs.digest }}
+      digest: ${{ steps.report.outputs.digest }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: raykit-shard-*
+          path: ${{ runner.temp }}/shards
+      - id: report
+        env:
+          RAYKIT_JOB_RESULTS: ${{ toJSON(needs) }}
+        run: python3 scripts/release.py report "$RUNNER_TEMP/shards" "$RUNNER_TEMP/candidate" "$COMMIT"
+      - if: always() && !cancelled()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: raykit-report-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/candidate/release-report.json
+            ${{ runner.temp }}/candidate/SHA256SUMS
+            ${{ runner.temp }}/candidate/provenance.json
+          retention-days: 30
+          if-no-files-found: error
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: raykit-candidate-${{ steps.report.outputs.digest }}
+          path: ${{ runner.temp }}/candidate/
+          retention-days: 30
+          compression-level: 0
+          if-no-files-found: error

@@ -1,15 +1,18 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { arch, cpus, release } from 'node:os';
+import { arch, cpus, release, totalmem } from 'node:os';
 import { gzipSync } from 'node:zlib';
 import { chromium } from 'playwright-core';
 import { serve } from '../tests/static-server.mjs';
+import { browserMemory } from './browser-memory.mjs';
 
 const count = Number(process.env.RAYKIT_DELIVERY_REPEATS ?? 8);
 assert(Number.isSafeInteger(count) && count > 0 && count <= 40);
+const currentOnly = process.env.RAYKIT_CURRENT_ONLY === '1';
 const dirs = {
-  before: process.env.RAYKIT_BASELINE_SDK ?? 'benchmarks/results/sdk-f128/package/dist',
+  ...(!currentOnly ? { before: process.env.RAYKIT_BASELINE_SDK ?? 'benchmarks/results/sdk-f128/package/dist' } : {}),
   scalar: process.env.RAYKIT_WEB_DIST ?? 'packages/web/dist',
 };
 if (process.env.RAYKIT_SIMD_DIST) dirs.simd = process.env.RAYKIT_SIMD_DIST;
@@ -27,6 +30,7 @@ for (const [version, path] of Object.entries(dirs)) {
   }
 }
 const manifest = JSON.parse(await readFile('fixtures/generated/manifest.json'));
+const reference = JSON.parse(await readFile('benchmarks/evidence/comparison-reference.json'));
 const server = await serve('examples/web/dist', undefined, mounts);
 const args = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
 const measurements = [];
@@ -39,9 +43,17 @@ try {
       // A fresh process keeps startup, GPU preparation and the HTTP cache cold.
       browser = await chromium.launch({ executablePath: process.env.RAYKIT_CHROMIUM, args });
       const page = await browser.newPage({ viewport: { width: 800, height: 720 } });
+      const peaks = {};
+      const cdp = process.platform === 'linux' ? await browser.newBrowserCDPSession() : undefined;
+      const sampleMemory = async () => {
+        if (!cdp) return;
+        const values = await browserMemory(cdp).catch(() => ({}));
+        for (const [kind, bytes] of Object.entries(values)) peaks[kind] = Math.max(peaks[kind] ?? 0, bytes);
+      };
+      const sampler = setInterval(() => void sampleMemory(), 50);
       try {
         await page.goto(server.url);
-        const observation = await page.evaluate(async ({ version, manifest, mkMip }) => {
+        const observation = await page.evaluate(async ({ version, manifest, mkMip, reference, currentOnly }) => {
           const test = (value, note) => { if (!value) throw new Error(note); };
           const begin = performance.now();
           const { RaykitViewport, open } = await import('/' + version + '/index.js');
@@ -68,7 +80,8 @@ try {
               const now = performance.now();
               const session = await vp.load(fixtures[name], { expected_sha256: manifest[name+'.dcm'].sha256 });
               const elapsed = vp.presented.time - now;
-              test(vp.presented.source.content_sha256 === manifest[name+'.dcm'].sha256, 'First frame source');
+              test(vp.presented.source.content_sha256 === manifest[name+'.dcm'].sha256 && vp.presented.source.frame === 0,
+                'First original frame identity');
               const actual = await vp.samplePresented(x,y);
               test(actual.stored === sample || actual.values?.every((v,i)=>Math.abs(v-sample[i]) <= 2), 'First frame sample');
               return { elapsed, renderer: vp.presented.renderer, stats: await session.stats(), display: vp.displayStats };
@@ -160,6 +173,7 @@ try {
             } finally { source.close(); }
           }
           let mip = null;
+          let mpr = null;
           if (mkMip) {
             const image = await open(await fixture('comparison-ct'));
             try {
@@ -175,18 +189,74 @@ try {
                 observations.push({ ms, sha256: await digest(plane.pixels), stats: await image.stats() });
               }
               mip = observations;
+              if (currentOnly) {
+                const [x, y] = reference.pixel;
+                const sample = await image.sampleAt(reference.frame, x, y);
+                test(sample.source.content_sha256 === reference.sha256
+                  && sample.sample.stored === reference.stored && sample.sample.modality === reference.modality
+                  && sample.modality_unit === reference.unit && sample.patient.every((v, i) => v === reference.patient[i]),
+                  'Packaged comparison CT');
+                for (const index of [0, 1]) {
+                  const rgba = await image.render(reference.frame, { voi: { kind: 'window', index } });
+                  test(await digest(rgba) === reference.rgba_sha256[index], 'Device window reference');
+                }
+                const record = await image.measure(reference.frame, {
+                  id: 'comparison-ruler', method: 'raykit:length', version: 1, points: [{ x, y }, { x: x + 10, y }],
+                });
+                test(record.values[0].value === 7 && record.values[0].unit === 'millimeter', 'Physical ruler');
+                const tamper = await image.verifyMeasurement({ ...record, values: [{ ...record.values[0], value: 8 }] })
+                  .then(() => 'accepted', error => error.code);
+                test(tamper === 'integrity', 'Altered measurement must be rejected');
+                mpr = {};
+                for (const kind of ['axial', 'coronal', 'sagittal']) {
+                  const start = performance.now();
+                  const plane = await image.reslice({
+                    center: reference.patient, orientation: { kind }, dimensions: [257, 257], spacing_xy: [0.7, 0.8],
+                    slab: { kind: 'single' },
+                  }, undefined, undefined, { sampling: 'nearest' });
+                  const ms = performance.now() - start;
+                  const values = new DataView(plane.pixels.buffer, plane.pixels.byteOffset, plane.pixels.byteLength);
+                  test(plane.encoding === 'modality_f32_le' && values.getFloat32((128 * 257 + 128) * 4, true) === reference.modality,
+                    'MPR central modality value');
+                  mpr[kind] = { ms, sha256: await digest(plane.pixels) };
+                }
+              }
             } finally { image.close(); }
           }
-          return { importMs, cpu, gpu, codecTimes, mip };
-        }, { version, manifest, mkMip: repeat < 3 && version !== 'simd' });
-        measurements.push({ version, repeat, browser: browser.version(), ...observation });
-      } finally { await browser.close(); browser = undefined; }
+          return { importMs, cpu, gpu, codecTimes, mip, mpr };
+        }, { version, manifest, mkMip: repeat < 3 && version !== 'simd', reference, currentOnly });
+        await sampleMemory();
+        measurements.push({ version, repeat, browser: browser.version(), peak_rss_bytes: peaks, ...observation });
+      } finally { clearInterval(sampler); await browser.close(); browser = undefined; }
     }
   }
-  const before = measurements.find(run => run.version === 'before' && run.mip)?.mip.map(row => row.sha256);
+  const before = measurements.find(run => run.version === (currentOnly ? 'scalar' : 'before') && run.mip)?.mip.map(row => row.sha256);
   for (const row of measurements.filter(run => run.mip)) assert.deepEqual(row.mip.map(a => a.sha256), before);
   assert(measurements.every(row => row.gpu.signed.renderer === 'webgl2' && row.cpu.signed.renderer === 'cpu'));
+  if (process.platform === 'linux') assert(measurements.every(row => row.peak_rss_bytes.renderer > 0));
+  const timing = values => {
+    const ordered = [...values].sort((a, b) => a - b);
+    return { n: ordered.length, median: (ordered[Math.floor((ordered.length - 1) / 2)] + ordered[Math.floor(ordered.length / 2)]) / 2,
+      p95: ordered[Math.ceil(0.95 * ordered.length) - 1] };
+  };
+  const trend = Object.fromEntries(Object.keys(dirs).map(version => {
+    const rows = measurements.filter(row => row.version === version);
+    return [version, {
+      cpu: { first_original_ms: timing(rows.map(row => row.cpu.firstOriginal)),
+        cine_seek_ms: timing(rows.flatMap(row => row.cpu.seek)), cine_dropped: rows.map(row => row.cpu.played.skipped) },
+      webgl2: { first_original_ms: timing(rows.map(row => row.gpu.firstOriginal)),
+        cine_seek_ms: timing(rows.flatMap(row => row.gpu.seek)), cine_dropped: rows.map(row => row.gpu.played.skipped) },
+      mpr_ms: Object.fromEntries(['axial', 'coronal', 'sagittal'].flatMap(plane => {
+        const values = rows.flatMap(row => row.mpr ? [row.mpr[plane].ms] : []);
+        return values.length ? [[plane, timing(values)]] : [];
+      })),
+    }];
+  }));
   console.log(JSON.stringify({ count, cpu: cpus()[0].model, architecture: arch(), os: release(), args, viewport: [640,512],
+    commit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+    source_dirty: Boolean(execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim()),
+    runner: { image: process.env.ImageOS, version: process.env.ImageVersion, total_memory_bytes: totalmem(),
+      actions_run: process.env.GITHUB_RUN_ID }, trend,
     fixtures: Object.fromEntries(Object.entries(manifest).filter(([name]) => ['benchmark-signed12.dcm','detail-signed12.dcm','cine-350.dcm',
       'jpeg-ls.dcm','comparison-ct.dcm'].includes(name)).map(([name,row]) => [name,row.sha256])), assets, measurements }, null, 2));
 } finally { await browser?.close(); server.close(); }

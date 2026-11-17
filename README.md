@@ -4,7 +4,7 @@ RayKit uses one Rust core for DICOM viewing, image processing and measurements i
 
 ## Web example
 
-Install Rust 1.97.1 or later and Node.js 22.12 or later. Run these commands from the checkout.
+Install Rust 1.97.1 or later and Node.js 24 or later. Run these commands from the checkout.
 
 ```sh
 rustup target add wasm32-unknown-unknown
@@ -90,7 +90,7 @@ Open or drop a DICOM file or a study folder. Choose a series and instance, compa
 
 ## CLI, Node.js and Python
 
-Run `npm run package:native` with Rust, Node.js and [uv](https://docs.astral.sh/uv/). Extract the host-matched CLI archive and run the bundled `raykit` binary.
+Install the CLI with `cargo install raykit-cli --locked` once the version is available on crates.io. You can also extract the matching archive from GitHub Releases and run its `raykit` binary.
 
 ```sh
 raykit inspect fixtures/generated/comparison-ct.dcm --frame 150
@@ -100,13 +100,13 @@ raykit frame-index fixtures/generated/cine-350.dcm --out cine.rki
 raykit measurements verify fixtures/generated/comparison-ct.dcm measurement.json
 ```
 
-Install the local [Node.js package](packages/node/README.md) with `npm install path/to/raykit-node-0.1.0.tgz`. Its session opens local sources and renders on Node-API's asynchronous work pool. The [Node.js proof example](examples/node/proofs.mjs) writes packets for a static host.
+Install the Node SDK with `npm install @raykit/node`. The loader selects the optional native addon for the current platform. Its session opens local sources and renders on Node-API's asynchronous work pool. The [Node.js proof example](examples/node/proofs.mjs) writes packets for a static host.
 
-Install the host-matched [Python wheel](packages/python/README.md) with `python -m pip install path/to/raykit-0.1.0-py3-none-PLATFORM.whl`. Run [the NumPy example](examples/python/sample.py) with `python sample.py SOURCE --frame 150 --x 256 --y 256`. NumPy views retain their owned bytes after close.
+Install the Python SDK with `python -m pip install raykit-dicom` and import `raykit_dicom`. Run the NumPy example with `python sample.py SOURCE --frame 150 --x 256 --y 256`. NumPy views retain their owned bytes after close. [NumPy example](examples/python/sample.py)
 
 ## Local packages
 
-Run `npm run package:local` from a build checkout. The `artifacts/` directory contains npm tarballs for both web packages and a standalone Flutter source bundle. Install both web tarballs in the same app. Extract the Flutter archive and point your app's `raykit` dependency at the extracted directory. The native sources and lockfile travel with the Flutter bundle.
+Run `npm run package:local` from a build checkout. The `artifacts/` directory contains the web, Node loader and Flutter source packages. Run `npm run package:native` for the CLI, C SDK, native Node addon and Python wheel. Set `RAYKIT_ARTIFACTS` to select an empty output directory. Extract the Flutter archive and point your app's `raykit` dependency at the extracted directory. The native sources and lockfile travel with the Flutter bundle.
 
 ```sh
 npm install path/to/raykit-web-0.1.0.tgz path/to/raykit-web-component-0.1.0.tgz
@@ -115,7 +115,7 @@ tar -xzf path/to/raykit-flutter-0.1.0.tar.gz
 
 With the fixtures and archives built, run `node tests/packaged-workflows.mjs` from the checkout. It installs both web tarballs and the Flutter archive in a fresh directory and exercises the independent examples. Install a Playwright Chromium with `npx playwright-core install chromium` or set `RAYKIT_CHROMIUM` to a compatible local browser.
 
-`node tests/native-delivery.mjs` installs the CLI, Node and Python artifacts in a fresh consumer directory. Its optional `RAYKIT_NATIVE_EVIDENCE_DIR` output supplies the proof and tiles to `node tests/web-delivery.mjs`.
+`node tests/native-delivery.mjs` installs the CLI, C SDK, Node and Python artifacts in a fresh consumer directory. Its optional `RAYKIT_NATIVE_EVIDENCE_DIR` output supplies the proof and tiles to `node tests/web-delivery.mjs`. See the [release guide](docs/release.md) for the runner matrix, local tools and registry setup.
 
 ## Verification and scope
 

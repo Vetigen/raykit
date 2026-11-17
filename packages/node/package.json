@@ -2,10 +2,19 @@
   "name": "@raykit/node",
   "version": "0.1.0",
   "description": "RayKit by Vetigen DICOM toolkit for Node.js",
-  "private": true,
   "license": "Apache-2.0",
+  "publishConfig": { "access": "public" },
+  "repository": { "type": "git", "url": "git+https://github.com/Vetigen/raykit.git", "directory": "packages/node" },
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": { "node": ">=22.14.0" },
   "exports": { ".": { "types": "./index.d.ts", "import": "./index.js" } },
-  "files": ["index.js", "index.d.ts", "README.md", "LICENSE", "native", "notices"]
+  "files": ["index.js", "index.d.ts", "README.md", "LICENSE"],
+  "optionalDependencies": {
+    "@raykit/node-linux-x64-gnu": "0.1.0",
+    "@raykit/node-linux-arm64-gnu": "0.1.0",
+    "@raykit/node-darwin-x64": "0.1.0",
+    "@raykit/node-darwin-arm64": "0.1.0",
+    "@raykit/node-win32-x64-msvc": "0.1.0",
+    "@raykit/node-win32-arm64-msvc": "0.1.0"
+  }
 }

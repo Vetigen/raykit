@@ -1,0 +1,276 @@
+name: Release
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions: {}
+
+concurrency:
+  group: raykit-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CARGO_BUILD_JOBS: 4
+
+jobs:
+  tag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      commit: ${{ steps.tag.outputs.commit }}
+      run: ${{ steps.tag.outputs.run }}
+      digest: ${{ steps.tag.outputs.digest }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_gate.py tag
+
+  package:
+    needs: tag
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/package.yml
+    with:
+      commit: ${{ needs.tag.outputs.commit }}
+      rehearsal: ${{ needs.tag.outputs.run }}
+      digest: ${{ needs.tag.outputs.digest }}
+
+  registry-plan:
+    needs: [tag, package]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.tag.outputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/release-candidate
+        with:
+          name: ${{ needs.package.outputs.artifact }}
+          commit: ${{ needs.tag.outputs.commit }}
+          digest: ${{ needs.tag.outputs.digest }}
+      - env:
+          COMMIT: ${{ needs.tag.outputs.commit }}
+          DIGEST: ${{ needs.tag.outputs.digest }}
+        run: python3 scripts/release_registry.py plan all "$RUNNER_TEMP/candidate" "$COMMIT" "$DIGEST"
+
+  crates:
+    needs: [tag, package, registry-plan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      COMMIT: ${{ needs.tag.outputs.commit }}
+      DIGEST: ${{ needs.tag.outputs.digest }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.tag.outputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/release-candidate
+        with:
+          name: ${{ needs.package.outputs.artifact }}
+          commit: ${{ env.COMMIT }}
+          digest: ${{ env.DIGEST }}
+      - id: plan
+        run: python3 scripts/release_registry.py plan crates "$RUNNER_TEMP/candidate" "$COMMIT" "$DIGEST"
+      - if: steps.plan.outputs.pending == 'true'
+        id: auth
+        uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1
+      - if: steps.plan.outputs.pending == 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: python3 scripts/release_registry.py publish crates "$RUNNER_TEMP/candidate" "$COMMIT" "$DIGEST"
+
+  npm:
+    needs: [tag, package, registry-plan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      COMMIT: ${{ needs.tag.outputs.commit }}
+      DIGEST: ${{ needs.tag.outputs.digest }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.tag.outputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/release-candidate
+        with:
+          name: ${{ needs.package.outputs.artifact }}
+          commit: ${{ env.COMMIT }}
+          digest: ${{ env.DIGEST }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ needs.package.outputs.node }}
+          package-manager-cache: false
+      - env:
+          NPM_VERSION: ${{ needs.package.outputs.npm }}
+        run: npm install --global --ignore-scripts --no-audit "npm@$NPM_VERSION"
+      - run: python3 scripts/release_registry.py publish npm "$RUNNER_TEMP/candidate" "$COMMIT" "$DIGEST"
+
+  pypi:
+    needs: [tag, package, registry-plan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      COMMIT: ${{ needs.tag.outputs.commit }}
+      DIGEST: ${{ needs.tag.outputs.digest }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.tag.outputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/release-candidate
+        with:
+          name: ${{ needs.package.outputs.artifact }}
+          commit: ${{ env.COMMIT }}
+          digest: ${{ env.DIGEST }}
+      - id: plan
+        run: python3 scripts/release_registry.py plan pypi "$RUNNER_TEMP/candidate" "$COMMIT" "$DIGEST" --stage artifacts/pypi
+      - if: steps.plan.outputs.pending == 'true'
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
+        with:
+          packages-dir: artifacts/pypi
+          attestations: true
+
+  pub:
+    needs: [tag, package, registry-plan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      COMMIT: ${{ needs.tag.outputs.commit }}
+      DIGEST: ${{ needs.tag.outputs.digest }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.tag.outputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/release-candidate
+        with:
+          name: ${{ needs.package.outputs.artifact }}
+          commit: ${{ env.COMMIT }}
+          digest: ${{ env.DIGEST }}
+      - id: plan
+        run: python3 scripts/release_registry.py plan pub "$RUNNER_TEMP/candidate" "$COMMIT" "$DIGEST"
+      - if: steps.plan.outputs.pending == 'true'
+        uses: dart-lang/setup-dart@2286a0c042b44434fe26d292bbce8d34f7ec662b # v1
+        with:
+          sdk: '3.12.2'
+      - if: steps.plan.outputs.pending == 'true'
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ needs.package.outputs.flutter }}
+          channel: stable
+      - if: steps.plan.outputs.pending == 'true'
+        run: python3 scripts/release_registry.py publish pub "$RUNNER_TEMP/candidate" "$COMMIT" "$DIGEST"
+
+  verify-registries:
+    needs: [tag, package, crates, npm, pypi, pub]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      COMMIT: ${{ needs.tag.outputs.commit }}
+      DIGEST: ${{ needs.tag.outputs.digest }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.tag.outputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/release-candidate
+        with:
+          name: ${{ needs.package.outputs.artifact }}
+          commit: ${{ env.COMMIT }}
+          digest: ${{ env.DIGEST }}
+      - run: python3 scripts/release_registry.py verify all "$RUNNER_TEMP/candidate" "$COMMIT" "$DIGEST"
+      - uses: ./.github/actions/toolchain
+        with:
+          node: ${{ needs.package.outputs.node }}
+          python: ${{ needs.package.outputs.python }}
+          flutter: ${{ needs.package.outputs.flutterMinimum }}
+      - run: npm run fixtures && npm run fixtures:delivery
+      - run: python tests/cargo-install.py --published
+      - run: RAYKIT_ARTIFACTS="$RUNNER_TEMP/candidate/files" node tests/native-delivery.mjs --published
+      - run: RAYKIT_ARTIFACTS="$RUNNER_TEMP/candidate/files" node tests/python-source.mjs --published
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ needs.package.outputs.nodeBuild }}
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts && npx --no-install playwright-core install --with-deps chromium
+      - run: RAYKIT_ARTIFACTS="$RUNNER_TEMP/candidate/files" node tests/packaged-workflows.mjs --web --published
+      - run: node scripts/prepare-flutter-consumer.mjs "$RUNNER_TEMP/consumer" --registry
+      - working-directory: ${{ runner.temp }}/consumer/examples/flutter
+        run: flutter test --no-pub --concurrency=1 test/package_test.dart
+
+  attest:
+    needs: [tag, package, verify-registries]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.tag.outputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/release-candidate
+        with:
+          name: ${{ needs.package.outputs.artifact }}
+          commit: ${{ needs.tag.outputs.commit }}
+          digest: ${{ needs.tag.outputs.digest }}
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-checksums: ${{ runner.temp }}/candidate/SHA256SUMS
+
+  github-release:
+    needs: [tag, package, attest]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.tag.outputs.commit }}
+          persist-credentials: false
+      - uses: ./.github/actions/release-candidate
+        with:
+          name: ${{ needs.package.outputs.artifact }}
+          commit: ${{ needs.tag.outputs.commit }}
+          digest: ${{ needs.tag.outputs.digest }}
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ needs.tag.outputs.commit }}
+          DIGEST: ${{ needs.tag.outputs.digest }}
+        run: python3 scripts/github_release.py "$RUNNER_TEMP/candidate" "$COMMIT" "$DIGEST" "$GITHUB_REF_NAME"

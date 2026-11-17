@@ -1,9 +1,9 @@
 # RayKit by Vetigen for Python
 
-The local wheel contains the native RayKit library for its platform. It calls the versioned C ABI and uses NumPy for array views.
+Install with `python -m pip install raykit-dicom`. The matching wheel contains the native RayKit library and works without Rust. A source install needs rustup and a platform C linker. The package calls the versioned C ABI and uses NumPy for array views.
 
 ```python
-from raykit import Session
+from raykit_dicom import Session
 
 with Session("computed-tomography.dcm") as source:
     stored, info = source.frame(0)

@@ -1,4 +1,4 @@
-#[path = "../../../fixtures/support.rs"]
+#[path = "../examples/support/mod.rs"]
 mod fixture;
 
 use fixture::*;

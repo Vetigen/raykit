@@ -1,15 +1,18 @@
 """Run from a clean consumer environment with the local wheel installed."""
 
 import json
+from importlib.metadata import version
 from pathlib import Path
 import sys
 
 import numpy as np
-from raykit import RaykitError, Session, inspect
+from raykit_dicom import RaykitError, Session, inspect
 
 source, reference_file, evidence_file, foreign = map(Path, sys.argv[1:])
 ref = json.loads(reference_file.read_text())
 evidence = json.loads(evidence_file.read_text())
+if "version" in evidence:
+    assert version("raykit-dicom") == evidence["version"]
 x, y = ref["pixel"]
 assert inspect(source)["frames"] == 300
 with Session(source, expected_sha256=ref["sha256"]) as session:
@@ -33,6 +36,13 @@ with Session(source, expected_sha256=ref["sha256"]) as session:
     assert slab.shape == (3, 3) and slab.dtype.str == "<f4" and slab[1, 1] == ref["modality"]
     assert session.sample_volume(at["patient"]) == ref["modality"]
     assert session.verify_measurement(evidence["record"]) == evidence["record"]
+    tampered = {**evidence["record"], "values": [{**evidence["record"]["values"][0], "value": 8}]}
+    try:
+        session.verify_measurement(tampered)
+    except RaykitError as error:
+        assert error.code == "integrity"
+    else:
+        raise AssertionError("Changed measurement value accepted")
 assert stored[y, x] == ref["stored"] and modality[y, x] == ref["modality"]
 with Session(foreign) as bad:
     try:

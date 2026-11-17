@@ -219,6 +219,7 @@ export class RaykitSession extends EventTarget {
   }
   measure(index: number, request: MeasurementRequest, signal?: AbortSignal): Promise<Measurement> { return this.#value({ op: 'measure', index, request }, signal); }
   reopenMeasurement(record: Measurement, signal?: AbortSignal): Promise<Measurement> { return this.#value({ op: 'reopen', record }, signal); }
+  verifyMeasurement(record: Measurement, signal?: AbortSignal): Promise<Measurement> { return this.#value({ op: 'verify', record }, signal); }
   stats(signal?: AbortSignal): Promise<Stats> { return this.#value({ op: 'stats' }, signal); }
   evict(signal?: AbortSignal): Promise<void> { return this.#value({ op: 'evict' }, signal); }
 

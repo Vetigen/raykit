@@ -10,3 +10,4 @@ node_modules/
 /examples/flutter/assets/raykit/
 /packages/flutter/pubspec.lock
 /artifacts/
+__pycache__/

@@ -1,0 +1,56 @@
+name: Imaging benchmarks
+on:
+  schedule:
+    - cron: '27 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: raykit-benchmark
+  cancel-in-progress: false
+
+jobs:
+  chromium:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CARGO_BUILD_JOBS: 4
+      RAYKIT_ARTIFACTS: artifacts/benchmark
+      RAYKIT_CURRENT_ONLY: '1'
+      RAYKIT_DELIVERY_REPEATS: '5'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - id: versions
+        run: python3 scripts/release.py check
+      - uses: ./.github/actions/toolchain
+        with:
+          node: ${{ steps.versions.outputs.nodeBuild }}
+          python: ${{ steps.versions.outputs.python }}
+      - uses: ./.github/actions/web-toolchain
+        with:
+          bindgen: ${{ steps.versions.outputs.bindgen }}
+          rust: ${{ steps.versions.outputs.rust }}
+      - run: node scripts/package-local.mjs --web
+      - run: npm run fixtures && npm run fixtures:delivery && npm run build -w @raykit/example-web
+      - run: npx --no-install playwright-core install --with-deps chromium
+      - name: Check packaged pixels and measurement
+        run: RAYKIT_WEB_EVIDENCE="$RAYKIT_ARTIFACTS/reference.json" node tests/packaged-workflows.mjs --web
+      - name: Measure packaged imaging
+        env:
+          VERSION: ${{ steps.versions.outputs.version }}
+        run: |
+          mkdir "$RUNNER_TEMP/benchmark-sdk"
+          tar -xzf "$RAYKIT_ARTIFACTS/raykit-web-$VERSION.tgz" -C "$RUNNER_TEMP/benchmark-sdk"
+          RAYKIT_WEB_DIST="$RUNNER_TEMP/benchmark-sdk/package/dist" node benchmarks/delivery.mjs > "$RAYKIT_ARTIFACTS/trend.json"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always() && !cancelled()
+        with:
+          name: raykit-imaging-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/benchmark/*.json
+          retention-days: 30
+          if-no-files-found: warn

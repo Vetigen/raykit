@@ -586,18 +586,22 @@ class _ExampleViewerState extends State<ExampleViewer> {
             source['frame'] != requested.frame) {
           throw const RayKitException('invalid_request', 'Measurement frame');
         }
-        measurement = await _controller.restoreMeasurement(data);
+        final verified = await session.verifyMeasurement(data);
+        measurement = await _controller.restoreMeasurement(verified);
       }
       final stats = await session.stats();
-      stdout.writeln(
-        jsonEncode({
-          'implementation': 'native-flutter',
-          'renderer': frame.renderer,
-          'sample': sample,
-          'measurement': ?measurement,
-          'decoded_frames': (stats['session'] as Json)['decoded_frames'],
-        }),
-      );
+      final output = jsonEncode({
+        'implementation': 'native-flutter',
+        'renderer': frame.renderer,
+        'sample': sample,
+        'measurement': ?measurement,
+        'decoded_frames': (stats['session'] as Json)['decoded_frames'],
+      });
+      if (Platform.environment['RAYKIT_VERIFY_OUTPUT'] case final path?) {
+        await File(path).writeAsString(output);
+      } else {
+        stdout.writeln(output);
+      }
       await session.revoke();
       exit(0);
     } on RayKitException catch (error) {

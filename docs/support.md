@@ -31,6 +31,10 @@ Dependent MPEG/AVC/HEVC objects have a host-container path where the encapsulate
 
 ## Platform and installation evidence
 
+The [release guide](release.md) defines the hosted package matrix and rehearsal
+reports. Those reports record builds and installed runtime results for each
+exact commit and artifact.
+
 | Target | Evidence |
 | --- | --- |
 | Chromium 131.0.6778.33, Linux x64 | Installed web packages. Software WebGL2 and CPU fallback, comparison, frame proofs, tiles, advanced codec retry, custom Worker and live replay with synthetic sources. [Delivery evidence](../benchmarks/evidence/delivery-web.json) |

@@ -18,7 +18,7 @@ Analytic fixtures establish geometry, unit handling and reproducibility. The lan
 
 Show or hide each overlay from the panel's **Layers** control. The same coordinates remain valid after an independent palette, window or camera change. The record stays with its exact instance, full-source hash and frame. A SEG overlay uses the same source check. An original opened through a frame proof or tiled projection uses its bound full-source identity.
 
-`raykit measurements verify SOURCE RECORD.json`, Node `verifyMeasurement` and Python `verify_measurement` verify the recorded method, geometry, calibration and numerical results. The viewers' reopen path recomputes the values. A frozen preview acquires measurement tools when its host-authorized exact capture binding resolves to a physically calibrated original.
+`raykit measurements verify SOURCE RECORD.json`, the Web, Node and Flutter `verifyMeasurement` methods, and Python `verify_measurement` verify the recorded method, geometry, calibration and numerical results. The viewers' reopen path recomputes the values. A frozen preview acquires measurement tools when its host-authorized exact capture binding resolves to a physically calibrated original.
 
 ## Host-selected methods
 

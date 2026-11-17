@@ -1,0 +1,33 @@
+name: Set up RayKit tools
+description: Install the pinned Node, Python and optional Flutter SDK
+inputs:
+  node:
+    description: Node version from the release toolchain manifest
+    required: true
+  python:
+    description: Python version from the release toolchain manifest
+    required: true
+  flutter:
+    description: Flutter version when needed by the job
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      with:
+        node-version: ${{ inputs.node }}
+        architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+        package-manager-cache: false
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      with:
+        python-version: ${{ inputs.python }}
+        architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+    - if: inputs.flutter != ''
+      uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+      with:
+        flutter-version: ${{ inputs.flutter }}
+        channel: stable
+        architecture: ${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}
+    - shell: bash
+      run: rustup show active-toolchain

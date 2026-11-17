@@ -1,41 +1,54 @@
-import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { writeNotices } from './notices.mjs';
+import {
+  artifacts, flutterArchive, nodeArchive, npm, python, pythonSdist, releaseTargets,
+  requireFresh, root, run, stageRust, version,
+} from './release-lib.mjs';
 
-const root = fileURLToPath(new URL('../', import.meta.url));
-const artifacts = join(root, 'artifacts');
-const staging = mkdtempSync(join(tmpdir(), 'raykit-package-'));
-const flutter = join(staging, 'raykit');
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-
-function run(command, args, cwd = root) {
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' && command === npm });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`${command} exited with ${result.status}`);
+const args = process.argv.slice(2);
+if (args.some(arg => !['--web', '--flutter', '--python-source'].includes(arg))) {
+  throw new Error('Expected --web, --flutter or --python-source');
 }
+const staging = mkdtempSync(join(tmpdir(), 'raykit-package-'));
 
 try {
-  mkdirSync(artifacts, { recursive: true });
-  run(npm, ['run', 'build:web']);
-  run(npm, ['pack', '--ignore-scripts', '--pack-destination', artifacts, './packages/web', './packages/web-component']);
-  mkdirSync(flutter);
-  for (const name of ['lib', 'hook', 'shaders', 'pubspec.yaml', 'README.md']) {
-    cpSync(join(root, 'packages/flutter', name), join(flutter, name), { recursive: true });
+  if (!args.length || args.includes('--web')) {
+    requireFresh(artifacts, [`raykit-web-${version}.tgz`, `raykit-web-component-${version}.tgz`, nodeArchive]);
+    run(npm, ['run', 'build:web']);
+    run(npm, ['pack', '--ignore-scripts', '--pack-destination', artifacts, './packages/web', './packages/web-component']);
+    const node = join(staging, 'node');
+    mkdirSync(node);
+    for (const file of ['index.js', 'index.d.ts', 'package.json', 'README.md']) {
+      cpSync(join(root, 'packages/node', file), join(node, file));
+    }
+    cpSync(join(root, 'LICENSE'), join(node, 'LICENSE'));
+    run(npm, ['pack', '--ignore-scripts', '--pack-destination', artifacts], { cwd: node });
   }
-  cpSync(join(root, 'LICENSE'), join(flutter, 'LICENSE'));
-  const native = join(flutter, 'native');
-  mkdirSync(native);
-  for (const name of ['Cargo.toml', 'Cargo.lock', 'crates', 'fixtures/support.rs', 'fixtures/generate.rs', 'examples/measurements']) {
-    const target = join(native, name);
-    mkdirSync(join(target, '..'), { recursive: true });
-    cpSync(join(root, name), target, { recursive: true });
+  if (!args.length || args.includes('--flutter')) {
+    requireFresh(artifacts, [flutterArchive]);
+    const flutter = join(staging, 'raykit');
+    mkdirSync(flutter);
+    for (const name of ['lib', 'hook', 'shaders', 'pubspec.yaml', 'README.md', 'CHANGELOG.md']) {
+      cpSync(join(root, 'packages/flutter', name), join(flutter, name), { recursive: true });
+    }
+    cpSync(join(root, 'LICENSE'), join(flutter, 'LICENSE'));
+    stageRust(join(flutter, 'native'));
+    writeNotices(join(flutter, 'notices'), 'raykit-ffi', [
+      ...releaseTargets.targets.map(t => t.rust), 'aarch64-linux-android', 'aarch64-apple-ios', 'aarch64-apple-ios-sim',
+    ]);
+    run('tar', ['-czf', join(artifacts, flutterArchive), 'raykit'], { cwd: staging });
   }
-  writeNotices(join(flutter, 'notices'), 'raykit-ffi', ['aarch64-linux-android', 'aarch64-apple-ios', 'x86_64-unknown-linux-gnu']);
-  run('tar', ['-czf', join(artifacts, 'raykit-flutter-0.1.0.tar.gz'), 'raykit'], staging);
+  if (args.includes('--python-source')) {
+    requireFresh(artifacts, [pythonSdist]);
+    const source = join(staging, 'python');
+    cpSync(join(root, 'packages/python'), source, { recursive: true });
+    cpSync(join(root, 'LICENSE'), join(source, 'LICENSE'));
+    stageRust(join(source, 'native'));
+    writeNotices(join(source, 'raykit_dicom/notices'), 'raykit-ffi', releaseTargets.targets.map(t => t.rust));
+    run(python, ['-m', 'build', '--sdist', '--outdir', artifacts], { cwd: source });
+  }
 } finally {
-  // The staging directory was created exclusively for this package run.
   rmSync(staging, { force: true, recursive: true });
 }

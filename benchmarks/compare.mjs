@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chromium, firefox, webkit } from 'playwright-core';
 import { serve } from '../tests/static-server.mjs';
+import { browserMemory } from './browser-memory.mjs';
 
 const compressed = promisify(gzip);
 const repetitions = Number(process.env.RAYKIT_REPEATS ?? 5);
@@ -31,19 +32,6 @@ function metrics(values) {
   const p = q => sorted[Math.max(0, Math.ceil(q * sorted.length) - 1)];
   const median = (sorted[Math.floor((sorted.length - 1) / 2)] + sorted[Math.floor(sorted.length / 2)]) / 2;
   return { n: sorted.length, median, p95: p(0.95), maximum: sorted.at(-1) };
-}
-
-async function browserMemory(cdp) {
-  const { processInfo } = await cdp.send('SystemInfo.getProcessInfo');
-  const measurements = await Promise.all(processInfo.map(async process => {
-    if (!['renderer', 'GPU', 'browser'].includes(process.type)) return null;
-    const text = await readFile(`/proc/${process.id}/status`, 'utf8').catch(() => '');
-    const rss = /^VmRSS:\s+(\d+)/m.exec(text);
-    return rss ? [process.type, Number(rss[1]) * 1024] : null;
-  }));
-  const byteCounts = {};
-  for (const value of measurements) if (value) byteCounts[value[0]] = (byteCounts[value[0]] ?? 0) + value[1];
-  return byteCounts;
 }
 
 async function run(browser, cdp, backend, fixture, checkReference) {

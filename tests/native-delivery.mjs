@@ -1,33 +1,50 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { performance } from 'node:perf_hooks';
+import {
+  addonArchive, artifacts, cArchive, cliArchive, nativeTarget, nodeArchive, npm, python, root, run as runTool, version, wheelArchive,
+} from '../scripts/release-lib.mjs';
+import { installFromTarballs } from './npm-registry.mjs';
 
-const root = resolve(import.meta.dirname, '..');
 const work = mkdtempSync(join(tmpdir(), 'raykit-delivery-'));
-const artifacts = join(root, 'artifacts');
 const fixtures = join(root, 'fixtures/generated');
 const path = name => join(fixtures, name + '.dcm');
 const refFile = join(root, 'benchmarks/evidence/comparison-reference.json');
 const ref = JSON.parse(readFileSync(refFile));
-const platform = execFileSync('rustc', ['-vV'], { encoding: 'utf8' }).match(/^host: (.+)$/m)[1].trim();
-const cliName = 'raykit-0.1.0-' + platform;
+const target = nativeTarget();
+const platform = target.rust;
+const cliName = cliArchive(platform).replace(/\.tar\.gz$/, '');
 const output = process.env.RAYKIT_NATIVE_EVIDENCE_DIR ? resolve(process.env.RAYKIT_NATIVE_EVIDENCE_DIR) : null;
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const run = (cmd, args) => execFileSync(cmd, args, { cwd: work, encoding: 'utf8' });
+const source = path('comparison-ct');
+const published = process.argv.includes('--published');
 
 try {
-  const node = join(artifacts, 'raykit-node-0.1.0.tgz');
-  const cliArchive = join(artifacts, cliName + '.tar.gz');
-  const wheel = join(artifacts, process.env.RAYKIT_WHEEL ?? readdirSync(artifacts).find(name => /^raykit-0.1.0-.*.whl$/.test(name)));
-  for (const file of [node, cliArchive, wheel]) assert(existsSync(file), file);
-  run('tar', ['-xzf', cliArchive]);
+  const node = join(artifacts, nodeArchive);
+  const addon = join(artifacts, addonArchive(target));
+  const cliFile = join(artifacts, cliArchive(platform));
+  const sdkFile = join(artifacts, cArchive(platform));
+  const wheel = join(artifacts, wheelArchive(target));
+  for (const file of [node, addon, cliFile, sdkFile, wheel]) assert(existsSync(file), file);
+  for (const file of [cliFile, sdkFile]) run('tar', ['-xzf', file]);
   writeFileSync(join(work, 'package.json'), '{"type":"module","private":true}');
-  run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--offline', '--ignore-scripts', '--no-audit', node]);
+  if (published) runTool(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--registry', 'https://registry.npmjs.org',
+    '--cache', join(work, 'npm-cache'), '@raykit/node@' + version], { cwd: work });
+  else await installFromTarballs(work, '@raykit/node', [node, addon]);
+  const lock = JSON.parse(readFileSync(join(work, 'package-lock.json'), 'utf8'));
+  assert.equal(lock.packages['node_modules/@raykit/node'].version, version);
+  assert.equal(lock.packages['node_modules/@raykit/' + target.nodePackage].version, version);
+  for (const [pkg, file] of [['@raykit/node', node], ['@raykit/' + target.nodePackage, addon]]) {
+    assert.equal(lock.packages['node_modules/' + pkg].integrity, 'sha512-' + createHash('sha512').update(readFileSync(file)).digest('base64'));
+  }
   const cli = join(work, cliName, process.platform === 'win32' ? 'raykit.exe' : 'raykit');
+  assert.equal(run(cli, ['--version']).trim(), 'raykit ' + version);
   const json = args => JSON.parse(run(cli, args));
   const [x, y] = ref.pixel;
   const cmd = ['sample', path('comparison-ct'), '--sha256', ref.sha256, '--frame', String(ref.frame), '--x', String(x), '--y', String(y)];
@@ -46,7 +63,8 @@ try {
   assert.throws(() => json(render), error => error.status === 4);
   assert.equal(digest(readFileSync(join(work, 'ct.png'))), digest(png));
 
-  const module = await import(join(work, 'node_modules/@raykit/node/index.js'));
+  writeFileSync(join(work, 'binding.mjs'), "export * from '@raykit/node';\n");
+  const module = await import(pathToFileURL(join(work, 'binding.mjs')));
   let ticks = 0;
   const timer = setInterval(() => ticks++, 1);
   const session = await module.open(path('comparison-ct'), { expected_sha256: ref.sha256 });
@@ -60,6 +78,7 @@ try {
     record = (await session.request({ op: 'measure', index: ref.frame, request: {
       id: 'comparison-ruler', method: 'raykit:length', version: 1, points: [{ x, y }, { x: x + 10, y }],
     } })).metadata;
+    assert.deepEqual(record.values, [{ name: 'length', value: 7, unit: 'millimeter' }]);
     assert.deepEqual(await session.verifyMeasurement(record), record);
     assert(ticks > 0, 'Native work must yield the Node.js event loop');
     await assert.rejects(session.verifyMeasurement({ ...record, values: [{ ...record.values[0], value: 8 }] }),
@@ -68,6 +87,27 @@ try {
   await assert.rejects(session.sample(ref.frame, x, y), error => error.code === 'closed');
   writeFileSync(join(work, 'measurement.json'), JSON.stringify(record));
   assert.deepEqual(json(['measurements', 'verify', path('comparison-ct'), 'measurement.json']), record);
+  const tampered = { ...record, values: [{ ...record.values[0], value: 8 }] };
+  writeFileSync(join(work, 'tampered.json'), JSON.stringify(tampered));
+  assert.throws(() => json(['measurements', 'verify', source, 'tampered.json']), error => error.status === 3);
+
+  const sdk = join(work, cArchive(platform).replace(/\.tar\.gz$/, ''));
+  cpSync(join(root, 'tests/c-sdk-consumer'), join(work, 'c'), { recursive: true });
+  const isWindows = process.platform === 'win32';
+  run('cmake', ['-S', 'c', '-B', 'c-build', '-DRAYKIT_SDK=' + sdk, '-DCMAKE_BUILD_TYPE=Release',
+    ...(isWindows ? ['-A', target.arch === 'arm64' ? 'ARM64' : 'x64'] : [])]);
+  run('cmake', ['--build', 'c-build', '--config', 'Release']);
+  const c = join(work, 'c-build', isWindows ? 'Release/raykit_c.exe' : 'raykit_c');
+  const settings = JSON.stringify({ expected_sha256: ref.sha256 });
+  const request = (command, ...args) => JSON.parse(run(c, [source, settings, JSON.stringify(command), ...args]));
+  assert.deepEqual(request({ op: 'sample_at', index: ref.frame, x, y }), sample);
+  assert.deepEqual(request({ op: 'verify', record }), record);
+  assert.throws(() => request({ op: 'verify', record: tampered }), error =>
+    error.status === 1 && JSON.parse(error.stdout).code === 'integrity');
+  for (const index of [0, 1]) {
+    request({ op: 'frame', index: ref.frame, output: 'rgba', options: { voi: { kind: 'window', index } } }, 'view.rgba');
+    assert.equal(digest(readFileSync(join(work, 'view.rgba'))), ref.rgba_sha256[index]);
+  }
 
   const expectedRevision = 'native-browser-evidence-v1';
   const index = json(['frame-index', path('cine-350'), '--out', 'cine.rki']);
@@ -83,8 +123,9 @@ try {
     assert.deepEqual(first.bytes, readFileSync(join(work, '0.rkp')));
   } finally { await cine.close(); }
   const tile = json(['tiles', path('detail-signed12'), '--frame', '0', '--directory', 'tiles', '--revision', 'native-detail-v1']);
-  const evidence = { node: process.version, platform, ticks, sample, record, index, proof, nodeProofBytes: nodeProof.bytes.length,
-    artifacts: Object.fromEntries([cliArchive, node, wheel].map(file => [file.split(/[\\/]/).at(-1), digest(readFileSync(file))])),
+  const evidence = { version, node: process.version, platform, ticks, sample, record, rgba_sha256: ref.rgba_sha256,
+    c_abi: 1, tamper_rejected: true, index, proof, nodeProofBytes: nodeProof.bytes.length,
+    artifacts: Object.fromEntries([cliFile, sdkFile, node, addon, wheel].map(file => [file.split(/[\\/]/).at(-1), digest(readFileSync(file))])),
     tile, png_sha256: digest(png) };
   const prepRepeats = Number(process.env.RAYKIT_PREP_REPEATS ?? 0);
   assert(Number.isSafeInteger(prepRepeats) && prepRepeats >= 0 && prepRepeats <= 20);
@@ -105,9 +146,13 @@ try {
     }
   }
   writeFileSync(join(work, 'evidence.json'), JSON.stringify(evidence));
-  const wheelTest = process.env.RAYKIT_UV_OFFLINE === '0' ? [] : ['--offline'];
-  evidence.python = JSON.parse(run('uv', ['run', '--no-project', ...wheelTest, '--with', wheel, 'python',
-    join(root, 'tests/python-delivery.py'), path('comparison-ct'), refFile, 'evidence.json', path('large-enhanced-ct')]));
+  run(python, ['-m', 'venv', 'python']);
+  const interpreter = join(work, 'python', isWindows ? 'Scripts/python.exe' : 'bin/python');
+  run(interpreter, ['-m', 'pip', 'install', '--disable-pip-version-check', '--only-binary=:all:', '--report', 'python-install.json',
+    ...(published ? ['--index-url', 'https://pypi.org/simple/', 'raykit-dicom==' + version] : [wheel])]);
+  const install = JSON.parse(readFileSync(join(work, 'python-install.json'))).install.find(item => item.metadata.name === 'raykit-dicom');
+  assert.equal(install.download_info.archive_info.hashes.sha256, digest(readFileSync(wheel)));
+  evidence.python = JSON.parse(run(interpreter, [join(root, 'tests/python-delivery.py'), source, refFile, 'evidence.json', path('large-enhanced-ct')]));
   if (output) {
     mkdirSync(output, { recursive: true });
     mkdirSync(join(output, 'proof'), { recursive: true });

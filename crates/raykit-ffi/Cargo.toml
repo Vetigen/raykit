@@ -4,7 +4,10 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-publish.workspace = true
+license-file.workspace = true
+readme.workspace = true
+repository.workspace = true
+description = "C ABI for RayKit imaging sessions"
 
 [features]
 default = ["advanced-codecs"]

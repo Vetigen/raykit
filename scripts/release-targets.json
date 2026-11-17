@@ -1,0 +1,64 @@
+{
+  "node": "22.14.0",
+  "nodeBuild": "24.22.1",
+  "npm": "11.19.1",
+  "python": "3.11.9",
+  "flutter": "3.44.9",
+  "flutterMinimum": "3.41.0",
+  "targets": [
+    {
+      "rust": "x86_64-unknown-linux-gnu",
+      "runner": "ubuntu-24.04",
+      "os": "linux",
+      "arch": "x64",
+      "nodePackage": "node-linux-x64-gnu",
+      "wheel": "manylinux_2_28_x86_64",
+      "manylinux": "quay.io/pypa/manylinux_2_28_x86_64@sha256:d086f64cddcace250ef0f0073583c51b8298159303290a730c9f59bd91edfd2c",
+      "desktop": "linux-x64"
+    },
+    {
+      "rust": "aarch64-unknown-linux-gnu",
+      "runner": "ubuntu-24.04-arm",
+      "os": "linux",
+      "arch": "arm64",
+      "nodePackage": "node-linux-arm64-gnu",
+      "wheel": "manylinux_2_28_aarch64",
+      "manylinux": "quay.io/pypa/manylinux_2_28_aarch64@sha256:34a5e614a4eb26f73f8bf44cbbf2acf8011620453d03ea35a58537bb3cde44de"
+    },
+    {
+      "rust": "x86_64-apple-darwin",
+      "runner": "macos-15-intel",
+      "os": "darwin",
+      "arch": "x64",
+      "nodePackage": "node-darwin-x64",
+      "wheel": "macosx_11_0_x86_64",
+      "desktop": "macos-x64"
+    },
+    {
+      "rust": "aarch64-apple-darwin",
+      "runner": "macos-15",
+      "os": "darwin",
+      "arch": "arm64",
+      "nodePackage": "node-darwin-arm64",
+      "wheel": "macosx_11_0_arm64",
+      "desktop": "macos-arm64"
+    },
+    {
+      "rust": "x86_64-pc-windows-msvc",
+      "runner": "windows-2025",
+      "os": "win32",
+      "arch": "x64",
+      "nodePackage": "node-win32-x64-msvc",
+      "wheel": "win_amd64",
+      "desktop": "windows-x64"
+    },
+    {
+      "rust": "aarch64-pc-windows-msvc",
+      "runner": "windows-11-arm",
+      "os": "win32",
+      "arch": "arm64",
+      "nodePackage": "node-win32-arm64-msvc",
+      "wheel": "win_arm64"
+    }
+  ]
+}

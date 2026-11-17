@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.20)
+project(raykit_consumer LANGUAGES C)
+add_executable(raykit_c main.c)
+target_include_directories(raykit_c PRIVATE "${RAYKIT_SDK}/include")
+if(WIN32)
+  target_link_libraries(raykit_c PRIVATE "${RAYKIT_SDK}/lib/raykit_ffi.dll.lib")
+  add_custom_command(TARGET raykit_c POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
+    "${RAYKIT_SDK}/lib/raykit_ffi.dll" "$<TARGET_FILE_DIR:raykit_c>")
+else()
+  find_library(RAYKIT_FFI raykit_ffi PATHS "${RAYKIT_SDK}/lib" NO_DEFAULT_PATH REQUIRED)
+  target_link_libraries(raykit_c PRIVATE "${RAYKIT_FFI}")
+  set_target_properties(raykit_c PROPERTIES BUILD_RPATH "${RAYKIT_SDK}/lib")
+endif()

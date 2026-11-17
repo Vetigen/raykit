@@ -2,8 +2,9 @@
   "name": "@raykit/web",
   "version": "0.1.0",
   "description": "Framework-independent RayKit DICOM SDK",
-  "private": true,
   "license": "Apache-2.0",
+  "publishConfig": { "access": "public" },
+  "repository": { "type": "git", "url": "git+https://github.com/Vetigen/raykit.git", "directory": "packages/web" },
   "type": "module",
   "exports": {
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },

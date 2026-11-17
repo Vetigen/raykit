@@ -453,6 +453,11 @@ final class RayKitSession {
     RayKitCancellation? cancellation,
   }) => _json({'op': 'reopen', 'record': record}, cancellation);
 
+  Future<Json> verifyMeasurement(
+    Json record, {
+    RayKitCancellation? cancellation,
+  }) => _json({'op': 'verify', 'record': record}, cancellation);
+
   Future<Json> stats() => _json({'op': 'stats'}, null);
 
   Future<Json> addVolumeSource(

@@ -3,7 +3,7 @@
 import argparse
 import json
 
-from raykit import Session
+from raykit_dicom import Session
 
 parser = argparse.ArgumentParser()
 parser.add_argument("source")

@@ -1,0 +1,24 @@
+name: Retrieve verified release candidate
+description: Check the approved artifact and payload digests
+inputs:
+  name:
+    description: Artifact name in this run
+    required: true
+  commit:
+    description: Exact release source
+    required: true
+  digest:
+    description: Release report SHA256 from the tag
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ runner.temp }}/candidate
+    - shell: bash
+      env:
+        COMMIT: ${{ inputs.commit }}
+        DIGEST: ${{ inputs.digest }}
+      run: python3 scripts/release.py verify "$RUNNER_TEMP/candidate" "$COMMIT" "$DIGEST" --tag "$GITHUB_REF_NAME"

@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 
 export class RaykitError extends Error {
-  constructor(code, detail) {
-    super(detail ? code + ': ' + detail : code);
+  constructor(code, detail, options) {
+    super(detail ? code + ': ' + detail : code, options);
     this.name = 'RaykitError';
     this.code = code;
     this.detail = detail;
@@ -23,10 +23,25 @@ async function call(operation) {
   try { return await operation(); } catch (error) { throw failure(error); }
 }
 
+let nativeBinding;
+
+function loadBinding() {
+  const { platform, arch } = process;
+  const libc = platform !== 'linux' ? ''
+    : (process.report.getReport().header.glibcVersionRuntime ? '-gnu' : '-musl');
+  const target = `@raykit/node-${platform}-${arch}${platform === 'win32' ? '-msvc' : libc}`;
+  if (!['x64', 'arm64'].includes(arch) || !['linux', 'darwin', 'win32'].includes(platform) || libc === '-musl') {
+    throw new RaykitError('unsupported', `No RayKit native addon for ${platform}/${arch}${libc}`);
+  }
+  try { return require(target); }
+  catch (error) {
+    throw new RaykitError('unsupported', `Cannot load ${target}. Install @raykit/node with optional dependencies enabled.`,
+      { cause: error });
+  }
+}
+
 export async function open(path, options = {}) {
-  let binding;
-  try { binding = require('./native/raykit.node'); }
-  catch { throw new RaykitError('unsupported', 'Native addon is unavailable for this Node.js platform'); }
+  const binding = nativeBinding ??= loadBinding();
   const file = path instanceof URL ? fileURLToPath(path) : resolve(path);
   const native = await call(() => binding.openNative(file, JSON.stringify(options)));
   return new RaykitSession(native);

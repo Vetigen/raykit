@@ -1,7 +1,8 @@
 name: raykit
 description: RayKit Flutter DICOM SDK and native viewer.
 version: 0.1.0
-publish_to: none
+repository: https://github.com/Vetigen/raykit
+issue_tracker: https://github.com/Vetigen/raykit/issues
 environment:
   sdk: '>=3.11.0 <4.0.0'
   flutter: '>=3.41.0'
@@ -9,8 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
   ffi: ^2.1.5
-  hooks: 1.0.2
-  native_toolchain_rust: 1.0.4
+  hooks: ^1.0.2
+  native_toolchain_rust: ^1.0.4
   logging: ^1.3.0
 dev_dependencies:
   crypto: ^3.0.6

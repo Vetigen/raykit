@@ -1,8 +1,18 @@
 # Imaging benchmark
 
+The scheduled workflow exercises the packaged scalar SDK in headless Chromium.
+Its artifact records first verified draw, cine seek p95 and dropped frames,
+sampled renderer RSS, WASM sizes, and axial, coronal and sagittal MPR. Results
+identify the commit, browser, engine, fixtures and runner image. Compare
+timings as trends on the shared runner. Stored samples, rendered window
+digests and calibrated measurements are exact acceptance gates.
+
 ## Standalone delivery
 
-Use Node.js 22.12 or later, `uv`, Flutter and compatible local Chromium. The examples and these probes use generated DICOM files and loopback HTTP. Set `RAYKIT_CHROMIUM` if using a system Chromium. Run from the checkout root.
+Use Node.js 24 or later, Python 3.11 or later, Docker for native Linux
+packages, Flutter and compatible local Chromium. The examples and these probes
+use generated DICOM files and loopback HTTP. Set `RAYKIT_CHROMIUM` if using a
+system Chromium. Run from the checkout root.
 
 ```sh
 npm ci

@@ -4,7 +4,7 @@ RayKit opens local DICOM images and gives Flutter apps access to original sample
 
 Use Flutter 3.41 or later and Rust 1.97.1 or later with `rustup` available. Use the Android SDK and NDK for Android, or Xcode on macOS for iOS. Flutter's native asset hook compiles the bundled Rust workspace.
 
-Extract the distribution archive and reference its `raykit` directory as a path dependency.
+Use `flutter pub add raykit` for the hosted SDK. For a release rehearsal, extract the source archive and reference its `raykit` directory as a path dependency.
 
 ```yaml
 dependencies:
