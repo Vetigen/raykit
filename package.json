@@ -1,0 +1,29 @@
+{
+  "name": "raykit-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/web",
+    "packages/web-component",
+    "examples/web"
+  ],
+  "scripts": {
+    "build:web": "node scripts/build-web.mjs",
+    "fixtures": "node scripts/prepare-examples.mjs",
+    "package:local": "node scripts/package-local.mjs",
+    "benchmark:build": "vite build benchmarks --config benchmarks/vite.config.mjs",
+    "benchmark": "node benchmarks/compare.mjs",
+    "example:web": "npm run --workspace @raykit/example-web dev"
+  },
+  "devDependencies": {
+    "@cornerstonejs/core": "5.19.4",
+    "@cornerstonejs/dicom-image-loader": "5.19.4",
+    "dwv": "0.36.4",
+    "events": "3.3.0",
+    "playwright-core": "1.49.1",
+    "typescript": "5.9.3",
+    "url": "0.11.4",
+    "vite": "7.3.1"
+  }
+}

@@ -1,0 +1,12 @@
+[package]
+name = "raykit-protocol"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+raykit-core.workspace = true
+raykit-vet.workspace = true
+serde.workspace = true
+serde_json.workspace = true

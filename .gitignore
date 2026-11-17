@@ -1,0 +1,12 @@
+/target/
+node_modules/
+/packages/web/src/generated/
+**/dist/
+**/.dart_tool/
+**/build/
+**/.flutter-plugins-dependencies
+/fixtures/generated/
+/benchmarks/results/
+/examples/flutter/assets/raykit/
+/packages/flutter/pubspec.lock
+/artifacts/

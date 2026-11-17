@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RayKit · DICOM Viewer</title>
+  <style>
+    :root{color-scheme:dark;background:#090e15;color:#eef3fa;font:15px/1.5 system-ui,sans-serif}
+    body{margin:0 auto;max-width:92rem;padding:1.5rem clamp(.75rem,3vw,2.5rem)}
+    header{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem}
+    h1{margin:0;font-size:1.1rem;letter-spacing:.04em}nav{display:flex;gap:.5rem;flex-wrap:wrap}
+    button{font:inherit;color:inherit;background:#1a2d34;border:1px solid #4c8e82;padding:.35rem .65rem;border-radius:.3rem;cursor:pointer}
+    raykit-viewer{border:1px solid #2b3b4c;border-radius:.55rem;overflow:hidden}
+    .aux{margin-top:1rem;padding:1rem;border:1px solid #2b3b4c;border-radius:.55rem}
+    .aux canvas{display:block;max-width:100%;background:#020307;margin-top:.5rem;image-rendering:pixelated}
+    .aux [data-controls]{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+  </style>
+</head>
+<body>
+  <header><h1>RayKit DICOM Viewer</h1><nav aria-label="Synthetic images">
+    <button data-fixture="signed12.dcm">Open synthetic radiograph</button>
+    <button data-fixture="cine-350.dcm">Open 350-frame ultrasound</button>
+    <button data-fixture="enhanced-ct-oblique.dcm">Open oblique CT</button>
+    <button id="open-dicomweb">Open local DICOMweb series</button>
+  </nav></header>
+  <raykit-viewer></raykit-viewer>
+  <output id="sample-error" aria-live="polite"></output>
+  <section id="volume" class="aux" hidden aria-label="Volume reformat">
+    <div data-controls>
+      <button id="build-volume">Build volume</button>
+      <label>Acquisition <select id="volume-acquisition"></select></label>
+      <label>Plane <select id="volume-plane"><option>Axial</option><option>Coronal</option><option>Sagittal</option><option>Oblique</option></select></label>
+      <label>Slab <select id="volume-slab"><option value="single">Single</option><option value="average">Average 5 mm</option><option value="maximum">MIP 5 mm</option></select></label>
+      <label>Offset (mm) <input id="volume-offset" type="range" min="-6" max="6" step="0.1" value="0"></label>
+      <button id="read-seg">Show synthetic SEG</button><button id="read-pr">Apply synthetic GSPS</button>
+    </div>
+    <output id="volume-status" aria-live="polite"></output>
+    <canvas id="mpr" width="256" height="256"></canvas>
+  </section>
+  <section class="aux" aria-label="Synthetic streams">
+    <div data-controls><button id="share-view">Synchronize two local viewers</button><button id="live">Start synthetic live stream</button></div>
+    <div id="shared" hidden></div>
+    <canvas id="live-canvas" width="1" height="1" hidden></canvas><output id="live-status" aria-live="polite"></output>
+  </section>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

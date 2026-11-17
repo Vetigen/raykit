@@ -1,0 +1,35 @@
+#ifndef RAYKIT_H
+#define RAYKIT_H
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct {
+    uint8_t *data;
+    size_t len;
+} RaykitBuffer;
+
+typedef struct {
+    uint64_t handle;
+    RaykitBuffer metadata;
+    RaykitBuffer data;
+} RaykitResponse;
+
+/* Return 0 for success, 1 for JSON error metadata, or 2 for a null output pointer. */
+/* Buffers are byte spans. Release both with raykit_v1_free, even on return code 1. */
+uint32_t raykit_v1_abi_version(void);
+uint32_t raykit_v1_capabilities(RaykitResponse *out);
+uint32_t raykit_v1_open(const uint8_t *bytes, size_t len, const uint8_t *options, size_t options_len, RaykitResponse *out);
+uint32_t raykit_v1_append(uint64_t handle, const uint8_t *bytes, size_t len, const uint8_t *options, size_t options_len, RaykitResponse *out);
+uint32_t raykit_v1_request(uint64_t handle, const uint8_t *command, size_t len, RaykitResponse *out);
+void raykit_v1_close(uint64_t handle);
+void raykit_v1_free(uint8_t *data, size_t len);
+size_t raykit_v1_live_sessions(void);
+
+#ifdef __cplusplus
+}
+#endif
+#endif

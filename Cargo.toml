@@ -1,0 +1,20 @@
+[workspace]
+members = ["crates/raykit-core", "crates/raykit-vet", "crates/raykit-protocol", "crates/raykit-ffi", "crates/raykit-wasm"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97.1"
+publish = false
+
+[workspace.dependencies]
+raykit-core = { path = "crates/raykit-core", default-features = false }
+raykit-vet = { path = "crates/raykit-vet" }
+raykit-protocol = { path = "crates/raykit-protocol" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+lto = "thin"
+strip = "debuginfo"

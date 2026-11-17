@@ -1,0 +1,7 @@
+{
+  "name": "@raykit/example-web",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite", "build": "tsc && vite build", "preview": "vite preview" },
+  "dependencies": { "@raykit/web": "0.1.0", "@raykit/web-component": "0.1.0" }
+}

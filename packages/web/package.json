@@ -1,0 +1,10 @@
+{
+  "name": "@raykit/web",
+  "version": "0.1.0",
+  "description": "Framework-independent RayKit DICOM SDK",
+  "private": true,
+  "type": "module",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -p tsconfig.json" }
+}

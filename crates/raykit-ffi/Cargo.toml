@@ -1,0 +1,17 @@
+[package]
+name = "raykit-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+default = ["advanced-codecs"]
+advanced-codecs = ["raykit-core/advanced-codecs"]
+
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+raykit-core.workspace = true
+raykit-protocol.workspace = true
