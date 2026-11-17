@@ -1,0 +1,113 @@
+{
+  "implementation": "native-flutter",
+  "renderer": "cpu",
+  "sample": {
+    "doppler_axes": null,
+    "geometry": {
+      "anatomy": "unknown",
+      "calibration": {
+        "kind": "patient_plane",
+        "spacing_xy": [
+          0.7,
+          0.8
+        ]
+      },
+      "detector_spacing_xy": null,
+      "display_spacing_xy": [
+        0.7,
+        0.8
+      ],
+      "increasing_column": null,
+      "increasing_row": null,
+      "patient_plane": {
+        "column_axis": [
+          1,
+          0,
+          0
+        ],
+        "origin": [
+          0,
+          0,
+          180
+        ],
+        "row_axis": [
+          0,
+          1,
+          0
+        ],
+        "spacing_xy": [
+          0.7,
+          0.8
+        ]
+      }
+    },
+    "modality_unit": "HU",
+    "patient": [
+      179.2,
+      204.8,
+      180
+    ],
+    "quantitative": null,
+    "sample": {
+      "kind": "monochrome",
+      "modality": 448,
+      "padding": false,
+      "stored": 474
+    },
+    "source": {
+      "content_sha256": "bd7d9b180fa3cc398faa048c5fea6a6b28d71ebd4e4f2f6340254dd095a35090",
+      "frame": 150,
+      "frame_of_reference_uid": "2.25.1999",
+      "instance_uid": "2.25.1952",
+      "sop_class_uid": "1.2.840.10008.5.1.4.1.1.2.1"
+    }
+  },
+  "measurement": {
+    "source": {
+      "sop_class_uid": "1.2.840.10008.5.1.4.1.1.2.1",
+      "instance_uid": "2.25.1952",
+      "content_sha256": "bd7d9b180fa3cc398faa048c5fea6a6b28d71ebd4e4f2f6340254dd095a35090",
+      "frame_of_reference_uid": "2.25.1999",
+      "frame": 150
+    },
+    "coordinate_system": "source_pixel_centers",
+    "input": {
+      "id": "comparison-ruler",
+      "method": "raykit:length",
+      "version": 1,
+      "points": [
+        {
+          "x": 256,
+          "y": 256
+        },
+        {
+          "x": 266,
+          "y": 256
+        }
+      ],
+      "parameters": null
+    },
+    "calibration": {
+      "kind": "patient_plane",
+      "spacing_xy": [
+        0.7,
+        0.8
+      ]
+    },
+    "values": [
+      {
+        "name": "length",
+        "value": 7,
+        "unit": "millimeter"
+      }
+    ]
+  },
+  "decoded_frames": 2,
+  "archive": {
+    "file": "raykit-desktop-0.1.0-linux-x64.tar.gz",
+    "bytes": 12021537,
+    "sha256": "8f9df3a644e9f7241b2977d9b1c14c6e22ca27f11141fc6fbea49558b0432799"
+  },
+  "display": "Xvfb 1024x768, software GL",
+  "flutter": "3.44.9"
+}

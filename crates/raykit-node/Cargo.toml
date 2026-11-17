@@ -1,0 +1,21 @@
+[package]
+name = "raykit-node"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+test = false
+doctest = false
+
+[dependencies]
+raykit-core = { workspace = true, features = ["advanced-codecs"] }
+raykit-protocol.workspace = true
+napi = { version = "=3.16.2", default-features = false, features = ["napi8"] }
+napi-derive = "=3.7.1"
+
+[build-dependencies]
+napi-build = "=2.6.0"

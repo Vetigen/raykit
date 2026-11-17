@@ -103,10 +103,12 @@ impl NativeFile {
         #[cfg(not(unix))]
         {
             use std::io::{Read, Seek, SeekFrom};
-            let mut file = file;
-            file.seek(SeekFrom::Start(start as u64))
+            let mut cursor = &*file;
+            cursor
+                .seek(SeekFrom::Start(start as u64))
                 .map_err(|_| Error::Io("seek source file"))?;
-            file.read_exact(&mut bytes)
+            cursor
+                .read_exact(&mut bytes)
                 .map_err(|_| Error::Io("read source file range"))?;
         }
         if FileState::read(&file)? != self.state {

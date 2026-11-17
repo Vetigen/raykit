@@ -92,6 +92,22 @@ fn main() -> std::io::Result<()> {
             "modality_at_point":448, "voxel_bytes":314572800}),
         )?;
     }
+    save(
+        "comparison-ct",
+        comparison_ct(),
+        json!({
+            "dimensions":[512,512,300], "frames":300, "labels":["Soft tissue","Bone"],
+            "patient_point":[179.2,204.8,180.0], "stored_at_256_256_150":474,
+            "modality_at_point":448, "unit":"HU"
+        }),
+    )?;
+    for (name, profile) in [
+        ("comparison-mr-t1", 1),
+        ("comparison-mr-t2", 2),
+        ("comparison-mr-shifted", 3),
+    ] {
+        save(name, mr_comparison(profile), json!({"frames":3}))?;
+    }
     for i in 0..3 {
         save(
             &format!("classic-ct-{i}"),
@@ -133,6 +149,16 @@ fn main() -> std::io::Result<()> {
         "us-rgb-planar",
         native_us(true, true),
         json!({"rgb":[12,34,56], "distance_mm":5}),
+    )?;
+    save(
+        "us-spectral",
+        spectral_us(),
+        json!({"frames":1,"axis_at_3_2":[0.02,5.0],"units":["s","cm/s"]}),
+    )?;
+    save(
+        "dx-voi-alternatives",
+        alternate_luts(),
+        json!({"frames":1,"voi_labels":["VOI LUT 1","Alternative contrast"]}),
     )?;
     save(
         "us-ybr-422",

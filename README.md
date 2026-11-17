@@ -1,6 +1,6 @@
 # RayKit by Vetigen — Open-source toolkit for DICOM visualization, image processing, and measurement
 
-RayKit is a Rust-based DICOM SDK for veterinary imaging. Its TypeScript and Flutter packages open a local file, present a selected original frame, retrieve stored samples, and reopen measurements on the exact same source. The standalone examples use generated data and run without an account or a remote service.
+RayKit uses one Rust core for DICOM viewing, image processing and measurements in web, Flutter, desktop, CLI, Node.js and Python. Open local studies, compare views of one original frame, and reopen measurements against the same source. The standalone examples use generated data and run without an account or a remote service.
 
 ## Web example
 
@@ -11,11 +11,14 @@ rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.128 --locked
 npm ci
 npm run fixtures
+npm run fixtures:delivery
 npm run build:web
 npm run example:web
 ```
 
 Open the printed local URL. Choose a local file or a synthetic case. Drag the ultrasound slider and release at frame 350. **Open indexed ultrasound** verifies the bundled source and reopens it through its frame index. Open the 300-slice CT or MR, click **Build volume**, then choose a plane and slab. Change center, width or palette to rewindow the current plane.
+
+For a side-by-side reading, choose **Open CT with named windows**, then **Compare same source**. Select a panel to choose its display and layers. Scroll through the slices and use **Pixel value** to place a linked pointer. **Compare T1 and T2** uses a registered synthetic pair with differently ordered frames. The delivery fixtures drive the proof-verified first-frame and tiled radiograph examples. **Follow synthetic acquisitions** and **Start synthetic live stream** exercise freeze and reconnect.
 
 Select **Ruler**, mark two endpoints, and click **Calculate**. For a canine VHS record, select **VHS**, confirm the lateral projection and place the cardiac and vertebral landmarks shown in the tool. Export the measurements and import the JSON after reopening the same DICOM bytes. **Open local DICOMweb series** demonstrates a clearly labeled preview, verification of the original bytes and progressive series loading.
 
@@ -54,6 +57,8 @@ flutter run
 
 The Flutter example opens local files through the platform picker and native file reader. The bundled detail chart, indexed ultrasound and 300-slice CT/MR use the same synthetic inputs as web. Select **Volume** after opening a CT or MR. Copy measurement JSON and paste it after opening the original file again. The Rust native asset is built by the Flutter package hook. Each source has one owning isolate. Closing the viewer cancels delivery and releases native resources after the last call.
 
+**Compare same source** shares the existing source isolate between panels. **Compare T1 and T2** in **Synthetic cases** opens the registered fixtures. The live examples accept a host-owned decoded preview stream or a sequence of authorized DICOM instances. Freeze a preview and use **Verify matching original** to open its calibrated source when a capture binding exists.
+
 ```dart
 import 'dart:io';
 import 'package:raykit/raykit.dart';
@@ -68,6 +73,37 @@ try {
 }
 ```
 
+## Desktop
+
+Build the same standalone Flutter app on the destination operating system.
+
+```sh
+npm run fixtures
+cd examples/flutter
+flutter pub get
+flutter build linux --release
+# On macOS, run flutter build macos --release.
+# On Windows, run flutter build windows --release.
+```
+
+Open or drop a DICOM file or a study folder. Choose a series and instance, compare CT/MR, play cine, and save or reopen measurement JSON. A build includes the native libraries and Flutter data alongside the executable or in the app bundle. See the [desktop build and acceptance commands](examples/flutter/README.md#desktop).
+
+## CLI, Node.js and Python
+
+Run `npm run package:native` with Rust, Node.js and [uv](https://docs.astral.sh/uv/). Extract the host-matched CLI archive and run the bundled `raykit` binary.
+
+```sh
+raykit inspect fixtures/generated/comparison-ct.dcm --frame 150
+raykit render fixtures/generated/comparison-ct.dcm --frame 150 --window-index 1 --out bone.png
+raykit sample fixtures/generated/comparison-ct.dcm --frame 150 --x 256 --y 256
+raykit frame-index fixtures/generated/cine-350.dcm --out cine.rki
+raykit measurements verify fixtures/generated/comparison-ct.dcm measurement.json
+```
+
+Install the local [Node.js package](packages/node/README.md) with `npm install path/to/raykit-node-0.1.0.tgz`. Its session opens local sources and renders on Node-API's asynchronous work pool. The [Node.js proof example](examples/node/proofs.mjs) writes packets for a static host.
+
+Install the host-matched [Python wheel](packages/python/README.md) with `python -m pip install path/to/raykit-0.1.0-py3-none-PLATFORM.whl`. Run [the NumPy example](examples/python/sample.py) with `python sample.py SOURCE --frame 150 --x 256 --y 256`. NumPy views retain their owned bytes after close.
+
 ## Local packages
 
 Run `npm run package:local` from a build checkout. The `artifacts/` directory contains npm tarballs for both web packages and a standalone Flutter source bundle. Install both web tarballs in the same app. Extract the Flutter archive and point your app's `raykit` dependency at the extracted directory. The native sources and lockfile travel with the Flutter bundle.
@@ -79,10 +115,14 @@ tar -xzf path/to/raykit-flutter-0.1.0.tar.gz
 
 With the fixtures and archives built, run `node tests/packaged-workflows.mjs` from the checkout. It installs both web tarballs and the Flutter archive in a fresh directory and exercises the independent examples. Install a Playwright Chromium with `npx playwright-core install chromium` or set `RAYKIT_CHROMIUM` to a compatible local browser.
 
+`node tests/native-delivery.mjs` installs the CLI, Node and Python artifacts in a fresh consumer directory. Its optional `RAYKIT_NATIVE_EVIDENCE_DIR` output supplies the proof and tiles to `node tests/web-delivery.mjs`.
+
 ## Verification and scope
 
 Run `cargo test --workspace --locked` after changing the core. The generated corpus records SHA-256 and expected results. `tests/web-indexed.mjs` and `tests/web-imaging-quality.mjs` cover range integrity, image quality and measurement records. `packages/flutter/test/imaging_quality_test.dart` exercises the native equivalents. `npm run benchmark:build` builds the local browser comparison with DWV and Cornerstone3D. The standalone [device acceptance target](examples/flutter/README.md#profile-acceptance) uses the public viewer and session APIs.
 
 The [support matrix](docs/support.md) lists the tested profiles. The [API notes](docs/api.md) describe ownership, layout, interchange and desktop WebView embedding. The [measurement guide](docs/measurements.md) describes the landmark methods and the external Rust example. The [benchmark guide](benchmarks/README.md) contains the measured results and reproduction steps.
 
-RayKit's project license is pending. Apache-2.0 is the proposed license. The package build records the licenses and included notices of third-party components. Geometric validation is based on synthetic fixtures. Veterinary specialist review and physical-device qualification are tracked separately.
+The [clinical comparison protocol](docs/clinical-comparison.md) contains the paired-view exercise and scoring.
+
+RayKit uses the [Apache License 2.0](LICENSE). The package builds include third-party licenses and notices. Geometric validation uses synthetic fixtures. See the [support matrix](docs/support.md) for specialist and physical-device acceptance.

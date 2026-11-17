@@ -11,7 +11,10 @@
   "scripts": {
     "build:web": "node scripts/build-web.mjs",
     "fixtures": "node scripts/prepare-examples.mjs",
+    "fixtures:delivery": "node scripts/prepare-delivery.mjs",
     "package:local": "node scripts/package-local.mjs",
+    "package:native": "node scripts/package-native.mjs",
+    "package:desktop": "node scripts/package-desktop.mjs",
     "benchmark:build": "vite build benchmarks --config benchmarks/vite.config.mjs",
     "benchmark": "node benchmarks/compare.mjs",
     "example:web": "npm run --workspace @raykit/example-web dev"

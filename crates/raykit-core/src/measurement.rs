@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    Error, Frame, FrameGeometry, Object, Result, Session,
+    Error, FrameGeometry, Object, Result, Session,
     geometry::{Metric, PixelPoint},
 };
 
@@ -126,43 +126,16 @@ impl Session {
         request: Request,
         method: &dyn Method,
     ) -> Result<Record> {
-        let descriptor = method.info();
-        if request.method != descriptor.id || request.version != descriptor.version {
-            return Err(Error::Unsupported("measurement method or version"));
-        }
-        if request.id.is_empty()
-            || request.id.len() > 128
-            || request.points.is_empty()
-            || request.points.len() > 128
-        {
-            return Err(Error::InvalidRequest("measurement ID or point count"));
-        }
         let source = self.source_reference(frame)?;
         let frame = self.read_frame(frame)?;
-        check_points(&frame, &request.points)?;
-        let context = Context {
-            object: self.info.object,
-            geometry: &frame.geometry,
-            points: &request.points,
-        };
-        let (calibration, values) = method.evaluate(&context, &request.parameters)?;
-        if values.is_empty()
-            || values.len() > 32
-            || values.iter().any(|v| !v.value.is_finite())
-            || !calibration
-                .scale()
-                .iter()
-                .all(|n| n.is_finite() && *n != 0.0)
-        {
-            return Err(Error::InvalidRequest("invalid measurement result"));
-        }
-        Ok(Record {
+        measure_on_geometry(
+            self.info.object,
             source,
-            coordinate_system: CoordinateSystem::SourcePixelCenters,
-            input: request,
-            calibration,
-            values,
-        })
+            &frame.geometry,
+            [frame.format.columns, frame.format.rows],
+            request,
+            method,
+        )
     }
 
     pub fn reopen_measurement(&mut self, record: Record, method: &dyn Method) -> Result<Record> {
@@ -178,11 +151,53 @@ impl Session {
     }
 }
 
-fn check_points(frame: &Frame, points: &[PixelPoint]) -> Result<()> {
-    let max = [
-        f64::from(frame.format.columns) - 0.5,
-        f64::from(frame.format.rows) - 0.5,
-    ];
+pub(crate) fn measure_on_geometry(
+    object: Object,
+    source: SourceReference,
+    geometry: &FrameGeometry,
+    dimensions: [u32; 2],
+    request: Request,
+    method: &dyn Method,
+) -> Result<Record> {
+    let descriptor = method.info();
+    if request.method != descriptor.id || request.version != descriptor.version {
+        return Err(Error::Unsupported("measurement method or version"));
+    }
+    if request.id.is_empty()
+        || request.id.len() > 128
+        || request.points.is_empty()
+        || request.points.len() > 128
+    {
+        return Err(Error::InvalidRequest("measurement ID or point count"));
+    }
+    check_points(dimensions, &request.points)?;
+    let context = Context {
+        object,
+        geometry,
+        points: &request.points,
+    };
+    let (calibration, values) = method.evaluate(&context, &request.parameters)?;
+    if values.is_empty()
+        || values.len() > 32
+        || values.iter().any(|v| !v.value.is_finite())
+        || !calibration
+            .scale()
+            .iter()
+            .all(|n| n.is_finite() && *n != 0.0)
+    {
+        return Err(Error::InvalidRequest("invalid measurement result"));
+    }
+    Ok(Record {
+        source,
+        coordinate_system: CoordinateSystem::SourcePixelCenters,
+        input: request,
+        calibration,
+        values,
+    })
+}
+
+fn check_points(dimensions: [u32; 2], points: &[PixelPoint]) -> Result<()> {
+    let max = dimensions.map(|n| f64::from(n) - 0.5);
     if points
         .iter()
         .any(|p| !(-0.5..=max[0]).contains(&p.x) || !(-0.5..=max[1]).contains(&p.y))

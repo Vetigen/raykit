@@ -39,3 +39,24 @@ Also execute the following with the normal viewer in a separate session. Use the
 4. Place and reopen a measurement, then background the app and return. Confirm the same source digest, displayed frame and anatomical placement after reopening. Close the viewer and check native handles and memory. During the four-panel run, close or pause one panel and verify the other panels keep their own source and frame state.
 
 Physical iPhone and Android profiles, including thermal, energy and screen behavior, require separate device evidence. Linux, an APK or a Rust target check can verify parts of the distribution and runtime contract. See the current [platform evidence](../../docs/support.md#platform-and-installation-evidence).
+
+## Desktop
+
+From the repository root prepare fixtures, then package from the host OS.
+
+```sh
+npm run fixtures
+npm run package:desktop
+```
+
+Install the Flutter desktop build tools for the selected host. Linux uses CMake, Ninja, clang and GTK 3. macOS builds a native app bundle with Xcode. Windows uses Flutter's Visual Studio desktop toolchain and emits the executable with its runtime data and libraries. Extract the matching archive and run `raykit_example`, `raykit_example.exe` or `raykit_example.app`. Keep the directory contents together.
+
+Open a local file or a study folder. Drop one file or folder on the app to use the corresponding open path. The series picker uses the actual DICOM series. Within a coherent orientation, slices sort by their patient-plane positions. Select an instance or use **Volume** to assemble the selected acquisition. **Compare same source** starts at the current original frame. **Compare study series** opens another acquisition from the same local study for independent review. Registered cross-series pointing is available to SDK hosts that supply a verified source pairing. Use **Save measurements** and **Open measurements** in the **Measurements** menu to round-trip JSON against the matching source.
+
+Pass the path as the app's sole argument to open it automatically. The local Linux acceptance command exercises the normal app entry and exits after the requested rendered frame and sample are verified.
+
+```sh
+raykit_example --verify comparison-ct.dcm 150 256 256
+```
+
+The expected sample is 474 stored, 448 HU at patient point `[179.2, 204.8, 180.0]`. Append a previously generated measurement JSON path to reopen that record against the requested source frame and include the recomputed result. The guide's cross-language probe uses a 7 mm ruler. For a visual walkthrough, use **Synthetic cases** to open **CT with named windows**, compare the two windows, link the slice controls, sample one point and save then reopen a ruler record.

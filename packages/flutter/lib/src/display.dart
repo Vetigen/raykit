@@ -88,7 +88,7 @@ final class MonochromeShader {
 
   static List<double>? uniforms(RayKitFrame frame, Json options) {
     if (options.keys.any(
-          (key) => !const ['window', 'invert', 'palette'].contains(key),
+          (key) => !const ['window', 'voi', 'invert', 'palette'].contains(key),
         ) ||
         (options.containsKey('invert') && options['invert'] is! bool) ||
         (options.containsKey('palette') &&
@@ -100,7 +100,12 @@ final class MonochromeShader {
     final modality = display['modality'] as Json;
     if (modality['kind'] != 'linear') return null;
     final voi = display['voi'] as Json;
-    final window = options['window'] ?? voi['window'];
+    final choice = options['voi'];
+    final window =
+        options['window'] ??
+        (choice == null
+            ? voi['window']
+            : frame.selectedView(choice)?['window']);
     if (window is! Json ||
         window['center'] is! num ||
         window['width'] is! num ||

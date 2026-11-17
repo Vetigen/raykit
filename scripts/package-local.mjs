@@ -25,6 +25,7 @@ try {
   for (const name of ['lib', 'hook', 'shaders', 'pubspec.yaml', 'README.md']) {
     cpSync(join(root, 'packages/flutter', name), join(flutter, name), { recursive: true });
   }
+  cpSync(join(root, 'LICENSE'), join(flutter, 'LICENSE'));
   const native = join(flutter, 'native');
   mkdirSync(native);
   for (const name of ['Cargo.toml', 'Cargo.lock', 'crates', 'fixtures/support.rs', 'fixtures/generate.rs', 'examples/measurements']) {

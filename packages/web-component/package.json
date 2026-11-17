@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "RayKit DICOM viewer web component",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
   "files": ["dist"],

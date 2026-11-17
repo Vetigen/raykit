@@ -6,7 +6,7 @@ use crate::{
     dicom::{Dataset, File},
 };
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Photometric {
     Monochrome1,
@@ -22,7 +22,7 @@ impl Photometric {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct PixelFormat {
     pub rows: u32,
     pub columns: u32,
@@ -45,6 +45,15 @@ impl PixelFormat {
         } else {
             3
         }
+    }
+
+    pub fn stored_bounds(self) -> Option<[i32; 2]> {
+        if !self.photometric.is_monochrome() || !(1..=16).contains(&self.bits_stored) {
+            return None;
+        }
+        let levels = 1 << self.bits_stored;
+        let first = if self.signed { -levels / 2 } else { 0 };
+        Some([first, first + levels - 1])
     }
 
     pub(crate) fn stored(self, value: u16, aligned: bool) -> i32 {
@@ -85,7 +94,7 @@ impl Samples {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Lut {
     first: i32,
     bits: u8,
@@ -93,6 +102,14 @@ pub struct Lut {
 }
 
 impl Lut {
+    fn valid(&self) -> bool {
+        (8..=16).contains(&self.bits)
+            && (1..=65_536).contains(&self.values.len())
+            && self
+                .values
+                .iter()
+                .all(|&value| u32::from(value) < 1 << self.bits)
+    }
     fn at(&self, value: f64) -> f64 {
         let index = (value - f64::from(self.first)).floor().max(0.0) as usize;
         f64::from(self.values[index.min(self.values.len() - 1)])
@@ -103,7 +120,7 @@ impl Lut {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Modality {
     Linear { slope: f64, intercept: f64 },
@@ -164,7 +181,7 @@ impl Window {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Voi {
     Window { window: Window },
@@ -178,6 +195,29 @@ impl Voi {
             Self::Lut { table } => table.at(value) / table.maximum(),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", content = "index", rename_all = "snake_case")]
+pub enum VoiSelection {
+    Window(usize),
+    Lut(usize),
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VoiScope {
+    Instance,
+    Shared,
+    Frame,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct VoiAlternative {
+    pub selection: VoiSelection,
+    pub scope: VoiScope,
+    pub label: String,
+    pub window: Option<Window>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -196,7 +236,7 @@ pub struct RenderOptions {
     pub palette: Palette,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Display {
     pub modality: Modality,
     pub voi: Voi,
@@ -206,19 +246,38 @@ pub struct Display {
 }
 
 impl Display {
+    pub(crate) fn valid(&self) -> bool {
+        let modality = match &self.modality {
+            Modality::Linear { slope, intercept } => {
+                *slope != 0.0 && (slope.abs() * 65535.0 + intercept.abs()).is_finite()
+            }
+            Modality::Lut { table } => table.valid(),
+        };
+        modality
+            && self.automatic_window.validate().is_ok()
+            && match &self.voi {
+                Voi::Window { window } => window.validate().is_ok(),
+                Voi::Lut { table } => table.valid(),
+            }
+            && self.padding.is_none_or(|[first, last]| last >= first)
+    }
     pub fn is_padding(&self, pixel: i32) -> bool {
         self.padding
             .is_some_and(|[low, high]| (low..=high).contains(&pixel))
     }
 
     pub fn luminance(&self, sample: i32, options: RenderOptions) -> f64 {
+        self.luminance_with_voi(sample, options, &self.voi)
+    }
+
+    fn luminance_with_voi(&self, sample: i32, options: RenderOptions, voi: &Voi) -> f64 {
         if self.is_padding(sample) {
             return 0.0;
         }
         let value = self.modality.at(sample);
         let intensity = match options.window {
             Some(window) => window.at(value),
-            None => self.voi.at(value),
+            None => voi.at(value),
         };
         if self.inverse ^ options.invert {
             1.0 - intensity
@@ -229,6 +288,36 @@ impl Display {
 
     pub fn rgb(&self, sample: i32, options: RenderOptions) -> [u8; 3] {
         palette_rgb(self.luminance(sample, options), options.palette)
+    }
+
+    pub(crate) fn rgba_mapper<'a>(
+        &'a self,
+        format: PixelFormat,
+        options: RenderOptions,
+        voi: &'a Voi,
+        pixels: usize,
+    ) -> impl Fn(i32) -> [u8; 4] + 'a {
+        let make = move |sample| {
+            let [r, g, b] = palette_rgb(
+                self.luminance_with_voi(sample, options, voi),
+                options.palette,
+            );
+            [r, g, b, 255]
+        };
+        let table = format.stored_bounds().and_then(|[first, last]| {
+            let count = (last - first + 1) as usize;
+            // Include table construction in the decision, including for 16-bit sources.
+            (pixels >= count * 8).then(|| (first, (first..=last).map(make).collect::<Vec<_>>()))
+        });
+        move |sample| {
+            if let Some((first, values)) = &table
+                && let Some(rgba) = values.get(sample.wrapping_sub(*first) as usize)
+            {
+                *rgba
+            } else {
+                make(sample)
+            }
+        }
     }
 }
 
@@ -310,34 +399,125 @@ fn read_lut(file: &File, item: &Dataset, signed: bool) -> Result<Lut> {
     })
 }
 
-pub(crate) fn display(
+fn voi_function(file: &File, data: &Dataset) -> Result<WindowFunction> {
+    Ok(match data.text(&file.bytes, (0x28, 0x1056)) {
+        None | Some("" | "LINEAR") => WindowFunction::Linear,
+        Some("LINEAR_EXACT") => WindowFunction::LinearExact,
+        Some("SIGMOID") => WindowFunction::Sigmoid,
+        _ => return Err(Error::Unsupported("VOI window function")),
+    })
+}
+
+fn window_values<'a>(file: &'a File, data: &Dataset, key: u16) -> impl Iterator<Item = &'a str> {
+    data.text(&file.bytes, (0x28, key))
+        .into_iter()
+        .flat_map(|s| s.split('\\'))
+}
+
+pub(crate) fn voi_alternatives(
+    file: &File,
+    data: &Dataset,
+    scope: VoiScope,
+    signed: bool,
+) -> Vec<VoiAlternative> {
+    let mut result = Vec::new();
+    if let Ok(function) = voi_function(file, data) {
+        let centers = window_values(file, data, 0x1050);
+        let widths = window_values(file, data, 0x1051);
+        let mut labels = window_values(file, data, 0x1055);
+        for (index, (center, width)) in centers.zip(widths).enumerate() {
+            let label = labels.next().unwrap_or_default().trim();
+            if let (Ok(center), Ok(width)) = (center.trim().parse(), width.trim().parse())
+                && let Ok(window) = (Window {
+                    center,
+                    width,
+                    function,
+                })
+                .validate()
+            {
+                result.push(VoiAlternative {
+                    selection: VoiSelection::Window(index),
+                    scope,
+                    label: if label.is_empty() {
+                        format!("Window {}", index + 1)
+                    } else {
+                        label.into()
+                    },
+                    window: Some(window),
+                });
+            }
+        }
+    }
+    for (index, item) in data
+        .sequence((0x28, 0x3010))
+        .unwrap_or_default()
+        .iter()
+        .enumerate()
+    {
+        if read_lut(file, item, signed).is_ok() {
+            result.push(VoiAlternative {
+                selection: VoiSelection::Lut(index),
+                scope,
+                label: item
+                    .text(&file.bytes, (0x28, 0x3003))
+                    .map(str::trim)
+                    .filter(|text| !text.is_empty())
+                    .map_or_else(|| format!("VOI LUT {}", index + 1), str::to_owned),
+                window: None,
+            });
+        }
+    }
+    result
+}
+
+pub(crate) fn selected_voi(
+    file: &File,
+    data: &Dataset,
+    signed: bool,
+    selection: VoiSelection,
+) -> Result<Voi> {
+    let unavailable = || Error::InvalidRequest("VOI selection for this frame");
+    Ok(match selection {
+        VoiSelection::Window(index) => {
+            let value = |key| {
+                window_values(file, data, key)
+                    .nth(index)
+                    .and_then(|v| v.trim().parse().ok())
+                    .ok_or_else(unavailable)
+            };
+            Voi::Window {
+                window: Window {
+                    center: value(0x1050)?,
+                    width: value(0x1051)?,
+                    function: voi_function(file, data)?,
+                }
+                .validate()?,
+            }
+        }
+        VoiSelection::Lut(index) => Voi::Lut {
+            table: read_lut(
+                file,
+                data.sequence((0x28, 0x3010))
+                    .and_then(|items| items.get(index))
+                    .ok_or_else(unavailable)?,
+                signed,
+            )?,
+        },
+    })
+}
+
+pub(crate) fn read_modality(
     file: &File,
     format: PixelFormat,
     transform: &Dataset,
-    voi: &Dataset,
-    samples: &[i32],
-) -> Result<Display> {
+) -> Result<Modality> {
     let root = &file.dataset;
-    let signed = format.signed;
-    let padding_value = |key| {
-        root.us(file, key).map(|v| {
-            if signed {
-                i32::from(v as i16)
-            } else {
-                i32::from(v)
-            }
-        })
-    };
-    let padding = padding_value((0x28, 0x0120)).map(|first| {
-        let second = padding_value((0x28, 0x0121)).unwrap_or(first);
-        [first.min(second), first.max(second)]
-    });
-    let modality = if let Some(items) = transform.sequence((0x28, 0x3000)) {
+    Ok(if let Some(items) = transform.sequence((0x28, 0x3000)) {
         let [item] = items else {
             return Err(Error::InvalidDicom("modality LUT count"));
         };
         Modality::Lut {
-            table: read_lut(file, item, signed)?,
+            table: read_lut(file, item, format.signed)?,
         }
     } else {
         let slope = (0x28, 0x1053);
@@ -360,7 +540,37 @@ pub(crate) fn display(
             return Err(Error::Unsupported("modality value range"));
         }
         Modality::Linear { slope, intercept }
+    })
+}
+
+pub(crate) fn voi_signed(format: PixelFormat, modality: &Modality) -> bool {
+    format
+        .stored_bounds()
+        .is_some_and(|bounds| bounds.into_iter().any(|value| modality.at(value) < 0.0))
+}
+
+pub(crate) fn display(
+    file: &File,
+    format: PixelFormat,
+    transform: &Dataset,
+    voi: &Dataset,
+    samples: &[i32],
+) -> Result<Display> {
+    let root = &file.dataset;
+    let padding_value = |key| {
+        root.us(file, key).map(|v| {
+            if format.signed {
+                i32::from(v as i16)
+            } else {
+                i32::from(v)
+            }
+        })
     };
+    let padding = padding_value((0x28, 0x0120)).map(|first| {
+        let second = padding_value((0x28, 0x0121)).unwrap_or(first);
+        [first.min(second), first.max(second)]
+    });
+    let modality = read_modality(file, format, transform)?;
     let (mut min, mut max) = (f64::INFINITY, f64::NEG_INFINITY);
     for &sample in samples {
         if padding.is_some_and(|[a, b]| (a..=b).contains(&sample)) {
@@ -386,12 +596,7 @@ pub(crate) fn display(
             let width = voi
                 .first_ds(file, (0x28, 0x1051))
                 .ok_or(Error::InvalidDicom("window width"))?;
-            let function = match voi.text(&file.bytes, (0x28, 0x1056)) {
-                None | Some("" | "LINEAR") => WindowFunction::Linear,
-                Some("LINEAR_EXACT") => WindowFunction::LinearExact,
-                Some("SIGMOID") => WindowFunction::Sigmoid,
-                _ => return Err(Error::Unsupported("VOI window function")),
-            };
+            let function = voi_function(file, voi)?;
             Voi::Window {
                 window: Window {
                     center,
@@ -403,7 +608,7 @@ pub(crate) fn display(
         }
         (None, None) => match voi.sequence((0x28, 0x3010)).and_then(|items| items.first()) {
             Some(item) => Voi::Lut {
-                table: read_lut(file, item, signed)?,
+                table: read_lut(file, item, voi_signed(format, &modality))?,
             },
             None => Voi::Window {
                 window: automatic_window,

@@ -151,7 +151,7 @@ impl Anatomy {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Calibration {
     None,
@@ -175,7 +175,7 @@ pub enum ProjectionCalibration {
     CorrectedSpacing,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct UltrasoundRegion {
     pub bounds: [u32; 4],
     pub delta_xy: [f64; 2],

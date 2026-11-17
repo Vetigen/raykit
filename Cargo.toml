@@ -1,11 +1,15 @@
 [workspace]
-members = ["crates/raykit-core", "crates/raykit-vet", "crates/raykit-protocol", "crates/raykit-ffi", "crates/raykit-wasm"]
+members = [
+    "crates/raykit-core", "crates/raykit-vet", "crates/raykit-protocol",
+    "crates/raykit-ffi", "crates/raykit-wasm", "crates/raykit-cli", "crates/raykit-node",
+]
 resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.97.1"
+license = "Apache-2.0"
 publish = false
 
 [workspace.dependencies]

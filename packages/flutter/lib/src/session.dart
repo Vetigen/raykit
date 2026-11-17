@@ -42,7 +42,22 @@ sealed class RayKitSource {
   const factory RayKitSource.reader(
     Stream<Uint8List> Function(RayKitCancellation) read,
   ) = _ReaderSource;
+  const factory RayKitSource.attached(RayKitSession session) = _AttachedSource;
+  RayKitSession? get attachedSession => null;
   Future<Uint8List> read(RayKitCancellation cancellation, int limit);
+}
+
+final class _AttachedSource extends RayKitSource {
+  const _AttachedSource(this.attachedSession);
+  @override
+  final RayKitSession attachedSession;
+
+  @override
+  Future<Uint8List> read(RayKitCancellation cancellation, int limit) async =>
+      throw const RayKitException(
+        'invalid_request',
+        'Attach a panel to the verified session',
+      );
 }
 
 final class RayKitFrameIndex {
@@ -142,16 +157,25 @@ final class RayKitOpenOptions {
     this.limits = const {},
     this.expectedSize,
     this.expectedSha256,
+    this.expectedInstanceUid,
+    this.expectedSeriesUid,
+    this.expectedStudyUid,
     this.revision,
   });
   final Map<String, int> limits;
   final int? expectedSize;
   final String? expectedSha256;
+  final String? expectedInstanceUid;
+  final String? expectedSeriesUid;
+  final String? expectedStudyUid;
   final String? revision;
   Json toJson() => {
     'limits': limits,
     'expected_size': expectedSize,
     'expected_sha256': expectedSha256,
+    'expected_instance_uid': expectedInstanceUid,
+    'expected_series_uid': expectedSeriesUid,
+    'expected_study_uid': expectedStudyUid,
   };
 }
 
@@ -162,6 +186,7 @@ final class RayKitInspection {
   String get contentSha256 => data['content_sha256'] as String;
   String get instanceUid => data['instance_uid'] as String;
   String get object => data['object'] as String;
+  String? get seriesDescription => data['series_description'] as String?;
   Json get capabilities => Map.unmodifiable(data['capabilities'] as Json);
   List<double>? get frameDurations => (data['frame_durations_ms'] as List?)
       ?.map((n) => (n as num).toDouble())
@@ -176,10 +201,25 @@ final class RayKitFrame {
   Json get source => data['source'] as Json;
   Json get geometry => data['geometry'] as Json;
   Json? get display => data['display'] as Json?;
+  List<Json> get views => (data['views'] as List? ?? []).cast<Json>();
+  String? get modalityUnit => data['modality_unit'] as String?;
+  Json? get quantitativeScale => data['quantitative_scale'] as Json?;
   int get index => source['frame'] as int;
   int get columns => (data['format'] as Json)['columns'] as int;
   int get rows => (data['format'] as Json)['rows'] as int;
   String get encoding => data['encoding'] as String;
+
+  Json? selectedView(Object? choice) {
+    if (choice is! Json) return null;
+    for (final entry in views) {
+      final selection = entry['selection'] as Json;
+      if (selection['kind'] == choice['kind'] &&
+          selection['index'] == choice['index']) {
+        return entry;
+      }
+    }
+    return null;
+  }
 }
 
 final class RayKitSession {
@@ -188,6 +228,10 @@ final class RayKitSession {
   final RayKitInspection inspection;
   final String revision;
   bool get isClosed => _channel._closing;
+  int _owners = 1;
+  bool _ownerReleased = false;
+  final _revocations = StreamController<void>.broadcast(sync: true);
+  Stream<void> get revocations => _revocations.stream;
   Future<void> _planeQueue = Future.value();
   int _planeTicket = 0;
 
@@ -321,6 +365,7 @@ final class RayKitSession {
     bool stored = true,
     Json render = const {},
     bool texture16 = false,
+    bool fallbackVoi = false,
     RayKitCancellation? cancellation,
   }) async {
     final reply = await _command({
@@ -328,6 +373,7 @@ final class RayKitSession {
       'index': index,
       'output': texture16 ? 'texture16' : (stored ? 'stored' : 'rgba'),
       'options': render,
+      'fallback_voi': fallbackVoi,
     }, cancellation);
     final frame = RayKitFrame(reply.metadata as Json, reply.bytes!, reply.id);
     if (frame.index != index ||
@@ -349,6 +395,29 @@ final class RayKitSession {
     'index': index,
     'options': options,
   }, cancellation)).bytes!;
+
+  Future<List<Json>> views(int index) async =>
+      ((await _command({'op': 'views', 'index': index}, null)).metadata as List)
+          .cast<Json>();
+
+  Future<Json> frameInfo(int index) =>
+      _json({'op': 'frame_info', 'index': index}, null);
+
+  Future<Json?> locatePatient(
+    List<num> point,
+    String reference,
+    List<num> normal,
+  ) async =>
+      (await _command({
+            'op': 'locate_patient',
+            'point': point,
+            'reference': reference,
+            'normal': normal,
+          }, null)).metadata
+          as Json?;
+
+  Future<Json> sampleAt(int index, int x, int y) =>
+      _json({'op': 'sample_at', 'index': index, 'x': x, 'y': y}, null);
 
   Future<Json> sample(
     int index,
@@ -542,7 +611,35 @@ final class RayKitSession {
 
   Future<Uint8List> document({RayKitCancellation? cancellation}) async =>
       (await _command({'op': 'document'}, cancellation)).bytes!;
-  Future<void> close() => _channel.close();
+  Future<void> Function() retain() {
+    if (isClosed) throw const RayKitException('closed');
+    _owners++;
+    var released = false;
+    return () async {
+      if (released) return;
+      released = true;
+      await _release();
+    };
+  }
+
+  Future<void> _release() async {
+    if (!isClosed && --_owners == 0) await revoke();
+  }
+
+  Future<void> close() async {
+    if (_ownerReleased) return;
+    _ownerReleased = true;
+    await _release();
+  }
+
+  Future<void> revoke() async {
+    final closing = _channel.close();
+    if (!_revocations.isClosed) {
+      _revocations.add(null);
+      unawaited(_revocations.close());
+    }
+    await closing;
+  }
 
   Future<_Reply> _command(Json command, RayKitCancellation? cancellation) =>
       _channel.send('request', command, cancellation);

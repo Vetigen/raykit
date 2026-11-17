@@ -2,10 +2,12 @@ use std::sync::Arc;
 
 use raykit_core::{
     Error, Frame, Limits, Result, Session,
-    geometry::{ScreenPoint, View},
+    geometry::{PatientPoint, PixelPoint, ScreenPoint, View},
     interop::SrOptions,
     measurement::{Record, Request},
-    pixel::{Palette, RenderOptions, Samples, Window},
+    pixel::{Palette, RenderOptions, Samples, Voi, VoiSelection, Window},
+    quantitative::QuantitativeScale,
+    tiles::{Region as TileRegion, TileCatalog, TiledImage},
     volume::{Reslice, ResliceWork, Resliced, Sampling, Volume},
 };
 use serde::{Deserialize, Serialize};
@@ -78,7 +80,9 @@ enum Command {
         #[serde(default)]
         output: FrameOutput,
         #[serde(default)]
-        options: RenderOptions,
+        options: DisplayOptions,
+        #[serde(default)]
+        fallback_voi: bool,
     },
     Prefetch {
         index: usize,
@@ -86,12 +90,28 @@ enum Command {
     Render {
         index: usize,
         #[serde(default)]
-        options: RenderOptions,
+        options: DisplayOptions,
+    },
+    Views {
+        index: usize,
     },
     Sample {
         index: usize,
         x: u32,
         y: u32,
+    },
+    SampleAt {
+        index: usize,
+        x: u32,
+        y: u32,
+    },
+    FrameInfo {
+        index: usize,
+    },
+    LocatePatient {
+        point: PatientPoint,
+        reference: String,
+        normal: [f64; 3],
     },
     Transform {
         index: usize,
@@ -105,9 +125,24 @@ enum Command {
     Reopen {
         record: Record,
     },
+    Verify {
+        record: Record,
+    },
     Evict,
     Stats,
     CreateFrameIndex,
+    FrameProof {
+        index: usize,
+        revision: String,
+    },
+    PrepareTiles {
+        index: usize,
+        edge: u32,
+        revision: String,
+    },
+    Tile {
+        index: usize,
+    },
     Document,
     Video,
     ExportSr {
@@ -157,7 +192,65 @@ enum FrameOutput {
     #[default]
     Rgba,
     Stored,
+    Stored16,
     Texture16,
+    Modality,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct DisplayOptions {
+    window: Option<Window>,
+    invert: bool,
+    palette: Palette,
+    voi: Option<VoiSelection>,
+    quantitative: bool,
+}
+
+impl DisplayOptions {
+    fn resolve(
+        self,
+        session: &Session,
+        index: usize,
+        fallback_voi: bool,
+    ) -> Result<(RenderOptions, Option<Voi>, Option<QuantitativeScale>)> {
+        if self.quantitative && (self.window.is_some() || self.voi.is_some()) {
+            return Err(Error::InvalidRequest("quantitative scale or VOI selection"));
+        }
+        if let Some(window) = self.window {
+            window.validate()?;
+            if self.voi.is_some() {
+                return Err(Error::InvalidRequest("one VOI selection or window"));
+            }
+        }
+        let voi = match self
+            .voi
+            .map(|selection| session.select_voi(index, selection))
+            .transpose()
+        {
+            Ok(voi) => voi,
+            Err(_) if fallback_voi => None,
+            Err(error) => return Err(error),
+        };
+        let scale = if self.quantitative {
+            let scale = session.quantitative_scale(index);
+            if scale.is_none() && !fallback_voi {
+                return Err(Error::Unsupported("verified quantitative mapping"));
+            }
+            scale
+        } else {
+            None
+        };
+        Ok((
+            RenderOptions {
+                window: self.window,
+                invert: self.invert,
+                palette: self.palette,
+            },
+            voi,
+            scale,
+        ))
+    }
 }
 
 pub struct Reply {
@@ -198,6 +291,8 @@ pub struct BoundSession {
     peak_output_bytes: usize,
     rendered_frames: u64,
     rendered_frame_bytes: u64,
+    frame_proofs: Option<(String, raykit_core::FrameProofCatalog)>,
+    tiles: Option<TileCatalog>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -216,6 +311,10 @@ struct PendingPlane {
 }
 
 impl BoundSession {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn open_path(path: &std::path::Path, options: OpenOptions) -> Result<(Self, Reply)> {
+        Self::open_file(raykit_core::NativeFile::open(path)?, None, options)
+    }
     pub fn open(bytes: Vec<u8>, options: OpenOptions) -> Result<(Self, Reply)> {
         options.check_primary()?;
         Self::bind(Self::checked_source(bytes, options)?)
@@ -225,6 +324,30 @@ impl BoundSession {
         options.check_primary()?;
         let session = Self::checked_index(bytes, pin, &options)?;
         Self::bind(session)
+    }
+
+    pub fn open_proof(
+        packet: Vec<u8>,
+        pin: &str,
+        revision: &str,
+        frame: usize,
+        options: OpenOptions,
+    ) -> Result<(Self, Reply)> {
+        options.check_primary()?;
+        let session = Session::open_frame_proof(
+            packet,
+            pin,
+            revision,
+            frame,
+            options.limits,
+            options.expected_sha256.as_deref(),
+        )?;
+        options.check_expected_size(session.memory().source_bytes)?;
+        Self::bind(Self::check_identifiers(session, &options)?)
+    }
+
+    pub fn stage_proof(&mut self, frame: usize, packet: Vec<u8>) -> Result<()> {
+        self.session.stage_frame_proof(frame, packet)
     }
 
     fn checked_index(bytes: &[u8], pin: &str, options: &OpenOptions) -> Result<Session> {
@@ -314,7 +437,10 @@ impl BoundSession {
     }
 
     fn bind(session: Session) -> Result<(Self, Reply)> {
-        let inspection = json(session.inspection())?;
+        let mut inspection =
+            serde_json::to_value(session.inspection()).map_err(|_| Error::Internal)?;
+        inspection["series_description"] = serde_json::json!(session.series_description());
+        let inspection = json(&inspection)?;
         Ok((
             Self {
                 session,
@@ -330,6 +456,8 @@ impl BoundSession {
                 peak_output_bytes: 0,
                 rendered_frames: 0,
                 rendered_frame_bytes: 0,
+                frame_proofs: None,
+                tiles: None,
             },
             inspection,
         ))
@@ -455,6 +583,7 @@ impl BoundSession {
             &serde_json::json!({"added": true, "revision": self.volume_revision, "inspection": new}),
         )?;
         self.volume_sources.push(source);
+        self.volume = None;
         self.invalidate_plane();
         Ok(reply)
     }
@@ -479,13 +608,14 @@ impl BoundSession {
                 index,
                 output,
                 options,
+                fallback_voi,
             } => {
-                if let Some(window) = options.window {
-                    window.validate()?;
-                }
+                let (options, voi, scale) = options.resolve(&self.session, index, fallback_voi)?;
                 let frame = self.frame(index)?;
                 let (encoding, data) = match output {
-                    FrameOutput::Texture16 if frame.texture16(options) => {
+                    FrameOutput::Texture16
+                        if scale.is_none() && frame.texture16_with_voi(options, voi.as_ref()) =>
+                    {
                         let Samples::Monochrome(samples) = &frame.samples else {
                             return Err(Error::Internal);
                         };
@@ -498,10 +628,24 @@ impl BoundSession {
                             .collect();
                         ("mono_u16_rg", rgba)
                     }
-                    FrameOutput::Rgba | FrameOutput::Texture16 => {
-                        ("rgba8", self.render_frame(&frame, options)?)
+                    FrameOutput::Rgba | FrameOutput::Texture16 => (
+                        "rgba8",
+                        self.render_frame(&frame, options, voi.as_ref(), scale.as_ref())?,
+                    ),
+                    FrameOutput::Stored16 if frame.format.stored_bounds().is_some() => {
+                        let Samples::Monochrome(samples) = &frame.samples else {
+                            return Err(Error::Internal);
+                        };
+                        let bias = if frame.format.signed { 0 } else { 32768 };
+                        (
+                            "mono_i16_le",
+                            samples
+                                .iter()
+                                .flat_map(|&sample| ((sample - bias) as i16).to_le_bytes())
+                                .collect(),
+                        )
                     }
-                    FrameOutput::Stored => match &frame.samples {
+                    FrameOutput::Stored | FrameOutput::Stored16 => match &frame.samples {
                         Samples::Monochrome(samples) => (
                             "mono_i32_le",
                             samples.iter().flat_map(|s| s.to_le_bytes()).collect(),
@@ -514,11 +658,33 @@ impl BoundSession {
                             (encoding, values.clone())
                         }
                     },
+                    FrameOutput::Modality => {
+                        let Samples::Monochrome(samples) = &frame.samples else {
+                            return Err(Error::Unsupported("color modality values"));
+                        };
+                        let display = frame.display.as_ref().ok_or(Error::Internal)?;
+                        let values = samples
+                            .iter()
+                            .flat_map(|&stored| {
+                                if display.is_padding(stored) {
+                                    f64::NAN
+                                } else {
+                                    display.modality.at(stored)
+                                }
+                                .to_le_bytes()
+                            })
+                            .collect();
+                        ("modality_f64_le", values)
+                    }
                 };
                 let reply = binary(
                     &serde_json::json!({
                         "source": self.session.source_reference(index)?, "format": frame.format,
                         "geometry": frame.geometry, "display": frame.display, "encoding": encoding,
+                        "views": self.session.voi_alternatives(index)?,
+                        "modality_unit": self.session.modality_unit(index)?,
+                        "quantitative_scale": scale.or_else(|| self.session.quantitative_scale(index)),
+                        "doppler_scales": self.session.doppler_scales(index),
                     }),
                     data,
                 )?;
@@ -533,14 +699,97 @@ impl BoundSession {
                 let index = self.session.create_frame_index()?;
                 binary(&serde_json::json!({"sha256": index.sha256}), index.bytes)?
             }
+            Command::FrameProof { index, revision } => {
+                if !self
+                    .frame_proofs
+                    .as_ref()
+                    .is_some_and(|(cached, _)| *cached == revision)
+                {
+                    let catalog = self.session.create_frame_proofs(&revision)?;
+                    self.frame_proofs = Some((revision, catalog));
+                }
+                let (revision, catalog) = self.frame_proofs.as_ref().ok_or(Error::Internal)?;
+                binary(
+                    &serde_json::json!({
+                        "root_sha256": catalog.root_sha256(), "revision": revision, "frame": index,
+                        "frames": catalog.frames(), "source": self.session.source_reference(index)?,
+                    }),
+                    catalog.packet(index)?,
+                )?
+            }
+            Command::PrepareTiles {
+                index,
+                edge,
+                revision,
+            } => {
+                let tiles = self.session.create_tiles(index, edge, &revision)?;
+                let (pin, manifest) = tiles.manifest()?;
+                let count = tiles.count();
+                self.tiles = Some(tiles);
+                binary(
+                    &serde_json::json!({"sha256":pin,"tiles":count,"revision":revision,
+                    "source":self.session.source_reference(index)?}),
+                    manifest,
+                )?
+            }
+            Command::Tile { index } => binary(
+                &serde_json::json!({"index":index}),
+                self.tiles
+                    .as_ref()
+                    .ok_or(Error::InvalidRequest("prepare tiles first"))?
+                    .tile(index)?,
+            )?,
             Command::Render { index, options } => {
+                let (options, voi, scale) = options.resolve(&self.session, index, false)?;
                 let frame = self.frame(index)?;
                 binary(
                     &serde_json::json!({"source": self.session.source_reference(index)?, "encoding": "rgba8"}),
-                    self.render_frame(&frame, options)?,
+                    self.render_frame(&frame, options, voi.as_ref(), scale.as_ref())?,
                 )?
             }
+            Command::Views { index } => json(&self.session.voi_alternatives(index)?)?,
             Command::Sample { index, x, y } => json(&self.frame(index)?.sample(x, y)?)?,
+            Command::SampleAt { index, x, y } => {
+                let frame = self.frame(index)?;
+                let sample = frame.sample(x, y)?;
+                let quantitative = match sample {
+                    raykit_core::Sample::Monochrome { stored, padding: false, .. } => self.session.quantitative_scale(index).and_then(|scale|
+                        scale.value(stored).map(|value| serde_json::json!({"value":value,"quantity":scale.quantity,"unit":scale.unit}))),
+                    _ => None,
+                };
+                let at = PixelPoint {
+                    x: f64::from(x),
+                    y: f64::from(y),
+                };
+                json(&serde_json::json!({
+                    "sample": sample,
+                    "quantitative": quantitative,
+                    "doppler_axes": self.session.doppler_point(index, x, y),
+                    "source": self.session.source_reference(index)?,
+                    "geometry": frame.geometry,
+                    "modality_unit": self.session.modality_unit(index)?,
+                    "patient": frame.geometry.patient_plane.map(|plane| plane.at(at)),
+                }))?
+            }
+            Command::FrameInfo { index } => json(&serde_json::json!({
+                "source": self.session.source_reference(index)?,
+                "format": self.session.inspection().pixel_format,
+                "geometry": self.session.geometry(index)?,
+                "views": self.session.voi_alternatives(index)?,
+                "modality_unit": self.session.modality_unit(index)?,
+                "quantitative_scale": self.session.quantitative_scale(index),
+                "doppler_scales": self.session.doppler_scales(index),
+            }))?,
+            Command::LocatePatient {
+                point,
+                reference,
+                normal,
+            } => json(
+                &self
+                    .session
+                    .locate_patient(point, &reference, normal)?
+                    .map(|(frame, pixel)| serde_json::json!({"frame":frame,"pixel":pixel})),
+            )?,
             Command::Transform { index, view, point } => {
                 let geometry = self.session.geometry(index)?;
                 let format = self
@@ -566,8 +815,26 @@ impl BoundSession {
                 let method = raykit_vet::method(&record.input.method)?;
                 json(&self.session.reopen_measurement(record, method)?)?
             }
+            Command::Verify { record } => {
+                let method = raykit_vet::method(&record.input.method)?;
+                let values = record.values.clone();
+                let actual = self.session.reopen_measurement(record, method)?;
+                if values.len() != actual.values.len()
+                    || values.iter().zip(&actual.values).any(|(stored, computed)| {
+                        !stored.value.is_finite()
+                            || stored.name != computed.name
+                            || stored.unit != computed.unit
+                            || (stored.value - computed.value).abs()
+                                > 1e-12 * computed.value.abs().max(1.0)
+                    })
+                {
+                    return Err(Error::Integrity("measurement values differ"));
+                }
+                json(&actual)?
+            }
             Command::Evict => {
                 self.active = None;
+                self.tiles = None;
                 self.session.evict_frames();
                 self.invalidate_plane();
                 if let Some(volume) = &self.volume {
@@ -687,8 +954,18 @@ impl BoundSession {
         Ok(reply)
     }
 
-    fn render_frame(&mut self, frame: &Frame, options: RenderOptions) -> Result<Vec<u8>> {
-        let rgba = frame.render_rgba(options)?;
+    fn render_frame(
+        &mut self,
+        frame: &Frame,
+        options: RenderOptions,
+        voi: Option<&Voi>,
+        scale: Option<&QuantitativeScale>,
+    ) -> Result<Vec<u8>> {
+        let rgba = if let Some(scale) = scale {
+            frame.render_quantitative(scale, options.invert)?
+        } else {
+            frame.render_rgba_with_voi(options, voi)?
+        };
         self.rendered_frames += 1;
         self.rendered_frame_bytes += rgba.len() as u64;
         Ok(rgba)
@@ -755,6 +1032,59 @@ impl BoundSession {
                 });
                 self.planes_computed += 1;
                 Ok(Some(reply))
+            }
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
+enum TileCommand {
+    Render {
+        rect: TileRegion,
+        #[serde(default)]
+        options: RenderOptions,
+    },
+    Sample {
+        x: u32,
+        y: u32,
+    },
+    Measure {
+        request: Request,
+    },
+    Stats,
+}
+
+pub struct BoundTiles(TiledImage);
+
+impl BoundTiles {
+    pub fn open(bytes: &[u8], pin: &str, revision: &str) -> Result<Self> {
+        Ok(Self(TiledImage::open(bytes, pin, revision)?))
+    }
+    pub fn info(&self) -> Result<String> {
+        Ok(json(&self.0.info())?.metadata)
+    }
+    pub fn need(&mut self, rect: &[u8]) -> Result<Vec<usize>> {
+        let region =
+            serde_json::from_slice(rect).map_err(|_| Error::InvalidRequest("tile region"))?;
+        self.0.needed(region)
+    }
+    pub fn stage(&mut self, index: usize, bytes: Vec<u8>) -> Result<()> {
+        self.0.stage(index, bytes)
+    }
+    pub fn request(&mut self, command: &[u8]) -> Result<Reply> {
+        if command.len() > MAX_COMMAND_BYTES {
+            return Err(Error::Limit("tile command bytes"));
+        }
+        match serde_json::from_slice(command).map_err(|_| Error::InvalidRequest("tile command"))? {
+            TileCommand::Render { rect, options } => binary(&rect, self.0.rgba(rect, options)?),
+            TileCommand::Sample { x, y } => json(&self.0.sample(x, y)?),
+            TileCommand::Measure { request } => {
+                let method = raykit_vet::method(&request.method)?;
+                json(&self.0.measure(request, method)?)
+            }
+            TileCommand::Stats => {
+                json(&serde_json::json!({"cached_tile_bytes": self.0.cached_bytes()}))
             }
         }
     }

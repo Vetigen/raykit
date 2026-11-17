@@ -47,7 +47,11 @@ try {
   run(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund',
     join(root, 'artifacts/raykit-web-0.1.0.tgz'), join(root, 'artifacts/raykit-web-component-0.1.0.tgz'), 'vite@7.3.1', 'typescript@5.9.3'], web);
   assertNotices(join(web, 'node_modules/@raykit/web/dist/notices'));
+  for (const name of ['web', 'web-component']) {
+    assert.deepEqual(readFileSync(join(web, 'node_modules/@raykit', name, 'dist/LICENSE')), readFileSync(join(root, 'LICENSE')));
+  }
   assertPortableBinary(join(web, 'node_modules/@raykit/web/dist/generated/raykit_wasm_bg.wasm'));
+  assertPortableBinary(join(web, 'node_modules/@raykit/web/dist/generated/advanced/raykit_wasm_bg.wasm'));
   run(npm, ['run', 'build'], web);
   const service = await serve(join(web, 'dist'));
   let browser;
@@ -96,6 +100,27 @@ try {
     await page.waitForFunction(async () => (await document.querySelector('raykit-viewer').viewport.session.stats()).plane_cache_hits >= 1);
     await page.locator('raykit-viewer').locator('[data-action="close"]').click();
     await page.waitForFunction(() => document.querySelector('raykit-viewer')?.viewport?.session === undefined);
+    await page.locator('[data-fixture="comparison-ct.dcm"]').click();
+    await page.waitForFunction(() => document.querySelector('raykit-viewer')?.viewport?.frame?.views?.[1]?.label === 'Bone');
+    const compared = await page.locator('raykit-viewer').evaluate(async viewer => {
+      await viewer.compare();
+      await Promise.all(viewer.viewports.map(vp => vp.showFrame(150, false)));
+      const values = await Promise.all(viewer.viewports.map(panel => panel.samplePresented(256, 256)));
+      return { frames: viewer.viewports.map(panel => panel.session === viewer.viewport.session ? panel.presented.source.frame : null),
+        values: values.map(value => value.modality), windows: viewer.viewports.map(panel => panel.presented.render.voi.index) };
+    });
+    assert.deepEqual(compared, { frames: [150, 150], values: [448, 448], windows: [0, 1] });
+    await page.locator('#custom-worker').click();
+    await page.waitForFunction(() => document.querySelector('#sample-error').value.includes('stored -1540'));
+    if (existsSync(join(root, 'fixtures/generated/delivery/pins.json'))) {
+      await page.locator('#open-proof').click();
+      await page.waitForFunction(() => document.querySelector('raykit-viewer')?.viewport?.session?.inspection.verification === 'pinned_frame_proof' &&
+        document.querySelector('raykit-viewer')?.viewport?.presented?.source.frame === 0);
+      const proof = await page.locator('raykit-viewer').evaluate(async viewer => (await viewer.viewport.session.stats()).range_requests);
+      assert.equal(proof, 1);
+      await page.locator('#open-tiles').click();
+      await page.waitForFunction(() => document.querySelector('#tiled-status').value.includes('Original resolution'));
+    }
   } finally { await browser?.close(); service.close(); }
 
   for (const path of ['examples/flutter/pubspec.yaml', 'examples/flutter/analysis_options.yaml', 'examples/flutter/lib',
@@ -104,6 +129,7 @@ try {
   run('tar', ['-xzf', join(root, 'artifacts/raykit-flutter-0.1.0.tar.gz')], join(tree, 'packages'));
   renameSync(join(tree, 'packages/raykit'), join(tree, 'packages/flutter'));
   assertNotices(join(tree, 'packages/flutter/notices'));
+  assert.deepEqual(readFileSync(join(tree, 'packages/flutter/LICENSE')), readFileSync(join(root, 'LICENSE')));
   run('flutter', ['pub', 'get'], flutter);
   run('flutter', ['test', '--no-pub', '--concurrency=1', 'test/example_test.dart'], flutter);
   if (process.platform === 'linux') assertPortableBinary(join(flutter, 'build/native_assets/linux/libraykit_ffi.so'));

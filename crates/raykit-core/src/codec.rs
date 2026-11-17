@@ -25,6 +25,7 @@ pub(crate) enum Index {
         frames: Vec<Range<usize>>,
     },
     Detached(DetachedIndex),
+    Proof(crate::frame_proof::ProofIndex),
 }
 
 impl Index {
@@ -95,6 +96,7 @@ impl Index {
                     + frames.capacity() * size_of::<Range<usize>>()
             }
             Self::Detached(index) => index.bytes(),
+            Self::Proof(_) => size_of::<crate::frame_proof::ProofIndex>(),
         }
     }
 
@@ -157,7 +159,7 @@ impl Index {
                 };
                 Ok((samples, copied))
             }
-            Self::Detached(_) => Err(Error::FrameRange(frame)),
+            Self::Detached(_) | Self::Proof(_) => Err(Error::FrameRange(frame)),
         }
     }
 }
@@ -396,7 +398,11 @@ fn decode_rle(raw: &[u8], format: PixelFormat) -> Result<Samples> {
     }
 }
 
-fn decode_jpeg(raw: &[u8], format: PixelFormat, syntax: TransferSyntax) -> Result<Samples> {
+pub(crate) fn decode_jpeg(
+    raw: &[u8],
+    format: PixelFormat,
+    syntax: TransferSyntax,
+) -> Result<Samples> {
     let mut stream = JpegStream::new(std::iter::once(raw));
     let sof = stream.codestream(syntax)?;
     stream.finish_fragment()?;

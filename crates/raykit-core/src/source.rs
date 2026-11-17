@@ -3,17 +3,19 @@ use std::{collections::VecDeque, sync::Arc};
 use serde::Serialize;
 
 use crate::{
-    Error, FrameIndex, FrameRange, Limits, Result,
-    codec::{Index, read_indexed},
+    Error, FrameIndex, FrameProofCatalog, FrameRange, Limits, Result,
+    codec::{Index, decode_jpeg, read_indexed},
     dicom::{Dataset, File, Key, uid},
     frame_index::DetachedIndex,
+    frame_proof::{ProofIndex, VerifiedFrame},
     geometry::{
-        Anatomy, Calibration, PatientPlane, ProjectionCalibration, Region, UltrasoundRegion,
-        valid_spacing,
+        Anatomy, Calibration, PatientPlane, PatientPoint, PixelPoint, ProjectionCalibration,
+        Region, UltrasoundRegion, dot, valid_spacing,
     },
     pixel::{
-        Display, Modality, Photometric, PixelFormat, RenderOptions, Samples, Voi, WindowFunction,
-        color_rgb, display,
+        Display, Modality, Photometric, PixelFormat, RenderOptions, Samples, Voi, VoiAlternative,
+        VoiScope, VoiSelection, WindowFunction, color_rgb, display, read_modality, selected_voi,
+        voi_alternatives, voi_signed,
     },
 };
 
@@ -42,6 +44,19 @@ pub enum TransferSyntax {
 }
 
 impl TransferSyntax {
+    pub fn part10_prefix(bytes: &[u8]) -> Result<Self> {
+        let (_, meta) = File::read_meta(bytes, Limits::default())?;
+        Self::from_uid(uid(meta.text(bytes, (2, 0x10)))?)
+    }
+
+    pub fn may_require_advanced_codecs(self) -> bool {
+        self.wavelet()
+            || matches!(
+                self,
+                Self::JpegLsLossless | Self::JpegLsNearLossless | Self::JpegExtended
+            )
+    }
+
     pub(crate) fn from_uid(uid: &str) -> Result<Self> {
         use TransferSyntax::*;
         match uid.strip_prefix("1.2.840.10008.1.2") {
@@ -150,7 +165,7 @@ pub enum Object {
 }
 
 impl Object {
-    fn from_uid(uid: &str) -> Self {
+    pub(crate) fn from_uid(uid: &str) -> Self {
         match uid.strip_prefix("1.2.840.10008.5.1.4.1.1.") {
             Some("1" | "1.1" | "1.1.1" | "1.3" | "1.3.1") => Self::Projection,
             Some("3" | "3.1" | "6" | "6.1") => Self::Ultrasound,
@@ -233,6 +248,10 @@ pub struct Frame {
 
 impl Frame {
     pub fn texture16(&self, options: RenderOptions) -> bool {
+        self.texture16_with_voi(options, None)
+    }
+
+    pub fn texture16_with_voi(&self, options: RenderOptions, voi: Option<&Voi>) -> bool {
         if self.format.columns > 4096 || self.format.rows > 4096 {
             return false;
         }
@@ -242,8 +261,8 @@ impl Frame {
         let Modality::Linear { slope, intercept } = display.modality else {
             return false;
         };
-        let window = options.window.or(match display.voi {
-            Voi::Window { window } => Some(window),
+        let window = options.window.or(match voi.unwrap_or(&display.voi) {
+            Voi::Window { window } => Some(*window),
             _ => None,
         });
         let Some(window) = window else {
@@ -268,6 +287,14 @@ impl Frame {
     }
 
     pub fn render_rgba(&self, options: RenderOptions) -> Result<Vec<u8>> {
+        self.render_rgba_with_voi(options, None)
+    }
+
+    pub fn render_rgba_with_voi(
+        &self,
+        options: RenderOptions,
+        voi: Option<&Voi>,
+    ) -> Result<Vec<u8>> {
         if let Some(window) = options.window {
             window.validate()?;
         }
@@ -275,10 +302,13 @@ impl Frame {
         match &self.samples {
             Samples::Monochrome(values) => {
                 let display = self.display.as_ref().ok_or(Error::Internal)?;
-                for &value in values {
-                    rgba.extend_from_slice(&display.rgb(value, options));
-                    rgba.push(255);
-                }
+                let map = display.rgba_mapper(
+                    self.format,
+                    options,
+                    voi.unwrap_or(&display.voi),
+                    values.len(),
+                );
+                rgba.extend(values.iter().flat_map(|&v| map(v)));
             }
             Samples::Color { space, values } => {
                 for &pixel in values.as_chunks::<3>().0 {
@@ -355,6 +385,7 @@ pub struct Session {
     frames: VecDeque<Arc<Frame>>,
     memory: Memory,
     staged: Option<(usize, Vec<u8>)>,
+    proved: Option<VerifiedFrame>,
     #[cfg(not(target_arch = "wasm32"))]
     reader: Option<Arc<crate::NativeFile>>,
 }
@@ -431,10 +462,43 @@ impl Session {
         expected_sha256: Option<&str>,
     ) -> Result<Self> {
         let (index, file) = DetachedIndex::open(bytes, pin, limits, expected_sha256)?;
-        let mut session = Self::inspect_file(file, limits, Some(index))?;
+        let mut session = Self::inspect_file(file, limits, Some(Index::Detached(index)))?;
         session.memory.source_read_bytes = 0;
         session.memory.frame_index_input_bytes = bytes.len();
         Ok(session)
+    }
+
+    pub fn open_frame_proof(
+        packet: Vec<u8>,
+        pin: &str,
+        revision: &str,
+        frame: usize,
+        limits: Limits,
+        expected_sha256: Option<&str>,
+    ) -> Result<Self> {
+        let (index, file, verified) =
+            ProofIndex::open(packet, pin, revision, frame, limits, expected_sha256)?;
+        let mut session = Self::inspect_file(file, limits, Some(Index::Proof(index)))?;
+        session.memory.source_read_bytes = 0;
+        session.proved = Some(verified);
+        Ok(session)
+    }
+
+    pub fn create_frame_proofs(&self, revision: &str) -> Result<FrameProofCatalog> {
+        let Some(Index::Encapsulated { fragments, frames }) = self.index.as_deref() else {
+            return Err(Error::Unsupported(
+                "frame proof generation requires a complete encapsulated source",
+            ));
+        };
+        FrameProofCatalog::new(Arc::clone(&self.file), fragments, frames, revision)
+    }
+
+    pub fn stage_frame_proof(&mut self, frame: usize, packet: Vec<u8>) -> Result<()> {
+        let Some(Index::Proof(index)) = self.index.as_deref() else {
+            return Err(Error::InvalidRequest("source has no proof pin"));
+        };
+        self.proved = Some(index.stage(packet, frame)?);
+        Ok(())
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -480,7 +544,7 @@ impl Session {
         self.staged = None;
     }
 
-    fn inspect_file(file: File, limits: Limits, detached: Option<DetachedIndex>) -> Result<Self> {
+    fn inspect_file(file: File, limits: Limits, detached: Option<Index>) -> Result<Self> {
         let d = &file.dataset;
         let object = Object::from_uid(&file.class_uid);
         let video = file.syntax.video();
@@ -524,19 +588,20 @@ impl Session {
         } else {
             None
         };
-        let verification = if detached.is_some() {
-            "pinned_frame_index"
-        } else {
-            "full_source"
+        let (verification, detached_count) = match detached.as_ref() {
+            Some(Index::Detached(index)) => ("pinned_frame_index", index.len()),
+            Some(Index::Proof(index)) => ("pinned_frame_proof", index.count),
+            None => ("full_source", 0),
+            _ => return Err(Error::Internal),
         };
         let index = if let Some(index) = detached {
             if format.is_none_or(|format| !file.syntax.supports(format))
-                || frames != index.len()
+                || frames != detached_count
                 || !object.is_image()
             {
                 return Err(Error::Integrity("indexed frame metadata"));
             }
-            Some(Index::Detached(index))
+            Some(index)
         } else {
             match format {
                 Some(format) if file.syntax.supports(format) => {
@@ -618,6 +683,7 @@ impl Session {
             frames: VecDeque::new(),
             memory,
             staged: None,
+            proved: None,
             #[cfg(not(target_arch = "wasm32"))]
             reader: None,
         })
@@ -631,8 +697,120 @@ impl Session {
         &self.info
     }
 
+    pub fn series_description(&self) -> Option<&str> {
+        self.file.dataset.text(&self.file.bytes, (8, 0x103e))
+    }
+
+    /// In a host-registered reference space, find a unique in-bounds parallel plane.
+    pub fn locate_patient(
+        &self,
+        point: PatientPoint,
+        reference: &str,
+        normal: [f64; 3],
+    ) -> Result<Option<(usize, PixelPoint)>> {
+        let length = dot(normal, normal);
+        if !point.0.iter().all(|value| value.is_finite())
+            || (length - 1.0).abs() > 0.001
+            || !length.is_finite()
+        {
+            return Err(Error::InvalidRequest("patient point and plane normal"));
+        }
+        if self.frame_of_reference() != Some(reference)
+            || !self.info.capabilities.patient_coordinates
+        {
+            return Ok(None);
+        }
+        let format = self.access(0)?;
+        let mut result = None;
+        let mut distance = f64::INFINITY;
+        let mut ambiguous = false;
+        for index in 0..self.info.frames {
+            let Some(plane) = self.geometry(index)?.patient_plane else {
+                continue;
+            };
+            if dot(plane.normal(), normal).abs() < 0.9999 {
+                continue;
+            }
+            let (pixel, offset) = plane.project(point);
+            let error = offset.abs();
+            if error > 0.25
+                || pixel.x < -0.5
+                || pixel.x >= f64::from(format.columns) - 0.5
+                || pixel.y < -0.5
+                || pixel.y >= f64::from(format.rows) - 0.5
+            {
+                continue;
+            }
+            if (error - distance).abs() < 1e-6 {
+                ambiguous = true;
+            } else if error < distance {
+                result = Some((index, pixel));
+                distance = error;
+                ambiguous = false;
+            }
+        }
+        Ok(if ambiguous { None } else { result })
+    }
+
     pub fn memory(&self) -> &Memory {
         &self.memory
+    }
+
+    pub fn voi_alternatives(&self, index: usize) -> Result<Vec<VoiAlternative>> {
+        let format = self.access(index)?;
+        let (data, scope) = scoped_group(&self.file, index, (0x28, 0x9132));
+        Ok(if format.photometric.is_monochrome() {
+            let signed = if data.get((0x28, 0x3010)).is_some() {
+                let modality = read_modality(
+                    &self.file,
+                    format,
+                    groups(&self.file, index, (0x28, 0x9145)),
+                )?;
+                voi_signed(format, &modality)
+            } else {
+                format.signed
+            };
+            voi_alternatives(&self.file, data, scope, signed)
+        } else {
+            Vec::new()
+        })
+    }
+
+    pub fn select_voi(&self, index: usize, selection: VoiSelection) -> Result<Voi> {
+        let format = self.access(index)?;
+        if !format.photometric.is_monochrome() {
+            return Err(Error::InvalidRequest("VOI requires a monochrome frame"));
+        }
+        let signed = if matches!(selection, VoiSelection::Lut(_)) {
+            let modality = read_modality(
+                &self.file,
+                format,
+                groups(&self.file, index, (0x28, 0x9145)),
+            )?;
+            voi_signed(format, &modality)
+        } else {
+            format.signed
+        };
+        selected_voi(
+            &self.file,
+            groups(&self.file, index, (0x28, 0x9132)),
+            signed,
+            selection,
+        )
+    }
+
+    pub fn modality_unit(&self, index: usize) -> Result<Option<&'static str>> {
+        let format = self.access(index)?;
+        let data = groups(&self.file, index, (0x28, 0x9145));
+        Ok((format.photometric.is_monochrome()
+            && matches!(self.info.object, Object::Ct | Object::EnhancedCt)
+            && data.text(&self.file.bytes, (0x28, 0x1054)) == Some("HU")
+            && data.get((0x28, 0x3000)).is_none()
+            && data
+                .ds::<1>(&self.file, (0x28, 0x1053))
+                .is_some_and(|[s]| s != 0.0)
+            && data.ds::<1>(&self.file, (0x28, 0x1052)).is_some())
+        .then_some("HU"))
     }
 
     pub fn read_frame(&mut self, index: usize) -> Result<Arc<Frame>> {
@@ -658,6 +836,13 @@ impl Session {
         self.memory.cached_frames = self.frames.len();
         let decoded = self.decode(index, format);
         self.staged = None;
+        if self
+            .proved
+            .as_ref()
+            .is_some_and(|frame| frame.index == index)
+        {
+            self.proved = None;
+        }
         let (frame, copied, read_bytes) = decoded?;
         let frame = Arc::new(frame);
         self.memory.decoded_frames += 1;
@@ -699,7 +884,24 @@ impl Session {
         let codec = self.index.as_ref().ok_or(Error::Internal)?;
         #[allow(unused_mut)]
         let mut read_bytes = 0;
-        let (samples, copied) = if let Index::Detached(table) = codec.as_ref() {
+        let (samples, copied) = if let Index::Proof(_) = codec.as_ref() {
+            let proof = self
+                .proved
+                .as_ref()
+                .filter(|frame| frame.index == index)
+                .ok_or(Error::FrameRange(index))?;
+            let jpeg = proof.jpeg();
+            read_bytes = proof.packet.len();
+            let copied = if matches!(&jpeg, std::borrow::Cow::Owned(_)) {
+                jpeg.len()
+            } else {
+                0
+            };
+            (
+                decode_jpeg(&jpeg, format, TransferSyntax::JpegBaseline)?,
+                copied,
+            )
+        } else if let Index::Detached(table) = codec.as_ref() {
             if let Some((frame, bytes)) = &self.staged
                 && *frame == index
             {
@@ -753,6 +955,7 @@ impl Session {
             frames: VecDeque::new(),
             memory: self.memory.clone(),
             staged: None,
+            proved: None,
             #[cfg(not(target_arch = "wasm32"))]
             reader: self.reader.clone(),
         }
@@ -938,12 +1141,21 @@ fn read_format(file: &File, object: Object, limits: Limits) -> Result<PixelForma
 }
 
 pub(crate) fn groups(file: &File, index: usize, key: Key) -> &Dataset {
+    scoped_group(file, index, key).0
+}
+
+fn scoped_group(file: &File, index: usize, key: Key) -> (&Dataset, VoiScope) {
     let d = &file.dataset;
     d.sequence((0x5200, 0x9230))
         .and_then(|s| s.get(index))
         .and_then(|f| f.one(key))
-        .or_else(|| d.one((0x5200, 0x9229)).and_then(|f| f.one(key)))
-        .unwrap_or(d)
+        .map(|group| (group, VoiScope::Frame))
+        .or_else(|| {
+            d.one((0x5200, 0x9229))
+                .and_then(|f| f.one(key))
+                .map(|group| (group, VoiScope::Shared))
+        })
+        .unwrap_or((d, VoiScope::Instance))
 }
 
 pub(crate) fn frame_geometry(

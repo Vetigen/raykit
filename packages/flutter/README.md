@@ -32,4 +32,4 @@ Local file sessions read through a Rust-owned descriptor. For an indexed JPEG Ba
 
 The default viewer uses the reference CPU rendering path. `RayKitDisplayMode.shader` can select the packed 16-bit path after a runtime precision probe. The standalone example exposes both modes for device A/B measurement.
 
-The RayKit project license is pending. See `notices/inventory.json` for the dependencies included in a native build.
+RayKit uses Apache-2.0. See `LICENSE` and `notices/inventory.json` in the native package.

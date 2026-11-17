@@ -1,0 +1,25 @@
+{
+  "android": {
+    "target": "android-arm64",
+    "mode": "profile",
+    "android_sdk": 36,
+    "ndk": "28.2.13676358",
+    "flutter": "3.44.9",
+    "rust": "1.97.1",
+    "apk_bytes": 34081815,
+    "apk_sha256": "02407d9932d0a3db7c3bcc43aa57444e69ef7f807bf9c8110dd34180e55c0567",
+    "ffi_elf": "AArch64",
+    "shader_bytes": 12672,
+    "fixture_hashes": {
+      "comparison-ct.dcm": "bd7d9b180fa3cc398faa048c5fea6a6b28d71ebd4e4f2f6340254dd095a35090",
+      "comparison-mr-t1.dcm": "61df8eb3bcda57130fc5fe3d909e0517cb3bb4cbec4216cbd1d1d869182c809c",
+      "comparison-mr-t2.dcm": "c15f7cf27c4533cafe3ae24f06845e4666c3814d962ea9866571216761a973ff",
+      "cine-350.dcm": "fa5e98aeb4fa9fd05211b838f1d4601537a91db840bf187b6c876a1f6b745594"
+    }
+  },
+  "core_target_checks": {
+    "aarch64-apple-ios": "FFI, Rust 1.97.1",
+    "aarch64-apple-darwin": "FFI and CLI, Rust 1.97.1",
+    "x86_64-pc-windows-gnu": "FFI and CLI, Rust 1.99.0"
+  }
+}

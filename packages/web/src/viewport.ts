@@ -27,8 +27,12 @@ export class RaykitViewport extends EventTarget {
   readonly #resize: ResizeObserver;
   readonly #enableGPU: boolean;
   #gpu?: WebGlRenderer;
+  #gpuAttempts = 0;
+  #gpuUnavailable = false;
   #session?: RaykitSession;
+  #releaseSession?: () => void;
   #frame?: Frame;
+  #publicFrame?: Frame;
   #undrawn?: Frame;
   #wanted?: number;
   #latest?: { index: number; resolve(): void; reject(error: unknown): void };
@@ -39,6 +43,7 @@ export class RaykitViewport extends EventTarget {
   #paint?: AbortController;
   #cpuFrame?: Frame;
   #cpuSettings?: string;
+  #preparedRgba?: { frame: Frame; settings: string };
   #mapping?: { session: RaykitSession; key: string; transform: ViewTransform };
   #view: ViewSettings = defaults;
   #render: RenderOptions = {};
@@ -62,16 +67,36 @@ export class RaykitViewport extends EventTarget {
     document.addEventListener('visibilitychange', this.#visibility);
   }
 
-  get frame(): Frame | undefined { return this.#frame; }
+  get frame(): Frame | undefined {
+    const frame = this.#frame;
+    if (!frame || frame.encoding !== 'mono_i16_le') return frame;
+    if (!this.#publicFrame) {
+      let pixels: Uint8Array<ArrayBuffer> | undefined;
+      this.#publicFrame = { ...frame, encoding: 'mono_i32_le', get pixels() {
+        if (!pixels) {
+          const raw = new DataView(frame.pixels.buffer, frame.pixels.byteOffset, frame.pixels.byteLength);
+          pixels = new Uint8Array(raw.byteLength * 2);
+          const words = new DataView(pixels.buffer);
+          const bias = frame.format.signed ? 0 : 32768;
+          for (let i = 0; i < raw.byteLength; i += 2) words.setInt32(i * 2, raw.getInt16(i, true) + bias, true);
+        }
+        return pixels;
+      } };
+    }
+    return this.#publicFrame;
+  }
   get session(): RaykitSession | undefined { return this.#session; }
   get presented(): PresentedFrame | undefined { return this.#presented; }
   get view(): ViewSettings { return this.#view; }
   get renderOptions(): RenderOptions { return this.#render; }
   get textureBytes(): number { return this.#gpu?.textureBytes ?? 0; }
+  get displayStats() { return { gpuAttempts: this.#gpuAttempts, textureBytes: this.textureBytes,
+    uploads: this.#gpu?.uploads ?? 0, uploadBytes: this.#gpu?.uploadBytes ?? 0,
+    textureAllocations: this.#gpu?.textureAllocations ?? 0 }; }
 
   async load(source: Source, options: OpenOptions = {}): Promise<RaykitSession> {
     if (this.#disposed) throw new RaykitError('closed');
-    this.close();
+    this.#clear(true);
     const scope = this.#scope;
     const signal = options.signal;
     const abort = () => scope.abort();
@@ -80,14 +105,42 @@ export class RaykitViewport extends EventTarget {
     try {
       const session = await open(source, { ...options, signal: scope.signal });
       if (scope.signal.aborted) { session.close(); throw new RaykitError('cancelled'); }
-      this.#session = session;
-      if (session.inspection.capabilities.frame_access) await this.showFrame(0, session.inspection.verification !== 'pinned_frame_index');
+      this.#bind(session, () => session.close());
+      if (session.inspection.capabilities.frame_access) await this.showFrame(session.firstFrame, session.inspection.verification === 'full_source');
       if (scope.signal.aborted) throw new RaykitError('cancelled');
       return session;
     } catch (error) {
       if (scope === this.#scope) this.close();
       throw error;
     } finally { signal?.removeEventListener('abort', abort); }
+  }
+
+  /** Attach another panel without reading, verifying or opening the source again. */
+  async attach(session: RaykitSession, options: { frame?: number; view?: ViewSettings; render?: RenderOptions } = {}): Promise<void> {
+    if (this.#disposed) throw new RaykitError('closed');
+    const release = session.retain();
+    this.#clear(true);
+    const scope = this.#scope;
+    this.#bind(session, release);
+    if (options.view) this.setView(options.view);
+    if (options.render) this.setRenderOptions(options.render);
+    try {
+      if (session.inspection.capabilities.frame_access) await this.showFrame(options.frame ?? session.firstFrame, false);
+      if (scope.signal.aborted) throw new RaykitError('cancelled');
+    } catch (error) {
+      if (scope === this.#scope) this.close();
+      throw error;
+    }
+  }
+
+  #bind(session: RaykitSession, release: () => void): void {
+    this.#session = session;
+    const revoked = () => this.close();
+    session.addEventListener('closed', revoked);
+    this.#releaseSession = () => {
+      session.removeEventListener('closed', revoked);
+      release();
+    };
   }
 
   async showFrame(index: number, prefetch = true, settings?: FrameSettings): Promise<void> {
@@ -146,9 +199,12 @@ export class RaykitViewport extends EventTarget {
     const seek = this.#seek = new AbortController();
     const previous = this.#frame?.source.frame ?? index;
     try {
-      const frame = await session.readFrame(index, { output: this.#enableGPU ? 'stored' : 'rgba', signal: seek.signal });
+      const render = settings?.render ?? this.#render;
+      const frame = await session.readFrame(index, { output: this.#enableGPU ? 'stored16' : 'rgba',
+        render, fallbackVoi: true, signal: seek.signal });
       if (seek.signal.aborted || session !== this.#session) throw new RaykitError('cancelled');
       if (settings) { this.#view = settings.view; this.#render = settings.render; }
+      this.#preparedRgba = frame.encoding === 'rgba8' ? { frame, settings: JSON.stringify(frameRender(frame, render)) } : undefined;
       this.#undrawn = frame;
       await this.#draw(frame, session);
       if (seek.signal.aborted || session !== this.#session) throw new RaykitError('cancelled');
@@ -185,7 +241,7 @@ export class RaykitViewport extends EventTarget {
     this.#paint?.abort();
     const scope = this.#paint = new AbortController();
     const view = { ...this.#view, viewport };
-    const render = this.#render;
+    const render = frameRender(frame, this.#render);
     try {
       const key = JSON.stringify([view, frame.format.columns, frame.format.rows, frame.geometry.display_spacing_xy]);
       const transform = this.#mapping?.session === session && this.#mapping.key === key ? this.#mapping.transform
@@ -198,23 +254,25 @@ export class RaykitViewport extends EventTarget {
         if (canvas.width !== w) canvas.width = w;
         if (canvas.height !== h) canvas.height = h;
       }
-      await nextPaint();
-      if (scope.signal.aborted) return;
       let gpu = false;
-      try { gpu = this.#gpu?.draw(frame, transform, viewport, render) ?? false; }
-      catch (error) { this.#report(error); }
+      if (this.#gpu?.supports(frame, render)) {
+        await nextPaint();
+        if (scope.signal.aborted) return;
+        try { gpu = this.#gpu?.draw(frame, transform, viewport, render) ?? false; }
+        catch (error) { this.#report(error); }
+      }
       if (!gpu) {
         const settings = JSON.stringify(render);
         if (this.#cpuFrame !== frame || settings !== this.#cpuSettings) {
-          const rgba = frame.encoding === 'rgba8' && settings === '{}'
+          const rgba = this.#preparedRgba?.frame === frame && this.#preparedRgba.settings === settings
             ? frame.pixels : await session.render(frame.source.frame, render, scope.signal);
           if (scope.signal.aborted) return;
           this.#cpu.setPixels(frame, rgba);
           this.#cpuFrame = frame;
           this.#cpuSettings = settings;
-          await nextPaint();
-          if (scope.signal.aborted) return;
         }
+        await nextPaint();
+        if (scope.signal.aborted) return;
         this.#cpu.draw(transform, viewport);
       }
       this.#gpuCanvas.hidden = !gpu;
@@ -223,6 +281,7 @@ export class RaykitViewport extends EventTarget {
       const presented: PresentedFrame = { source: frame.source, revision: session.revision, requestId: frame.requestId,
         view, render, transform, renderer: gpu ? 'webgl2' : 'cpu', quality: 'original', time: performance.now() };
       this.#undrawn = undefined;
+      if (this.#frame !== frame) this.#publicFrame = undefined;
       this.#frame = frame;
       this.#presented = presented;
       this.dispatchEvent(new CustomEvent<PresentedFrame>('presented', { detail: presented }));
@@ -234,10 +293,12 @@ export class RaykitViewport extends EventTarget {
   setView(view: ViewSettings): void {
     this.#view = { pan: [...view.pan], zoom: Math.max(0.01, Math.min(128, view.zoom)), quarter_turns: (view.quarter_turns % 4 + 4) % 4 };
     this.#redraw();
+    this.dispatchEvent(new Event('viewchange'));
   }
 
   setRenderOptions(render: RenderOptions): void {
-    this.#render = { ...render, window: render.window ? { ...render.window } : render.window };
+    this.#render = { ...render, window: render.window ? { ...render.window } : render.window,
+      voi: render.voi ? { ...render.voi } : render.voi };
     this.#redraw();
   }
 
@@ -258,10 +319,10 @@ export class RaykitViewport extends EventTarget {
 
   async samplePresented(x: number, y: number): Promise<Sample> {
     const session = this.#session;
-    const presented = this.#presented;
-    if (!session || !presented) throw new RaykitError('closed', 'No presented frame');
-    const sample = await session.sample(presented.source.frame, x, y, this.#scope.signal);
-    if (presented !== this.#presented || session !== this.#session) throw new RaykitError('cancelled');
+    const frame = this.#frame;
+    if (!session || !frame || !this.#presented) throw new RaykitError('closed', 'No presented frame');
+    const sample = await session.sample(frame.source.frame, x, y, this.#scope.signal);
+    if (frame !== this.#frame || session !== this.#session || !this.#presented) throw new RaykitError('cancelled');
     return sample;
   }
 
@@ -303,7 +364,9 @@ export class RaykitViewport extends EventTarget {
 
   pause(): void { this.#playing++; }
 
-  close(): void {
+  close(): void { this.#clear(false); }
+
+  #clear(keepGraphics: boolean): void {
     this.pause();
     this.#scope.abort();
     this.#scope = new AbortController();
@@ -313,16 +376,23 @@ export class RaykitViewport extends EventTarget {
     this.#wanted = undefined;
     this.#undrawn = undefined;
     this.#redrawRequested = false;
-    this.#session?.close();
+    const release = this.#releaseSession;
+    this.#releaseSession = undefined;
     this.#session = undefined;
+    release?.();
     this.#frame = undefined;
+    this.#publicFrame = undefined;
     this.#presented = undefined;
     this.#cpuFrame = undefined;
+    this.#preparedRgba = undefined;
     this.#mapping = undefined;
     this.#view = defaults;
     this.#render = {};
-    this.#gpu?.dispose();
-    this.#gpu = undefined;
+    if (keepGraphics) this.#gpu?.clearFrame();
+    else {
+      this.#gpu?.dispose();
+      this.#gpu = undefined;
+    }
     for (const canvas of [this.#gpuCanvas, this.#cpuCanvas]) {
       canvas.hidden = true;
       canvas.width = canvas.height = 1;
@@ -343,9 +413,10 @@ export class RaykitViewport extends EventTarget {
   }
 
   #initGPU(): void {
-    if (!this.#enableGPU || this.#gpu) return;
+    if (!this.#enableGPU || this.#gpu || this.#gpuUnavailable) return;
+    this.#gpuAttempts++;
     try { this.#gpu = new WebGlRenderer(this.#gpuCanvas); }
-    catch { /* The CPU reference renderer has its own canvas. */ }
+    catch { this.#gpuUnavailable = true; }
   }
 
   #redraw(): void {
@@ -362,11 +433,15 @@ export class RaykitViewport extends EventTarget {
   #gpuLost = (event: Event) => {
     event.preventDefault();
     this.#gpu = undefined;
+    this.#gpuUnavailable = true;
     this.#report(new RaykitError('gpu_lost'));
     this.#redraw();
   };
 
-  #gpuRestored = () => this.#redraw();
+  #gpuRestored = () => {
+    this.#gpuUnavailable = false;
+    this.#redraw();
+  };
 
   #visibility = () => {
     this.#hidden = document.hidden;
@@ -378,4 +453,13 @@ export class RaykitViewport extends EventTarget {
     this.#undrawn = undefined;
     this.#presented = undefined;
   };
+}
+
+function frameRender(frame: Frame, render: RenderOptions): RenderOptions {
+  if (render.quantitative && !frame.quantitative_scale) return { ...render, quantitative: undefined };
+  const voi = render.voi;
+  if (voi && !frame.views?.some(view => view.selection.kind === voi.kind && view.selection.index === voi.index)) {
+    return { ...render, voi: undefined };
+  }
+  return render;
 }

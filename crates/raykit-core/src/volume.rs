@@ -19,6 +19,7 @@ const SLICE_CACHE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_MPR_WORK: usize = 32 * 1024 * 1024;
 const MAX_VOLUME_FRAMES: usize = 4096;
 const GEOMETRY_TOLERANCE_MM: f64 = 0.001;
+const MIP_BLOCK: usize = 16;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Acquisition {
@@ -67,6 +68,9 @@ pub struct Volume {
 #[derive(Default)]
 struct SliceCache {
     slices: VecDeque<(usize, Vec<f32>)>,
+    block_maxima: VecDeque<(usize, Vec<f32>)>,
+    mip_block_hits: u64,
+    mip_blocks_built: u64,
     decoded: u64,
     hits: u64,
     peak: usize,
@@ -79,6 +83,9 @@ pub struct VolumeMemory {
     pub peak_slice_cache_bytes: usize,
     pub decoded_slices: u64,
     pub slice_cache_hits: u64,
+    pub mip_block_hits: u64,
+    pub mip_blocks_built: u64,
+    pub mip_block_bytes: usize,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -405,15 +412,20 @@ impl Volume {
         let bytes = self.slice_bytes();
         VolumeMemory {
             slice_cache_limit_bytes: self.slice_slots() * bytes,
-            slice_cache_bytes: cache.slices.len() * bytes,
+            slice_cache_bytes: (cache.slices.len() + cache.block_maxima.len()) * bytes,
             peak_slice_cache_bytes: cache.peak * bytes,
             decoded_slices: cache.decoded,
             slice_cache_hits: cache.hits,
+            mip_block_hits: cache.mip_block_hits,
+            mip_blocks_built: cache.mip_blocks_built,
+            mip_block_bytes: cache.block_maxima.len() * bytes,
         }
     }
 
     pub fn evict(&self) {
-        self.cache.borrow_mut().slices.clear();
+        let mut cache = self.cache.borrow_mut();
+        cache.slices.clear();
+        cache.block_maxima.clear();
     }
 
     fn voxel_delta(&self, delta: [f64; 3]) -> [f64; 3] {
@@ -444,6 +456,15 @@ impl Volume {
     }
 
     fn read_slice<'a>(&self, at: usize, cache: &'a mut SliceCache) -> Result<&'a [f32]> {
+        self.read_slice_reserved(at, cache, 0)
+    }
+
+    fn read_slice_reserved<'a>(
+        &self,
+        at: usize,
+        cache: &'a mut SliceCache,
+        scratch: usize,
+    ) -> Result<&'a [f32]> {
         let last = cache.slices.len().checked_sub(1);
         if let Some(last) = last
             && cache.slices[last].0 == at
@@ -459,14 +480,16 @@ impl Volume {
             let hit = cache.slices.remove(pos).ok_or(Error::Internal)?;
             cache.slices.push_back(hit);
         } else {
-            if cache.slices.len() == self.slice_slots() {
+            while cache.slices.len() + cache.block_maxima.len() + scratch >= self.slice_slots() {
                 cache.slices.pop_front();
             }
             let (source, frame) = self.slices[at];
             let values = self.sources[source].modality_slice(frame)?;
             cache.slices.push_back((at, values));
             cache.decoded += 1;
-            cache.peak = cache.peak.max(cache.slices.len());
+            cache.peak = cache
+                .peak
+                .max(cache.slices.len() + cache.block_maxima.len() + scratch);
         }
         Ok(&cache.slices.back().ok_or(Error::Internal)?.1)
     }
@@ -574,6 +597,10 @@ impl Volume {
             self.voxel_delta(normal),
         ];
         let lengths = [cols as usize, rows as usize, offsets.len()];
+        let mip = self.aligned_mip(request, sampling, origin, steps, &offsets);
+        if mip.is_none() {
+            self.cache.borrow_mut().block_maxima.clear();
+        }
         let extent = |axis: usize| {
             steps[axis][2]
                 * match axis {
@@ -640,12 +667,59 @@ impl Volume {
             values: vec![f32::NAN; count],
             average: matches!(request.slab, Slab::Average { .. })
                 .then(|| (vec![0.0; count], vec![0; count])),
+            mip,
         })
+    }
+
+    fn aligned_mip(
+        &self,
+        request: &Reslice,
+        sampling: Sampling,
+        origin: [f64; 3],
+        steps: [[f64; 3]; 3],
+        offsets: &[f64],
+    ) -> Option<std::ops::Range<usize>> {
+        if !matches!(request.slab, Slab::Maximum { .. })
+            || sampling != Sampling::Nearest
+            || request.dimensions != self.metadata.dimensions[..2]
+            || self.slice_bytes() > 1024 * 1024
+            || self.slice_slots() < 4
+            || origin[0].abs() > 1e-7
+            || origin[1].abs() > 1e-7
+            || steps[0][2] != 0.0
+            || steps[1][2] != 0.0
+            || [
+                steps[0][0] - 1.0,
+                steps[0][1],
+                steps[1][0],
+                steps[1][1] - 1.0,
+                steps[2][0],
+                steps[2][1],
+            ]
+            .iter()
+            .any(|v| v.abs() > 1e-10)
+        {
+            return None;
+        }
+        let max = (self.slices.len() - 1) as f64;
+        let mut slices: Vec<_> = offsets
+            .iter()
+            .map(|offset| origin[2] + steps[2][2] * offset)
+            .filter(|&z| (-1e-6..=max + 1e-6).contains(&z))
+            .map(|z| z.clamp(0.0, max).round() as usize)
+            .collect();
+        slices.sort_unstable();
+        slices.dedup();
+        let (&start, &end) = (slices.first()?, slices.last()?);
+        (slices.len() >= MIP_BLOCK * 2 && slices.len() == end - start + 1).then_some(start..end + 1)
     }
 
     pub fn advance_reslice(&self, work: &mut ResliceWork) -> Result<bool> {
         if !Arc::ptr_eq(&self.id, &work.id) {
             return Err(Error::Integrity("reslice volume"));
+        }
+        if work.mip.is_some() {
+            return self.advance_aligned_mip(work);
         }
         let mut cache = self.cache.borrow_mut();
         let mut remaining = 32_768usize;
@@ -695,6 +769,54 @@ impl Volume {
             }
         }
         Ok(work.band == work.end_band)
+    }
+
+    fn advance_aligned_mip(&self, work: &mut ResliceWork) -> Result<bool> {
+        let span = work.mip.as_mut().ok_or(Error::Internal)?;
+        let mut cache = self.cache.borrow_mut();
+        for _ in 0..4 {
+            let Some(slice) = span.next() else { break };
+            if slice % MIP_BLOCK != 0 || span.len() + 1 < MIP_BLOCK {
+                accumulate_max(&mut work.values, self.read_slice(slice, &mut cache)?);
+                continue;
+            }
+            span.start += MIP_BLOCK - 1;
+            if let Some(i) = cache.block_maxima.iter().position(|(id, _)| *id == slice) {
+                let hit = cache.block_maxima.remove(i).ok_or(Error::Internal)?;
+                accumulate_max(&mut work.values, &hit.1);
+                cache.block_maxima.push_back(hit);
+                cache.mip_block_hits += 1;
+                continue;
+            }
+            while cache.block_maxima.len() >= self.slice_slots() / 2 {
+                cache.block_maxima.pop_front();
+            }
+            while cache.slices.len() + cache.block_maxima.len() >= self.slice_slots() {
+                cache.slices.pop_front();
+            }
+            let mut maximum = vec![f32::NAN; work.values.len()];
+            for at in slice..slice + MIP_BLOCK {
+                accumulate_max(&mut maximum, self.read_slice_reserved(at, &mut cache, 1)?);
+            }
+            accumulate_max(&mut work.values, &maximum);
+            cache.block_maxima.push_back((slice, maximum));
+            cache.peak = cache
+                .peak
+                .max(cache.slices.len() + cache.block_maxima.len());
+            cache.mip_blocks_built += 1;
+            break;
+        }
+        let complete = span.start >= span.end;
+        if complete {
+            work.band = work.end_band;
+        }
+        Ok(complete)
+    }
+}
+
+fn accumulate_max(output: &mut [f32], source: &[f32]) {
+    for (out, &value) in output.iter_mut().zip(source) {
+        *out = out.max(value);
     }
 }
 
@@ -752,6 +874,7 @@ pub struct ResliceWork {
     column: usize,
     values: Vec<f32>,
     average: Option<(Vec<f64>, Vec<u16>)>,
+    mip: Option<std::ops::Range<usize>>,
 }
 
 impl ResliceWork {

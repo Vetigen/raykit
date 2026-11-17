@@ -1,5 +1,84 @@
 # Imaging benchmark
 
+## Standalone delivery
+
+Use Node.js 22.12 or later, `uv`, Flutter and compatible local Chromium. The examples and these probes use generated DICOM files and loopback HTTP. Set `RAYKIT_CHROMIUM` if using a system Chromium. Run from the checkout root.
+
+```sh
+npm ci
+npm run fixtures
+npm run fixtures:delivery
+npm run package:local
+npm run package:native
+npm run build -w @raykit/example-web
+mkdir -p benchmarks/results
+node tests/packaged-workflows.mjs
+RAYKIT_PREP_REPEATS=6 RAYKIT_NATIVE_EVIDENCE_DIR=benchmarks/results/delivery-native \
+  node tests/native-delivery.mjs > benchmarks/results/native.json
+node tests/web-delivery.mjs > benchmarks/results/web.json
+RAYKIT_COMPARISON_REPEATS=12 node tests/web-comparison.mjs > benchmarks/results/layouts.json
+RAYKIT_REMOTE_REPEATS=6 node benchmarks/remote-proof.mjs > benchmarks/results/remote.json
+```
+
+The comparison probe checks stored samples, both RGBA hashes, the recovered ruler record and a single source read and decode for each panel count. The reference comes from pydicom's independent RLE decoder, VOI computation and DICOM pixel spacing. The package probe feeds CLI and Node proof packets to the web example and compares the CT sample with NumPy and the native viewer. The live probe exercises duplicate and late events, reconnect, frozen frame identity and physically calibrated original binding. [Independent CT reference](evidence/comparison-reference.json), [Panel trials](evidence/delivery-comparison.json), [Native consumers](evidence/delivery-native.json), [Proof, tiles and live](evidence/delivery-web.json), [Desktop](evidence/delivery-desktop.json)
+
+Set `RAYKIT_BASELINE_SDK` to the `dist` directory from a previously built `f128339` web package. `RAYKIT_WEB_DIST` defaults to the local scalar split build. Build with `npm run build:web -- --simd` and preserve that `dist` directory separately if measuring the SIMD candidate. Restore the scalar package with `npm run build:web`. Run the engine arms on the same host and renderer with otherwise idle cores. The report identifies the actual Worker, viewport and WASM artifacts by SHA-256.
+
+```sh
+RAYKIT_BASELINE_SDK=/path/to/f128339/dist RAYKIT_SIMD_DIST=/path/to/simd/dist \
+  RAYKIT_DELIVERY_REPEATS=6 node benchmarks/delivery.mjs > benchmarks/results/delivery.json
+npm run benchmark:build
+RAYKIT_FIXTURES=benchmark-signed12.dcm RAYKIT_ENGINES=raykit,webgpu \
+  RAYKIT_REPEATS=8 RAYKIT_CINE_REPEATS=1 npm run benchmark
+```
+
+For the Flutter profile runner, build the acceptance entry point on Linux. It uses source-timed cine followed by a four-panel transition. Run the separate installed-package checks for offline open, exact seek, background/resume, shared leases and references.
+
+```sh
+cd examples/flutter
+flutter build linux --profile -t lib/acceptance.dart \
+  --dart-define=RAYKIT_COMMIT=COMMIT_SHA --dart-define=RAYKIT_SOAK_SECONDS=600
+cd ../..
+node benchmarks/flutter-linux-profile.mjs > benchmarks/results/flutter-profile.json
+```
+
+RayKit reports application drawing events. These clocks exclude physical screen refresh, device capture delay, and audience interpretation. The remote run reports preparation and trusted pin acquisition separately from the requested image bodies and the first verified draw. Its 24 ms application delay and 10 MiB/s loopback are controlled conditions. Device and specialist acceptance is documented in the [support matrix](../docs/support.md) and [paired comparison protocol](../docs/clinical-comparison.md).
+
+### Verified results
+
+Chromium 131.0.6778.33 ran on the same Linux Ryzen 9 9900X host with a 640 × 512 drawing surface and SwiftShader. Each arm used six fresh browser processes. The table gives median and p95 in milliseconds. The first-image clock starts with a ready `File`. W/L timings include the table, output buffer and paint tick. [Timed runs and artifact hashes](evidence/delivery-imaging.json)
+
+| Workload | Earlier `f128339` | Split scalar |
+| --- | ---: | ---: |
+| Signed first frame, WebGL2 | 33.1 / 65.2 | 25.1 / 33.2 |
+| Same viewport and source reopened, WebGL2 | 32.3 / 65.3 | 27.1 / 32.0 |
+| Signed first frame, CPU | 67.3 / 139.4 | 57.0 / 67.7 |
+| 350-frame cine first original, WebGL2 | 43.1 / 70.3 | 41.5 / 44.7 |
+| 2048px linear W/L, CPU, 72 changes | 66.6 / 90.9 | 16.6 / 16.8 |
+| 2048px sigmoid W/L, CPU, 72 changes | 83.5 / 99.3 | 16.6 / 18.4 |
+| Exact cine seeks, CPU, 36 selections | 33.3 / 33.4 | 16.6 / 26.0 |
+| First JPEG-LS open and read, including codec startup | 14.1 / 22.2 | 24.1 / 68.9 |
+| 40 mm aligned 512² nearest MIP, first 3 planes | 686.2 / 693.7 | 41.4 / 43.0 |
+| 40 mm aligned 512² nearest MIP, next 12 planes | 672.7 / 848.4 | 18.7 / 19.6 |
+
+The CPU 35 fps run drew 60 then 70 frames in two seconds at the median, with 9 then 0 skipped. The WebGL2 median drew 70 in both arms. In the scalar arm, the p95 was 4 WebGL2 skips. Exact WebGL2 seek p95 was 16.8 then 18.2 ms. The 40 mm MIP values matched byte for byte. Its active modality cache, including summary planes, stayed within 16 MiB. The general oblique and trilinear paths keep their existing sampling behavior. A separate 40-input scrub run against `dacd04d` showed 1 then 19 distinct intermediate frames at the median. Release p95 was 17 then 25 ms in that run. [Scrub and memory trials](evidence/delivery-scrub.json)
+
+The baseline WASM was 1,817,582 bytes in the timed split build. The selected JS and WASM assets listed in the evidence total 546,433 bytes with gzip before the first advanced codec request, compared with 603,956 bytes in the earlier package. The JPEG-LS fixture triggered the separate 2,231,206-byte advanced WASM. The HTTP correctness run also checked recovery after a failed download and refusal of a mismatched engine. The scalar build remains the default. SIMD improved some of the cine timings in this profile. The WebGPU candidate's eight signed-radiograph opens had a cold median/p95 of 24.4/33.9 ms, with 26.5/33.3 on WebGL2 in that paired run. The same-page medians were 30.7 and 23.1 ms respectively. [Codec requests](evidence/delivery-web.json), [WebGPU candidate](evidence/delivery-webgpu.json)
+
+The comparison fixture is 9,899,384 bytes. Across 12 CPU trials per layout, opening and drawing every panel took 31.8/36.8 ms for one, 31.3/48.1 for two and 38.2/47.1 for four. The reader and decoder each ran once in all 36 trials. The decoded cache held 1 MiB. Each panel got its own 1 MiB RGBA output copy. The final panel release closed the session. [Panel trials](evidence/delivery-comparison.json)
+
+| Remote source profile | Image responses | Body bytes to first original | Verified draw median / p95 (ms) |
+| --- | ---: | ---: | ---: |
+| Complete file | 1 | 9,766,844 | 993.6 / 1,013.0 |
+| Flat index and first range | 2 | 66,198 | 97.5 / 100.5 |
+| Frame proof packet | 1 | 28,000 | 63.6 / 64.6 |
+
+The remote timings begin with the pin ready. Each arm had six trials. The separate 201-byte pin fetch took about 26 ms at the median in this setup. Six local CLI runs measured 19.2/20.1 ms for flat index preparation and 18.6/19.0 ms for the first proof. Producing all 350 packets, including writes, took 2.25/2.91 seconds and 10,086,220 bytes. The complete tiled projection took 512.5/922.7 ms and 16,782,295 bytes to prepare. The first tested region straddled four tile boundaries and read 1,053,655 bytes including the manifest. Its output and measurement agreed with the original. [Network timings](evidence/delivery-remote.json), [Preparation trials](evidence/delivery-native.json), [Boundary tests](evidence/delivery-web.json)
+
+The Linux Flutter development profile lasted 600.01 foreground seconds. It recorded 20,827 drawn cine frames and 172 skips, then reached exact frames 349, 300, 251 and 202 on four panels. The first and last minute draw interval p95 values were 33.8 and 34.1 ms. CPU and packed shader window p95 values were 33.9 and 17.3 ms for the same chart. Sampled RSS was 180 MiB before, 538 MiB at the sampled high point during the run, and 567 MiB immediately after panel close. The post-close process RSS includes retained allocations. Separate widget tests verify that the native handle count returns to its starting value. [Profile run](evidence/delivery-flutter-profile.json)
+
+## Historical browser and renderer comparisons
+
 Each repetition launches a fresh browser process and page for the cold opening. The warm opening uses the same page with a new viewport and a fresh source. The runner checks the generated Part 10 file against the fixture SHA-256 before handing a `File` to any engine. Module import and fixture preparation each have their own elapsed time. The first-original and full-series timers share the instant the `File` is ready.
 
 ```sh
@@ -54,7 +133,7 @@ RAYKIT_WASM_VARIANT=simd RAYKIT_ENGINES=raykit npm run benchmark
 npm run build:web
 ```
 
-The baseline omits JPEG Extended 12-bit, JPEG-LS and the wavelet codecs. Comparing it with the full build estimates the cost of transferring the advanced codecs up front. The SIMD build tests Rust compiler auto-vectorization. Each command rebuilds the generated web bindings. The final command restores the default package. `browserCapabilities()` reports browser SIMD and shared memory independently. The default web package uses one scalar worker per loaded source.
+The baseline-only build omits JPEG Extended 12-bit, JPEG-LS and the wavelet codecs. Use `npm run build:web -- --eager` to put those codecs in the first WASM module. The default entry loads a smaller baseline engine, then imports the version-matched advanced module for files that require it. The SIMD build tests Rust compiler auto-vectorization. Each command rebuilds the generated web bindings. The final command restores the default package. `browserCapabilities()` reports browser SIMD and shared memory independently. The default web package uses one scalar worker per loaded source.
 
 The native heap example records requested Rust heap bytes before, during and after each cold frame decode. The frame cache is cleared between samples. Peak bytes above the retained allocation estimate transient decoder work. The counters exclude allocator overhead and the operating system's allocation behavior.
 
@@ -256,7 +335,7 @@ The historical WASM profiles used Rust 1.99.0 and wasm-bindgen 0.2.128. The late
 | Full scalar | 1,646,268 | 536,812 | 43.8 / 49.3 ms | 252.8 / 255.9 ms | 12.4 ms |
 | Full SIMD experiment | 1,655,496 | 541,470 | 47.1 / 49.8 ms | 249.7 / 252.5 ms | 9.1 ms |
 
-Bundling the advanced codecs added 414,393 raw bytes, or 153,250 bytes with gzip. The historical local opening results were similar across the codec profiles. The binary-size difference estimates what a lazy codec download could defer on first opening a baseline image. A real lazy-load transport and network-constrained measurements are future experiments. SIMD reduced first-cine worker time in this run. The standard package uses the portable scalar worker. [Baseline comparison](evidence/wasm-baseline.json), [SIMD comparison](evidence/wasm-simd.json)
+Bundling the advanced codecs in that build added 414,393 raw bytes, or 153,250 bytes with gzip. The historical local opening results were similar across the codec profiles. The standalone delivery above measures the split transport separately. SIMD reduced first-cine worker time in this historical run. The standard package uses the portable scalar worker. [Baseline comparison](evidence/wasm-baseline.json), [SIMD comparison](evidence/wasm-simd.json)
 
 The measured DWV and Cornerstone3D main chunks were 876,379 and 3,304,442 bytes, or 238,446 and 929,456 bytes with gzip. Those chunks have separate worker and codec assets. The raw benchmark evidence lists the emitted chunks and the document's resource observations.
 

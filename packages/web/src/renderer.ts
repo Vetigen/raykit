@@ -11,6 +11,7 @@ const fragment = `#version 300 es
 precision highp float;
 precision highp int;
 uniform highp isampler2D monoTx;
+uniform int sampleBias;
 uniform sampler2D colorTx;
 uniform bool mono;
 uniform bool ybr;
@@ -29,7 +30,7 @@ out vec4 rgba;
 
 bool isPadding(int v) { return padded && v >= padding.x && v <= padding.y; }
 float sampleMono(ivec2 pos, float fallback) {
-  int value = texelFetch(monoTx, pos, 0).r;
+  int value = texelFetch(monoTx, pos, 0).r + sampleBias;
   return isPadding(value) ? fallback : float(value);
 }
 vec3 sampleColor(ivec2 pos) {
@@ -52,7 +53,7 @@ void main() {
       mix(sampleColor(ivec2(a.x, b.y)), sampleColor(b), k.x), k.y);
     return;
   }
-  int nearest = texelFetch(monoTx, ivec2(floor(p + 0.5)), 0).r;
+  int nearest = texelFetch(monoTx, ivec2(floor(p + 0.5)), 0).r + sampleBias;
   if (isPadding(nearest)) return;
   float fallback = float(nearest);
   float v = mix(mix(sampleMono(a, fallback), sampleMono(ivec2(b.x, a.y), fallback), k.x),
@@ -82,9 +83,13 @@ function compile(gl: WebGL2RenderingContext, kind: number, source: string): WebG
 type GpuWindow = { center: number; width: number; fn: number; negative: boolean };
 function storedWindow(frame: Frame, options: RenderOptions): GpuWindow | null {
   const display = frame.display;
+  if (options.quantitative) return null;
   if (!display) return { center: 0, width: 1, fn: 0, negative: false };
   if (display.modality.kind !== 'linear') return null;
-  const window = options.window ?? (display.voi.kind === 'window' ? display.voi.window : null);
+  const choice = options.voi;
+  const window = options.window ?? (choice
+    ? frame.views?.find(view => view.selection.kind === choice.kind && view.selection.index === choice.index)?.window
+    : display.voi.kind === 'window' ? display.voi.window : null);
   if (!window) return null;
   const { slope, intercept } = display.modality;
   const fn = window.function === 'sigmoid' ? 2 : window.function === 'linear_exact' ? 1 : 0;
@@ -105,12 +110,18 @@ export class WebGlRenderer {
   readonly #mono: WebGLTexture;
   readonly #color: WebGLTexture;
   readonly #uniforms = new Map<string, WebGLUniformLocation | null>();
+  readonly #textureLimit: number;
   #frame?: Frame;
+  #storage?: string;
+  uploads = 0;
+  uploadBytes = 0;
+  textureAllocations = 0;
 
   constructor(readonly canvas: HTMLCanvasElement) {
     const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false });
     if (!gl) throw new RaykitError('gpu_lost', 'WebGL2 context unavailable');
     this.#gl = gl;
+    this.#textureLimit = Math.min(4096, gl.getParameter(gl.MAX_TEXTURE_SIZE));
     const program = gl.createProgram();
     const mono = gl.createTexture();
     const color = gl.createTexture();
@@ -138,7 +149,7 @@ export class WebGlRenderer {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      if (index === 0) gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32I, 1, 1, 0, gl.RED_INTEGER, gl.INT, new Int32Array([0]));
+      if (index === 0) gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16I, 1, 1, 0, gl.RED_INTEGER, gl.SHORT, new Int16Array([0]));
       else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array(3));
     }
     gl.uniform1i(this.#uniform('monoTx'), 0);
@@ -151,10 +162,30 @@ export class WebGlRenderer {
   }
 
   get textureBytes(): number {
-    if (!this.#frame) return 7;
+    if (!this.#frame) return 6;
     const { columns, rows } = this.#frame.format;
     // RGB8 can be stored by drivers in four bytes per pixel.
-    return columns * rows * 4 + 7;
+    return isMono(this.#frame) ? columns * rows * 2 + 4 : columns * rows * 4 + 2;
+  }
+
+  clearFrame(): void {
+    const frame = this.#frame;
+    this.#frame = undefined;
+    this.#storage = undefined;
+    const gl = this.#gl;
+    if (!frame || gl.isContextLost()) return;
+    const mono = isMono(frame);
+    gl.activeTexture(mono ? gl.TEXTURE0 : gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, mono ? this.#mono : this.#color);
+    if (mono) gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16I, 1, 1, 0, gl.RED_INTEGER, gl.SHORT, null);
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, null);
+  }
+
+  supports(frame: Frame, options: RenderOptions): boolean {
+    const { columns, rows, bits_stored } = frame.format;
+    return !this.#gl.isContextLost() && columns <= this.#textureLimit && rows <= this.#textureLimit
+      && (isMono(frame) ? bits_stored <= 16 : frame.encoding === 'rgb8' || frame.encoding === 'ybr_full8')
+      && !!storedWindow(frame, options);
   }
 
   draw(frame: Frame, view: ViewTransform, viewport: readonly [number, number], options: RenderOptions): boolean {
@@ -162,35 +193,54 @@ export class WebGlRenderer {
     if (gl.isContextLost()) throw new RaykitError('gpu_lost');
     const window = storedWindow(frame, options);
     const { columns: w, rows: h } = frame.format;
-    const mono = frame.encoding === 'mono_i32_le';
-    const isColor = frame.encoding === 'rgb8' || frame.encoding === 'ybr_full8';
-    if (!window || (!mono && !isColor) || w > gl.getParameter(gl.MAX_TEXTURE_SIZE) || h > gl.getParameter(gl.MAX_TEXTURE_SIZE)) return false;
+    const mono = isMono(frame);
+    const bias = mono && !frame.format.signed ? 32768 : 0;
+    if (!window || !this.supports(frame, options)) return false;
     if (this.#frame !== frame) {
+      const storage = [w, h, mono].join(':');
+      const reuse = this.#storage === storage;
       if (mono) {
         const view = new DataView(frame.pixels.buffer, frame.pixels.byteOffset, frame.pixels.byteLength);
         const count = w * h;
-        if (view.byteLength !== count * 4) throw new RaykitError('integrity', 'Stored pixel buffer length');
-        const data = littleEndian && frame.pixels.byteOffset % 4 === 0
-          ? new Int32Array(frame.pixels.buffer, frame.pixels.byteOffset, count)
-          : Int32Array.from({ length: count }, (_, i) => view.getInt32(i * 4, true));
+        const packed = frame.encoding === 'mono_i16_le';
+        if (view.byteLength !== count * (packed ? 2 : 4)) throw new RaykitError('integrity', 'Stored pixel buffer length');
+        const data = packed && littleEndian && frame.pixels.byteOffset % 2 === 0
+          ? new Int16Array(frame.pixels.buffer, frame.pixels.byteOffset, count)
+          : Int16Array.from({ length: count }, (_, i) => packed ? view.getInt16(i * 2, true) : view.getInt32(i * 4, true) - bias);
         gl.activeTexture(gl.TEXTURE0);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32I, w, h, 0, gl.RED_INTEGER, gl.INT, data);
-        gl.activeTexture(gl.TEXTURE1);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, null);
+        if (reuse) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RED_INTEGER, gl.SHORT, data);
+        else {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16I, w, h, 0, gl.RED_INTEGER, gl.SHORT, data);
+          if (this.#frame && !isMono(this.#frame)) {
+            gl.activeTexture(gl.TEXTURE1);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, null);
+          }
+        }
+        this.uploadBytes += data.byteLength;
       } else {
         if (frame.pixels.byteLength !== w * h * 3) throw new RaykitError('integrity', 'Stored color buffer length');
         gl.activeTexture(gl.TEXTURE1);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, w, h, 0, gl.RGB, gl.UNSIGNED_BYTE, frame.pixels);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32I, 1, 1, 0, gl.RED_INTEGER, gl.INT, null);
+        if (reuse) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGB, gl.UNSIGNED_BYTE, frame.pixels);
+        else {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, w, h, 0, gl.RGB, gl.UNSIGNED_BYTE, frame.pixels);
+          if (this.#frame && isMono(this.#frame)) {
+            gl.activeTexture(gl.TEXTURE0);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16I, 1, 1, 0, gl.RED_INTEGER, gl.SHORT, null);
+          }
+        }
+        this.uploadBytes += frame.pixels.byteLength;
       }
       if (gl.getError() !== gl.NO_ERROR) throw new RaykitError('gpu_lost', 'Texture upload failed');
       this.#frame = frame;
+      this.#storage = storage;
+      this.uploads++;
+      if (!reuse) this.textureAllocations++;
     }
     const sx = this.canvas.width / viewport[0], sy = this.canvas.height / viewport[1];
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     gl.useProgram(this.#program);
     gl.uniform1i(this.#uniform('mono'), +mono);
+    gl.uniform1i(this.#uniform('sampleBias'), bias);
     gl.uniform1i(this.#uniform('ybr'), +(frame.encoding === 'ybr_full8'));
     gl.uniform2i(this.#uniform('size'), w, h);
     gl.uniform2f(this.#uniform('canvasSize'), this.canvas.width, this.canvas.height);
@@ -222,6 +272,10 @@ export class WebGlRenderer {
     this.#gl.deleteTexture(this.#color);
     this.#frame = undefined;
   }
+}
+
+function isMono(frame: Frame): boolean {
+  return frame.encoding === 'mono_i32_le' || frame.encoding === 'mono_i16_le';
 }
 
 export class CpuRenderer {

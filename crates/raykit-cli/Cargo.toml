@@ -1,0 +1,19 @@
+[package]
+name = "raykit-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "raykit"
+path = "src/main.rs"
+
+[dependencies]
+raykit-core = { workspace = true, features = ["advanced-codecs"] }
+raykit-protocol.workspace = true
+serde_json.workspace = true
+clap = { version = "=4.6.7", features = ["derive"] }
+png = "=0.18.1"
+tempfile = "=3.27.0"

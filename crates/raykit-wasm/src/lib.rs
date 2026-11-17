@@ -1,4 +1,4 @@
-use raykit_protocol::{BoundSession, OpenOptions, Reply, error_json};
+use raykit_protocol::{BoundSession, BoundTiles, OpenOptions, Reply, error_json};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -18,6 +18,27 @@ impl WasmReply {
 
 fn failure(error: raykit_core::Error) -> JsValue {
     JsValue::from_str(&error_json(&error))
+}
+
+#[wasm_bindgen]
+pub fn codec_hint(prefix: &[u8]) -> u8 {
+    raykit_core::TransferSyntax::part10_prefix(prefix).map_or(0, |syntax| match syntax {
+        raykit_core::TransferSyntax::JpegExtended => 0,
+        syntax if syntax.may_require_advanced_codecs() => 2,
+        _ => 1,
+    })
+}
+
+#[wasm_bindgen]
+pub fn engine_version() -> String {
+    option_env!("RAYKIT_ENGINE_VERSION")
+        .unwrap_or("unversioned")
+        .into()
+}
+
+#[wasm_bindgen]
+pub fn advanced_codecs() -> bool {
+    cfg!(feature = "advanced-codecs")
 }
 
 #[wasm_bindgen]
@@ -74,6 +95,29 @@ impl WasmSession {
         self.session.source_bytes()
     }
 
+    pub fn open_proof(
+        packet: Box<[u8]>,
+        pin: &str,
+        revision: &str,
+        frame: usize,
+        options: &str,
+    ) -> Result<Self, JsValue> {
+        let settings = OpenOptions::parse(options.as_bytes()).map_err(failure)?;
+        let (session, reply) =
+            BoundSession::open_proof(packet.into_vec(), pin, revision, frame, settings)
+                .map_err(failure)?;
+        Ok(Self {
+            session,
+            inspection: reply.metadata,
+        })
+    }
+
+    pub fn stage_proof(&mut self, frame: usize, packet: Box<[u8]>) -> Result<(), JsValue> {
+        self.session
+            .stage_proof(frame, packet.into_vec())
+            .map_err(failure)
+    }
+
     pub fn frame_range(&self, index: usize) -> Result<Box<[u32]>, JsValue> {
         let range = self.session.frame_range(index).map_err(failure)?;
         Ok(Box::new([
@@ -124,5 +168,36 @@ pub fn linear_memory_bytes() -> usize {
     #[cfg(not(target_arch = "wasm32"))]
     {
         0
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmTiles(BoundTiles);
+
+#[wasm_bindgen]
+impl WasmTiles {
+    #[wasm_bindgen(constructor)]
+    pub fn new(bytes: &[u8], pin: &str, revision: &str) -> Result<WasmTiles, JsValue> {
+        BoundTiles::open(bytes, pin, revision)
+            .map(Self)
+            .map_err(failure)
+    }
+    pub fn info(&self) -> Result<String, JsValue> {
+        self.0.info().map_err(failure)
+    }
+    pub fn need(&mut self, rect: &str) -> Result<Box<[u32]>, JsValue> {
+        self.0
+            .need(rect.as_bytes())
+            .map(|indices| indices.into_iter().map(|i| i as u32).collect())
+            .map_err(failure)
+    }
+    pub fn stage(&mut self, index: usize, bytes: Box<[u8]>) -> Result<(), JsValue> {
+        self.0.stage(index, bytes.into_vec()).map_err(failure)
+    }
+    pub fn request(&mut self, command: &str) -> Result<WasmReply, JsValue> {
+        self.0
+            .request(command.as_bytes())
+            .map(WasmReply)
+            .map_err(failure)
     }
 }

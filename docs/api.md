@@ -1,5 +1,67 @@
 # Developer API
 
+## Named views and comparison
+
+Call `session.views(frame)` or read `frameInfo(frame).views`. A device alternative carries an original index, label and scope. Select it with `{ voi: {kind: 'window', index: 1} }` or the corresponding LUT selector. Manual windows use `window`. The original VOI remains the default. When a panel moves to a frame without the selected alternative, it displays that frame's default. Direct render calls report invalid selections. [DICOM VOI LUT Module](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.2.html)
+
+Apply panel-only display settings independently from pan, magnification and frame selection. A shared source can have one, two or four panels. Open and verify it once, then call `viewport.attach(session, {frame, render})` or use `RayKitSource.attached(session)` with `RayKitComparison`. Each panel owns a lease on the original session. A normal owner close releases one reference. `session.revoke()` invalidates all remaining panels and terminates the worker or native session. Keep leases in the original access context and open a fresh session for a new authorization or revision.
+
+`sampleAt` includes source identity, pixel geometry and the patient point when defined. CT reports HU for a valid declared HU rescale. A verified real-world mapping provides a coded quantity and UCUM unit. The quantitative display uses the mapped range and the hot palette. Padding and values outside the declared mapping domain are masked. Ultrasound preserves the decoded RGB/YBR raster, including any embedded palette legend. Supported spectral regions expose axes from the reference pixel, delta and unit. Color pixels without a declared mapping carry their channel values. [CT transformation](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.8.15.3.10.html), [Real-world mapping](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.16.2.html), [US region calibration](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.8.5.5.html)
+
+For cross-series MR, supply a host-verified common-space registration pinned to the two source hashes and revisions. `registerPair` on web and `RayKitComparison.registration` on Flutter check the displayed sources. `locatePatient` then requires a unique in-bounds parallel plane within 0.25 mm. Ambiguous, shifted or independently oriented acquisitions remain individually navigable. CT panels showing one source share its exact frame and pixel centers.
+
+## Custom Worker
+
+The `@raykit/web/worker` subpath is a dedicated module-worker entry. Import it inside the worker and pass the factory to `open`. The host can inspect, decode, render a preview, sample and measure without creating a viewport. The entry speaks the same protocol as the packaged Worker. Close the session when the worker or its source is retired.
+
+```ts
+// custom-worker.ts
+import '@raykit/web/worker';
+
+// host.ts
+const session = await open(localFile, {
+  signal,
+  workerFactory: () => new Worker(new URL('./custom-worker.ts', import.meta.url), { type: 'module' }),
+});
+try {
+  const frame = await session.readFrame(0, { output: 'rgba', signal });
+  const point = await session.sampleAt(0, 10, 10, signal);
+} finally {
+  session.close();
+}
+```
+
+Caller buffers remain owned by the caller. Source bytes transferred into the worker are owned copies or fresh Blob reads. Output buffers are independently owned. Abort stops delivery and cancels any active range request. Synchronous decoding can finish in the worker after one panel cancels, allowing another lease to use the result. See [the example](../examples/web/src/delivery.ts) for all five operations.
+
+The scalar baseline engine starts with the worker. JPEG-LS, Extended 12-bit JPEG and wavelet sources load a version-matched advanced engine on demand. Failed downloads return `io` and a new open retries in a new worker. A version mismatch returns `integrity`. Serving both WASM assets and their glue from the same build preserves compatibility.
+
+## Single-response frame proofs
+
+Prepare a complete, verified JPEG Baseline source with `raykit frame-index SOURCE --proof-directory DIRECTORY --revision REVISION`. Each zero-based `N.rkp` contains the required DICOM metadata, original encoded frame span and Merkle proof. The source SHA-256, original byte length, revision, frame count, metadata, frame index and fragment boundaries are bound to the root. Store the returned root in an authorized catalog or deliver it over a trusted channel. Treat the packets as source data with the same access restrictions.
+
+```ts
+const source = frameProofHttp('/study/frame-proofs/', { rootSha256, revision }, { firstFrame: 0 });
+const session = await viewport.load(source, { expected_sha256: fullSourceSha256 });
+```
+
+The worker fetches the first requested packet and verifies it before it can present the original. Subsequent packets are loaded on demand. `pinned_frame_proof` records this verification mode. Keep `indexedHttp` and `indexedBlob` for flat indexes. When the trusted identity consists of the full-source SHA-256, open the full source with that pin. Dependent streams retain host decoder keyframe requirements.
+
+## Tiled projections
+
+`raykit tiles SOURCE --frame 0 --directory DIRECTORY --revision REVISION` prepares a monochrome projection from a verified full source. It writes independent lossless stored sample tiles and a pinned manifest. The source reference, display transform and projection calibration stay attached to that representation. The manifest is written after the tiles. Pass its SHA-256 and revision to `openTiled`. Read a region, sample coordinates or measure through the returned `TiledSession`. `TiledViewport` reads the visible region plus interpolation neighbors, uses a 16 MiB tile cache, and fences fast pan/zoom updates.
+
+Tile preparation decodes the source once and creates derived storage. Ordinary DICOM files continue through the full or indexed frame paths. Static hosts can serve generated tiles and frame proofs with separate authorization. Measurement records from verified tiles reopen against the original full source.
+
+## Live sources and sharing
+
+`ProgressiveSeries` accepts authorized instance revisions with optional acquisition times. `LiveSeries` follows new acquisitions, freezes a current original and keeps a count of unseen members. Add late events with their original identities after reconnect. Acquisition order and volume slice order use distinct inputs.
+
+`LiveViewport` accepts host-decoded frames through an async iterable. `mediaStreamSource` adapts a supplied MediaStream, including one from a WebRTC receiver. `RayKitLiveController` accepts a Dart stream of bounded RGBA images in its monotonic arrival clock. Keep sequences monotonic across reconnects in the same live revision. The application owns and stops its transport or media tracks. Freeze records the last presented frame and survives normal end or temporary disconnect. Age is elapsed local time from arrival. The host can reconnect with missing original instance records.
+
+Original binding needs the exact acquisition and frame identity and an authorized original file pin. A matching clock value alone leaves the preview in its preview state. When a bound file has physical calibration, RayKit can show the exact frame and enable the corresponding measurement tools. Revoke or replace a source by closing its live controller and source session.
+
+The v1 `SharedView` envelope carries instance, frame, content hash, revision, camera and display settings. Each receiver checks its authorization callback and monotonic sequence before applying the request. Transport stays with the application. The Flutter `RayKitSharedView` accepts the same envelope.
+
 ## Sessions and ownership
 
 `inspect` reads a Part 10 source using the same limits and parser as `open`. The inspection reports the image profile, geometry hint and available operations. Opening a source returns an opaque session. `readFrame` takes a zero-based index. `sample` returns the source sample and, for monochrome, the modality value and padding classification. `render` applies the view options to the same stored samples. The distinction affects cine, window changes and measurements.
@@ -33,7 +95,7 @@ HTTP reads send `Range` and `If-Match` for a strong ETag. A `206` must match the
 
 `PixelPoint` is measured from the center of the top-left source sample. `ScreenPoint` uses viewport coordinates. `PatientPoint` uses the DICOM patient space in millimeters. `transform` applies a viewport and returns the source coordinate and, when available, the patient coordinate. Detector spacing can affect display aspect. Physical projection measurements require an explicit calibration type or a corrected pixel spacing that differs from detector spacing. Ultrasound measurements require a single applicable 2D region with length units on both axes. Patient orientation labels depend on the anatomical orientation type and quadruped region. [DICOM Image Plane Module](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.2.html), [Pixel spacing calibration](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_10.7.html), [Ultrasound Regions](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.8.5.5.html)
 
-The monochrome CPU path applies stored bits, modality LUT or scalar rescale, then the first supported VOI window or VOI LUT, presentation polarity and a palette. Padding is kept outside automatic windowing. WebGL2 uses signed integer textures and interpolates reconstructed stored samples before windowing. Modality and VOI LUT display uses the CPU path. CPU drawing scales with nearest-neighbor sampling. Original YBR native samples retain their color-space label; the Baseline JPEG color decoder returns decoded RGB. [DICOM VOI module](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.2.html)
+The monochrome CPU path applies stored bits, a modality LUT or scalar rescale, the selected device VOI or window, presentation polarity and a palette. Large integer frames with narrow stored ranges use a bounded lookup table with the same output as the direct mapper. Padding is kept outside automatic windowing. Fractional MPR samples use the continuous mapper. WebGL2 uses 16-bit integer textures and interpolates reconstructed stored samples before windowing. A viewport reuses its program across source replacement and releases the previous pixel storage before opening the next source. It reuses same-size texture storage across compatible frames. LUT display uses the CPU path. CPU drawing scales with nearest-neighbor sampling. Native YBR samples retain their color-space label. The Baseline JPEG color decoder returns decoded RGB. [DICOM VOI module](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.2.html)
 
 The cine controller uses the timing vector or uniform Frame Time when present. Missing timing uses a 15 fps source cadence. The viewer's speed control scales these intervals. `showFrame` on web and `seek` on Flutter request an exact frame. Continuous input uses `scrubFrame` or `scrub`, with one in-flight visible request and one replaceable target. Superseded pending futures finish with `cancelled`. `settle` stops playback and prioritizes the last target. Flutter's `play()` completes normally when this stop supersedes the active cine draw. Its controls show the active rate, including values supplied by the application. `samplePresented` and point mapping use the matching drawn frame and transform. Dependent MPEG/AVC/HEVC sources can supply a continuous recognized media container to the host decoder. The host supplies frame timing and determines its random-access cost.
 
@@ -43,7 +105,7 @@ The Flutter viewer sends the current W/L with the frame request and retains one 
 
 Open a primary CT/MR source and append any additional files with `addVolumeSource`. Call `volumeCandidates`, choose an available acquisition and pass the candidate index and revision to `buildVolume`. The selection snapshots an affine ordered by patient-plane position. Repeated instance bytes are deduplicated and conflicting content under the same instance UID is rejected. Gaps, unsupported dimensions and incoherent geometry leave the ordinary frame workflow usable. `voxel_bytes` is the logical float32 size. The selected acquisition shares immutable sources and loads only the slices touched by sampling. The 512 × 512 profiles use up to 16 MiB of cached modality slices. An acquisition with wider slices can need two full slices for interpolation. The retained encoded sources, display raster, decoder workspace, reslice scratch arrays and output transfer have separate limits and diagnostics.
 
-`reslice` accepts a patient-space center, size and spacing, and an axial, sagittal, coronal or explicit oblique basis. A sliced traversal reuses interpolation neighbors and yields to cancellation between work units. Only complete results are returned. The result contains its own patient plane and either float32 modality values with NaN for unavailable samples or RGBA for the selected window. The default interpolation is trilinear. `sampling: 'nearest'` selects nearest voxels. Slabs support a sampled average or maximum. One active plane per built acquisition retains unpacked modality values. Window, palette and inversion reuse it. Geometry, output dimensions and spacing, sampling, slab, changed source membership and rebuilding the candidate invalidate it. Check `plane_cache_hits`, `plane_cache_bytes`, `plane_work_bytes`, and `volume` under `stats()`.
+`reslice` accepts a patient-space center, size and spacing, and an axial, sagittal, coronal or explicit oblique basis. A sliced traversal reuses interpolation neighbors and yields to cancellation between work units. Only complete results are returned. The result contains its own patient plane and either float32 modality values with NaN for unavailable samples or RGBA for the selected window. The default interpolation is trilinear. `sampling: 'nearest'` selects nearest voxels. Slabs support a sampled average or maximum. Aligned full-grid nearest-neighbor slabs can reuse block maxima for sufficiently thick MIPs within the existing slice cache budget. One active plane per built acquisition retains unpacked modality values. Window, palette and inversion reuse it. Geometry, output dimensions and spacing, sampling, slab, changed source membership and rebuilding the candidate invalidate it. Check `plane_cache_hits`, `plane_cache_bytes`, `plane_work_bytes`, and `volume` under `stats()`.
 
 | Object | Supported subset |
 | --- | --- |
@@ -53,7 +115,7 @@ Open a primary CT/MR source and append any additional files with `addVolumeSourc
 | Grayscale presentation state | Explicit referenced image or frame, full-frame scale-to-fit area, quarter-turn rotation, presentation polarity and a supported VOI window with an identity modality transform. Graphic annotation, shutters, cropping, flip and presentation LUT sequences are outside this profile. |
 | Encapsulated PDF | The host can retrieve the bounded document and decide how to display it. |
 
-`ProgressiveSeries` accepts ordered updates to a host-authorized manifest and reports present and expected counts. A pinned manifest requires each member's original digest and byte length. Hosts can display a preview labeled with its quality and then open the checked original for measurement. Appending an instance preserves the primary session. `SharedView` relays displayed source revision, frame and view settings across explicitly paired viewports and asks the receiving app to authorize each event. The host supplies the transport. `LiveViewport` draws bounded timestamped preview frames from a host-provided async source and drops stale or out-of-order frames.
+For adding authorized members, binding a frozen preview and relaying a checked frame selection, see [live sources and sharing](#live-sources-and-sharing).
 
 ## Desktop WebViews
 

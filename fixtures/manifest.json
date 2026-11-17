@@ -197,6 +197,51 @@
     },
     "sha256": "dc4e58e408a39db1fe8aeb972f62fba9cc10e0dd72ab01c10faf13d76a923600"
   },
+  "comparison-ct.dcm": {
+    "bytes": 9899384,
+    "expected": {
+      "dimensions": [
+        512,
+        512,
+        300
+      ],
+      "frames": 300,
+      "labels": [
+        "Soft tissue",
+        "Bone"
+      ],
+      "modality_at_point": 448,
+      "patient_point": [
+        179.2,
+        204.8,
+        180.0
+      ],
+      "stored_at_256_256_150": 474,
+      "unit": "HU"
+    },
+    "sha256": "bd7d9b180fa3cc398faa048c5fea6a6b28d71ebd4e4f2f6340254dd095a35090"
+  },
+  "comparison-mr-shifted.dcm": {
+    "bytes": 1554,
+    "expected": {
+      "frames": 3
+    },
+    "sha256": "30fa8f226bb77945c19c0231cde62e73766c7587f0088cf69c8c9a22a0e1fe3e"
+  },
+  "comparison-mr-t1.dcm": {
+    "bytes": 1550,
+    "expected": {
+      "frames": 3
+    },
+    "sha256": "61df8eb3bcda57130fc5fe3d909e0517cb3bb4cbec4216cbd1d1d869182c809c"
+  },
+  "comparison-mr-t2.dcm": {
+    "bytes": 1838,
+    "expected": {
+      "frames": 3
+    },
+    "sha256": "c15f7cf27c4533cafe3ae24f06845e4666c3814d962ea9866571216761a973ff"
+  },
   "detail-signed12.dcm": {
     "bytes": 8389122,
     "expected": {
@@ -287,6 +332,17 @@
       ]
     },
     "sha256": "5c67f3a2db5d05fbf8b37829c1297fe19c2bcf13790eafb6a53d730334099e39"
+  },
+  "dx-voi-alternatives.dcm": {
+    "bytes": 704,
+    "expected": {
+      "frames": 1,
+      "voi_labels": [
+        "VOI LUT 1",
+        "Alternative contrast"
+      ]
+    },
+    "sha256": "3635dbae3ee252db0cfea8bd835058ba286bff918abd31ea40b491fd292ca135"
   },
   "encapsulated-pdf.dcm": {
     "bytes": 750,
@@ -3237,6 +3293,21 @@
       ]
     },
     "sha256": "3b66858de4e8bd6994c4e59c16c6bb849c66379a3d95e0c3ede1691457c20cb7"
+  },
+  "us-spectral.dcm": {
+    "bytes": 800,
+    "expected": {
+      "axis_at_3_2": [
+        0.02,
+        5.0
+      ],
+      "frames": 1,
+      "units": [
+        "s",
+        "cm/s"
+      ]
+    },
+    "sha256": "4596cf6fa386bba753601351699395e503e53039c417f0a6bcea1b0699363f02"
   },
   "us-ybr-422.dcm": {
     "bytes": 470,

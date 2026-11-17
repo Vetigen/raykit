@@ -75,16 +75,20 @@ function state(event: SharedViewEvent): string {
   const window = event.render.window;
   return JSON.stringify([event.source.instance_uid, event.revision, event.source.content_sha256, event.source.frame,
     event.view.pan, event.view.zoom, event.view.quarter_turns, event.render.invert ?? false, event.render.palette ?? 'gray',
-    window ? [window.center, window.width, window.function ?? 'linear'] : null]);
+    window ? [window.center, window.width, window.function ?? 'linear'] : null,
+    event.render.voi ? [event.render.voi.kind, event.render.voi.index] : null, event.render.quantitative ?? false]);
 }
 
 function valid(event: SharedViewEvent): boolean {
   const { view, source, render } = event;
   const window = render?.window;
+  const voi = render?.voi;
   return event.version === 1 && typeof event.origin === 'string' && event.origin.length > 0 && event.origin.length <= 128
     && Number.isSafeInteger(event.sequence) && event.sequence > 0 && !!source && Number.isSafeInteger(source.frame) && source.frame >= 0
     && Array.isArray(view?.pan) && view.pan.length === 2 && view.pan.every(Number.isFinite)
     && Number.isFinite(view.zoom) && view.zoom >= 0.01 && view.zoom <= 128
     && Number.isInteger(view.quarter_turns) && view.quarter_turns >= 0 && view.quarter_turns <= 3
-    && !!render && (!window || Number.isFinite(window.center) && Number.isFinite(window.width) && window.width > 0);
+    && !!render && (!window || !voi && Number.isFinite(window.center) && Number.isFinite(window.width) && window.width > 0)
+    && (!voi || ['window', 'lut'].includes(voi.kind) && Number.isSafeInteger(voi.index) && voi.index >= 0)
+    && (render.quantitative === undefined || typeof render.quantitative === 'boolean' && (!render.quantitative || !voi && !window));
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -11,8 +12,11 @@ class RayKitViewerController {
   RayKitViewerState? _viewer;
   RayKitSession? get session => _viewer?._session;
   RayKitPresentedFrame? get presented => _viewer?._presented;
-  List<Json> get measurements =>
-      List.unmodifiable(_viewer?._measurements ?? []);
+  List<Json> get measurements => List.unmodifiable(
+    (_viewer?._measurements ?? []).map(
+      (record) => jsonDecode(jsonEncode(record)) as Json,
+    ),
+  );
   Json get displayStats => _viewer?._displayStats ?? const {};
 
   RayKitViewerState get _attached =>
@@ -51,7 +55,9 @@ class RayKitViewerController {
     viewer._render = {
       ...options,
       if (options['window'] case final Json window) 'window': Map.of(window),
+      if (options['voi'] case final Json voi) 'voi': Map.of(voi),
     };
+    viewer._preset = null;
     await viewer._redraw();
   }
 
@@ -72,13 +78,18 @@ class RayKitViewerController {
 
   Offset? mapPoint(Offset screen) => _attached._pixel(screen);
 
+  Future<Json> pointAt(Offset pixel) => _attached._sample(pixel);
+
+  Future<void> setSegmentation(Json metadata, Uint8List mask) =>
+      _attached._setSegmentation(metadata, mask);
+
   Future<Json> samplePresented(int x, int y) async {
     final viewer = _attached;
     final session = viewer._session;
     final frame = viewer._presented;
     if (session == null || frame == null) throw const RayKitException('closed');
     final sample = await session.sample(frame.source['frame'] as int, x, y);
-    if (!identical(frame, viewer._presented) ||
+    if (frame.requestId != viewer._presented?.requestId ||
         !identical(session, viewer._session)) {
       throw const RayKitException('cancelled');
     }
@@ -107,6 +118,12 @@ class RayKitViewer extends StatefulWidget {
     this.onPresented,
     this.onMeasurement,
     this.onDocument,
+    this.onSeek,
+    this.onViewChange,
+    this.onSamplePoint,
+    this.initialRender = const {},
+    this.initialFrame = 0,
+    this.onReviewStart,
   });
   final RayKitSource source;
   final RayKitOpenOptions options;
@@ -116,6 +133,12 @@ class RayKitViewer extends StatefulWidget {
   final ValueChanged<RayKitPresentedFrame>? onPresented;
   final ValueChanged<Json>? onMeasurement;
   final ValueChanged<RayKitSession>? onDocument;
+  final Future<void> Function(int index, bool continuous)? onSeek;
+  final ValueChanged<Json>? onViewChange;
+  final void Function(RayKitPresentedFrame frame, Offset pixel)? onSamplePoint;
+  final Json initialRender;
+  final int initialFrame;
+  final VoidCallback? onReviewStart;
 
   @override
   State<RayKitViewer> createState() => RayKitViewerState();
@@ -137,6 +160,141 @@ class RayKitPresentedFrame {
   final Json render;
   final String renderer;
   String get quality => 'original';
+}
+
+/// Applies the v1 RayKit shared-view envelope after the host authorizes it.
+class RayKitSharedView {
+  RayKitSharedView(this.controller, this.origin, this.canAccess);
+  final RayKitViewerController controller;
+  final String origin;
+  final Future<bool> Function(Json event) canAccess;
+  final _received = <String, int>{};
+  final _inFlight = <String, int>{};
+  int _sequence = 0;
+  int _generation = 0;
+  bool _closed = false;
+  bool _applying = false;
+
+  Json? outgoing(RayKitPresentedFrame frame) {
+    if (_closed || _applying || origin.isEmpty || origin.length > 128) {
+      return null;
+    }
+    return {
+      'version': 1,
+      'origin': origin,
+      'sequence': ++_sequence,
+      'source': Map.of(frame.source),
+      'revision': frame.revision,
+      'view': Map.of(frame.view)..remove('viewport'),
+      'render': Map.of(frame.render),
+    };
+  }
+
+  Future<bool> apply(Json incoming) async {
+    Json event;
+    try {
+      final encoded = jsonEncode(incoming);
+      if (encoded.length > 128 * 1024) return false;
+      event = jsonDecode(encoded) as Json;
+    } on JsonUnsupportedObjectError {
+      return false;
+    }
+    final viewer = controller._viewer;
+    final session = viewer?._session;
+    final source = event['source'];
+    final view = event['view'];
+    final render = event['render'];
+    final sender = event['origin'];
+    final sequence = event['sequence'];
+    if (_closed ||
+        viewer == null ||
+        session == null ||
+        event['version'] != 1 ||
+        source is! Json ||
+        view is! Json ||
+        render is! Json ||
+        sender is! String ||
+        sender.isEmpty ||
+        sender.length > 128 ||
+        sender == origin ||
+        sequence is! int ||
+        sequence <= (_received[sender] ?? 0) ||
+        sequence <= (_inFlight[sender] ?? 0) ||
+        !(_received.containsKey(sender) ||
+            _received.length + _inFlight.length < 64) ||
+        event['revision'] != session.revision ||
+        source['instance_uid'] != session.inspection.instanceUid ||
+        source['sop_class_uid'] != session.inspection.data['sop_class_uid'] ||
+        source['content_sha256'] != session.inspection.contentSha256) {
+      return false;
+    }
+    final index = source['frame'];
+    final zoom = view['zoom'];
+    final rotation = view['quarter_turns'];
+    final pan = view['pan'];
+    if (index is! int ||
+        index < 0 ||
+        index >= session.inspection.frames ||
+        zoom is! num ||
+        !zoom.isFinite ||
+        zoom < .01 ||
+        zoom > 128 ||
+        rotation is! int ||
+        rotation < 0 ||
+        rotation > 3 ||
+        pan is! List ||
+        pan.length != 2 ||
+        pan.any((value) => value is! num || !value.isFinite)) {
+      return false;
+    }
+    final generation = ++_generation;
+    _inFlight[sender] = sequence;
+    try {
+      if (!await canAccess(event) ||
+          _closed ||
+          generation != _generation ||
+          viewer != controller._viewer ||
+          session != viewer._session) {
+        return false;
+      }
+      final info = await session.frameInfo(index);
+      if ((info['source'] as Json)['frame_of_reference_uid'] !=
+              source['frame_of_reference_uid'] ||
+          _closed ||
+          generation != _generation ||
+          session != viewer._session) {
+        return false;
+      }
+      _applying = true;
+      viewer._pause();
+      viewer._pan = _readPair(pan);
+      viewer._zoom = zoom.toDouble();
+      viewer._rotation = rotation;
+      viewer._preset = null;
+      viewer._render = {
+        ...render,
+        for (final key in ['window', 'voi'])
+          if (render[key] case final Json value) key: Map.of(value),
+      };
+      await viewer._showFrame(index, prefetch: false);
+      if (_closed ||
+          generation != _generation ||
+          session != viewer._session ||
+          viewer._presented?.source['frame'] != index) {
+        return false;
+      }
+      _received[sender] = sequence;
+      return true;
+    } finally {
+      if (_inFlight[sender] == sequence) _inFlight.remove(sender);
+      if (generation == _generation) _applying = false;
+    }
+  }
+
+  void close() {
+    _closed = true;
+    _generation++;
+  }
 }
 
 enum _Tool {
@@ -179,8 +337,17 @@ enum _Tool {
   final String? projection;
 }
 
+const _presets = {
+  'soft': (label: 'RayKit soft tissue', center: 40, width: 400),
+  'bone': (label: 'RayKit bone', center: 500, width: 2000),
+  'lung': (label: 'RayKit lung', center: -600, width: 1500),
+};
+
 class RayKitViewerState extends State<RayKitViewer> {
   RayKitSession? _session;
+  StreamSubscription<void>? _revoked;
+  Future<void> Function()? _releaseSession;
+  Future<void> Function()? _suspendedLease;
   RayKitFrame? _frame;
   FrameRaster? _image;
   MonochromeShader? _shader;
@@ -212,6 +379,10 @@ class RayKitViewerState extends State<RayKitViewer> {
   double _zoom = 1;
   int _rotation = 0;
   Json _render = {};
+  String? _preset;
+  ({int frame, Offset pixel})? _pointer;
+  ({int frame, FrameRaster raster})? _segmentation;
+  final _hiddenLayers = <String>{};
   bool _loading = true;
   bool _background = false;
   bool _playing = false;
@@ -272,8 +443,12 @@ class RayKitViewerState extends State<RayKitViewer> {
     if (!identical(oldWidget.source, widget.source) ||
         oldWidget.options != widget.options ||
         oldWidget.displayMode != widget.displayMode) {
-      _resumeFrame = 0;
+      _resumeFrame = widget.initialFrame;
       _content = null;
+      if (!identical(oldWidget.source, widget.source)) {
+        unawaited(_suspendedLease?.call());
+        _suspendedLease = null;
+      }
       _run(_open());
     }
   }
@@ -313,17 +488,37 @@ class RayKitViewerState extends State<RayKitViewer> {
     final shaderFuture = widget.displayMode == RayKitDisplayMode.shader
         ? MonochromeShader.available()
         : null;
-    final session = await RayKitSession.open(
-      widget.source,
-      options: widget.options,
-      cancellation: cancellation,
-    );
+    final attached = widget.source.attachedSession;
+    if (attached?.isClosed == true) {
+      setState(() {
+        _loading = false;
+        _status = 'Source closed.';
+      });
+      return;
+    }
+    final session =
+        attached ??
+        await RayKitSession.open(
+          widget.source,
+          options: widget.options,
+          cancellation: cancellation,
+        );
+    final release = attached != null ? session.retain() : session.close;
     final shader = await shaderFuture;
-    if (!mounted || generation != _generation) {
-      await session.close();
+    if (!mounted || generation != _generation || session.isClosed) {
+      await release();
       return;
     }
     _session = session;
+    _releaseSession = release;
+    _revoked = session.revocations.listen((_) {
+      if (!mounted || !identical(_session, session)) return;
+      _run(_retire());
+      setState(() {
+        _loading = false;
+        _status = 'Source closed.';
+      });
+    });
     _shader = shader;
     if (_content != session.inspection.contentSha256) {
       _measurements.clear();
@@ -333,8 +528,10 @@ class RayKitViewerState extends State<RayKitViewer> {
       _pan = Offset.zero;
       _zoom = 1;
       _rotation = 0;
-      _render = {};
-      _resumeFrame = 0;
+      _render = Map.of(widget.initialRender);
+      _pointer = null;
+      _preset = null;
+      _resumeFrame = widget.initialFrame;
     }
     _content = session.inspection.contentSha256;
     final capabilities = session.inspection.capabilities;
@@ -342,6 +539,7 @@ class RayKitViewerState extends State<RayKitViewer> {
       await _showFrame(
         _resumeFrame.clamp(0, session.inspection.frames - 1),
         prefetch:
+            attached == null &&
             session.inspection.data['verification'] != 'pinned_frame_index',
       );
     } else {
@@ -355,6 +553,16 @@ class RayKitViewerState extends State<RayKitViewer> {
         widget.onDocument?.call(session);
       }
     }
+  }
+
+  Future<void> _navigate(int index, {bool continuous = false}) {
+    _pause();
+    return widget.onSeek?.call(index, continuous) ??
+        _showFrame(
+          index,
+          prefetch: widget.source.attachedSession == null,
+          continuous: continuous,
+        );
   }
 
   Future<void> _showFrame(
@@ -416,14 +624,16 @@ class RayKitViewerState extends State<RayKitViewer> {
         stored: false,
         render: settings,
         texture16: _shader != null,
+        fallbackVoi: true,
         cancellation: cancellation,
       );
       cancellation.check();
+      final applied = _appliedRender(frame, settings);
       final uniforms = frame.encoding == 'mono_u16_rg'
-          ? MonochromeShader.uniforms(frame, settings)
+          ? MonochromeShader.uniforms(frame, applied)
           : null;
       final pixels = frame.encoding == 'mono_u16_rg' && uniforms == null
-          ? await session.render(index, settings, cancellation: cancellation)
+          ? await session.render(index, applied, cancellation: cancellation)
           : frame.pixels;
       cancellation.check();
       prepared = await _rasterize(pixels, frame, texture: uniforms != null);
@@ -442,7 +652,8 @@ class RayKitViewerState extends State<RayKitViewer> {
       if (prefetch &&
           _pendingSeek == null &&
           neighbor >= 0 &&
-          neighbor < session.inspection.frames) {
+          neighbor < session.inspection.frames &&
+          widget.source.attachedSession == null) {
         final token = _prefetching = RayKitCancellation();
         unawaited(
           session.prefetch(neighbor, cancellation: token).catchError((_) {}),
@@ -493,17 +704,18 @@ class RayKitViewerState extends State<RayKitViewer> {
     _painting?.cancel();
     final token = _painting = RayKitCancellation();
     final settings = _render;
+    final applied = _appliedRender(frame, settings);
     FrameRaster raster = image;
     var uniforms = _uniforms;
     try {
       if (!identical(settings, _drawnRender)) {
         uniforms = image.texture
-            ? MonochromeShader.uniforms(frame, settings)
+            ? MonochromeShader.uniforms(frame, applied)
             : null;
         if (uniforms == null) {
           final pixels = await session.render(
             frame.index,
-            settings,
+            applied,
             cancellation: token,
           );
           token.check();
@@ -594,13 +806,111 @@ class RayKitViewerState extends State<RayKitViewer> {
         revision: session.revision,
         requestId: frame.requestId,
         view: view,
-        render: settings,
+        render: _appliedRender(frame, settings),
         renderer: raster.texture ? 'shader' : 'cpu',
       );
       _presentations++;
       widget.onPresented?.call(presented);
     });
     await Future.any([done.future, token.cancelled]);
+  }
+
+  Json _appliedRender(RayKitFrame frame, Json render) {
+    if (render['voi'] != null && frame.selectedView(render['voi']) == null) {
+      return Map.of(render)..remove('voi');
+    }
+    if (render['quantitative'] == true && frame.quantitativeScale == null) {
+      return Map.of(render)..remove('quantitative');
+    }
+    return render;
+  }
+
+  void _notifyViewChange() => widget.onViewChange?.call({
+    'pan': [_pan.dx, _pan.dy],
+    'zoom': _zoom,
+    'quarter_turns': _rotation,
+  });
+
+  Future<Json> _sample(Offset pixel) async {
+    final session = _session;
+    final frame = _frame;
+    final presented = _presented;
+    if (session == null ||
+        frame == null ||
+        presented?.requestId != frame.requestId) {
+      throw const RayKitException('closed');
+    }
+    final point = await session.sampleAt(
+      frame.index,
+      (pixel.dx + .5).floor(),
+      (pixel.dy + .5).floor(),
+    );
+    final sample = point['sample'] as Json;
+    if (!mounted ||
+        session != _session ||
+        presented != _presented ||
+        frame != _frame) {
+      throw const RayKitException('cancelled');
+    }
+    setState(() {
+      _pointer = (frame: frame.index, pixel: pixel);
+      _value = sample['kind'] == 'monochrome'
+          ? (sample['padding'] == true
+                ? 'Padding · stored ${sample['stored']}'
+                : 'Stored ${sample['stored']} · ${sample['modality']} ${frame.modalityUnit ?? 'modality'}')
+          : '${sample['space']} ${sample['values']}';
+      if (point['quantitative'] case final Json quantity) {
+        _value +=
+            ' · ${(quantity['quantity'] as Json)['meaning']} '
+            '${quantity['value']} ${(quantity['unit'] as Json)['value']}';
+      }
+      if (point['doppler_axes'] case final Json axes) {
+        _value +=
+            " · Spectral axis ${axes['spectral']} ${axes['spectral_unit']} at ${axes['time']} s";
+      }
+    });
+    return sample;
+  }
+
+  Future<void> _setSegmentation(Json metadata, Uint8List mask) async {
+    final session = _session;
+    final frame = _frame;
+    final source = metadata['source'];
+    if (frame == null ||
+        source is! Json ||
+        source['content_sha256'] != frame.source['content_sha256'] ||
+        source['instance_uid'] != frame.source['instance_uid'] ||
+        source['frame'] != frame.index ||
+        !listEquals(metadata['dimensions'] as List?, [
+          frame.columns,
+          frame.rows,
+        ]) ||
+        mask.length != frame.columns * frame.rows) {
+      throw const RayKitException(
+        'integrity',
+        'Segmentation does not match the active frame',
+      );
+    }
+    if (mask.length > 4 * 1024 * 1024) {
+      throw const RayKitException('limit', 'Overlay pixels');
+    }
+    final colors = Uint8List(mask.length * 4);
+    for (var i = 0; i < mask.length; i++) {
+      if (mask[i] != 0) {
+        colors.setRange(i * 4, i * 4 + 4, const [66, 220, 190, 135]);
+      }
+    }
+    final raster = FrameRaster(
+      await decodeRgba(colors, frame.columns, frame.rows),
+      texture: false,
+    );
+    if (!mounted || frame != _frame || session != _session) {
+      raster.dispose();
+      throw const RayKitException('cancelled');
+    }
+    final old = _segmentation;
+    setState(() => _segmentation = (frame: frame.index, raster: raster));
+    old?.raster.dispose();
   }
 
   Offset? _pixel(Offset screen) {
@@ -631,18 +941,9 @@ class RayKitViewerState extends State<RayKitViewer> {
     final pixel = _pixel(screen);
     if (pixel == null) return;
     if (_tool == _Tool.sample) {
-      final sample = await session.sample(
-        frame.index,
-        pixel.dx.round(),
-        pixel.dy.round(),
-      );
-      if (mounted && session == _session && frame == _frame) {
-        setState(
-          () => _value = sample['kind'] == 'monochrome'
-              ? 'Stored ${sample['stored']}, modality ${sample['modality']}'
-              : '${sample['space']} ${sample['values']}',
-        );
-      }
+      final presented = _presented!;
+      await _sample(pixel);
+      widget.onSamplePoint?.call(presented, pixel);
     } else {
       setState(() => _draft.add(pixel));
     }
@@ -727,18 +1028,25 @@ class RayKitViewerState extends State<RayKitViewer> {
       _zoom = (_initialZoom * details.scale).clamp(0.01, 128.0);
       _pan += focal - last;
       _run(_redraw());
+      _notifyViewChange();
     } else if (_tool == _Tool.window) {
       final display = _frame?.display;
       if (display == null) return;
       final voi = display['voi'] as Json;
       final window =
-          (_render['window'] ?? voi['window'] ?? display['automatic_window'])
+          (_render['window'] ??
+                  _frame?.selectedView(_render['voi'])?['window'] ??
+                  voi['window'] ??
+                  display['automatic_window'])
               as Json;
       final width = (window['width'] as num).toDouble();
       final center = (window['center'] as num).toDouble();
       final delta = focal - last;
+      _preset = null;
       _render = {
-        ..._render,
+        ...(Map.of(_render)
+          ..remove('voi')
+          ..remove('quantitative')),
         'window': {
           ...window,
           'center': center + delta.dy * width / 220,
@@ -950,7 +1258,10 @@ class RayKitViewerState extends State<RayKitViewer> {
     _redrawQueued = false;
     _painting?.cancel();
     _prefetching?.cancel();
-    final session = _session;
+    final release = _releaseSession;
+    _releaseSession = null;
+    unawaited(_revoked?.cancel());
+    _revoked = null;
     final image = _image;
     _session = null;
     _frame = null;
@@ -962,8 +1273,10 @@ class RayKitViewerState extends State<RayKitViewer> {
     _presented = null;
     _presentedTransform = null;
     _editIndex = null;
+    _segmentation?.raster.dispose();
+    _segmentation = null;
     image?.dispose();
-    final current = session?.close();
+    final current = release?.call();
     if (current != null) {
       _retired = Future.wait<void>([_retired, current]);
     }
@@ -973,6 +1286,12 @@ class RayKitViewerState extends State<RayKitViewer> {
   void _suspend() {
     if (_background) return;
     _background = true;
+    final session = _session;
+    if (session != null &&
+        !session.isClosed &&
+        widget.source.attachedSession == session) {
+      _suspendedLease = session.retain();
+    }
     _run(_retire());
     if (mounted) setState(() {});
   }
@@ -980,7 +1299,9 @@ class RayKitViewerState extends State<RayKitViewer> {
   void _resume() {
     if (!_background) return;
     _background = false;
-    _run(_open());
+    final release = _suspendedLease;
+    _suspendedLease = null;
+    _run(_open().whenComplete(() => release?.call()));
   }
 
   @override
@@ -989,6 +1310,8 @@ class RayKitViewerState extends State<RayKitViewer> {
     _lifecycle.dispose();
     _target.dispose();
     _radius.dispose();
+    unawaited(_suspendedLease?.call());
+    _suspendedLease = null;
     unawaited(_retire());
     super.dispose();
   }
@@ -999,102 +1322,204 @@ class RayKitViewerState extends State<RayKitViewer> {
     final count = _session?.inspection.frames ?? 0;
     final image = _image;
     final transform = _transform;
+    final records = _visibleRecords(frame);
     final colorScheme = Theme.of(context).colorScheme;
+    final choice = frame?.selectedView(_render['voi']);
+    final mapping = frame?.quantitativeScale;
+    final displayId = _render['quantitative'] == true && mapping != null
+        ? 'quantitative'
+        : _render['window'] != null
+        ? _preset ?? 'manual'
+        : choice != null
+        ? _voiId(choice)
+        : 'initial';
     final pointLabel = _tool.landmarks.isEmpty
         ? ''
         : _tool.landmarks[_draft.length.clamp(0, _tool.landmarks.length - 1)];
     return Column(
       children: [
+        if (_session?.inspection.seriesDescription case final description?)
+          Text(description, maxLines: 1, overflow: TextOverflow.ellipsis),
         if (widget.showControls)
-          Wrap(
-            spacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              DropdownButton<_Tool>(
-                value: _tool,
-                items: _Tool.values
-                    .map(
-                      (tool) => DropdownMenuItem(
-                        value: tool,
-                        child: Text(tool.label),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (tool) {
-                  if (tool != null) {
-                    if (tool != _Tool.pan && tool != _Tool.window) {
-                      _run(_settle());
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              spacing: 8,
+              children: [
+                DropdownButton<_Tool>(
+                  value: _tool,
+                  items: _Tool.values
+                      .map(
+                        (tool) => DropdownMenuItem(
+                          value: tool,
+                          child: Text(tool.label),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (tool) {
+                    if (tool != null) {
+                      if (tool != _Tool.pan && tool != _Tool.window) {
+                        widget.onReviewStart?.call();
+                        _run(_settle());
+                      }
+                      setState(() {
+                        _tool = tool;
+                        _confirmProjection = false;
+                        _draft.clear();
+                        _editing = null;
+                      });
                     }
-                    setState(() {
-                      _tool = tool;
-                      _confirmProjection = false;
-                      _draft.clear();
-                      _editing = null;
-                    });
-                  }
-                },
-              ),
-              IconButton(
-                tooltip: 'Rotate',
-                onPressed: frame == null
-                    ? null
-                    : () {
-                        _rotation = (_rotation + 1) % 4;
-                        _run(_redraw());
-                      },
-                icon: const Icon(Icons.rotate_right),
-              ),
-              TextButton(
-                onPressed: frame == null
-                    ? null
-                    : () {
-                        _render = {
-                          ..._render,
-                          'invert': _render['invert'] != true,
-                        };
-                        _run(_redraw());
-                      },
-                child: const Text('Invert'),
-              ),
-              DropdownButton<String>(
-                value: _render['palette'] == 'hot' ? 'hot' : 'gray',
-                items: const [
-                  DropdownMenuItem(value: 'gray', child: Text('Gray palette')),
-                  DropdownMenuItem(value: 'hot', child: Text('Hot palette')),
-                ],
-                onChanged: frame == null
-                    ? null
-                    : (value) {
-                        if (value == null) return;
-                        _render = {..._render, 'palette': value};
-                        _run(_redraw());
-                      },
-              ),
-              TextButton(
-                onPressed: frame == null
-                    ? null
-                    : () {
-                        _pan = Offset.zero;
-                        _zoom = 1;
-                        _rotation = 0;
-                        _render = {};
-                        _run(_redraw());
-                      },
-                child: const Text('Reset'),
-              ),
-              if (_tool.method != null) ...[
-                TextButton(
-                  onPressed: _draft.isEmpty
+                  },
+                ),
+                IconButton(
+                  tooltip: 'Rotate',
+                  onPressed: frame == null
                       ? null
-                      : () => setState(() => _draft.removeLast()),
-                  child: const Text('Undo point'),
+                      : () {
+                          _rotation = (_rotation + 1) % 4;
+                          _run(_redraw());
+                          _notifyViewChange();
+                        },
+                  icon: const Icon(Icons.rotate_right),
                 ),
                 TextButton(
-                  onPressed: _draft.isEmpty ? null : () => _run(_calculate()),
-                  child: const Text('Calculate'),
+                  onPressed: frame == null
+                      ? null
+                      : () {
+                          _render = {
+                            ..._render,
+                            'invert': _render['invert'] != true,
+                          };
+                          _run(_redraw());
+                        },
+                  child: const Text('Invert'),
                 ),
+                if (frame != null && frame.display != null)
+                  DropdownButton<String>(
+                    value: displayId,
+                    items: [
+                      const DropdownMenuItem(
+                        value: 'initial',
+                        child: Text('Initial display'),
+                      ),
+                      for (final entry in frame.views)
+                        DropdownMenuItem(
+                          value: _voiId(entry),
+                          child: Text('Device · ${entry['label']}'),
+                        ),
+                      if (frame.modalityUnit == 'HU')
+                        for (final entry in _presets.entries)
+                          DropdownMenuItem(
+                            value: entry.key,
+                            child: Text(entry.value.label),
+                          ),
+                      if (mapping != null)
+                        DropdownMenuItem(
+                          value: 'quantitative',
+                          child: Text(
+                            (mapping['quantity'] as Json)['meaning'] as String,
+                          ),
+                        ),
+                      if (displayId == 'manual')
+                        const DropdownMenuItem(
+                          value: 'manual',
+                          child: Text('Manual window'),
+                        ),
+                    ],
+                    onChanged: (id) {
+                      if (id == null || id == 'manual') return;
+                      final preset = _presets[id];
+                      final view = frame.views
+                          .where((v) => _voiId(v) == id)
+                          .firstOrNull;
+                      _preset = preset != null ? id : null;
+                      _render = {
+                        ...(Map.of(_render)
+                          ..remove('voi')
+                          ..remove('window')
+                          ..remove('quantitative')),
+                        if (view != null) 'voi': view['selection'],
+                        if (id == 'quantitative') 'quantitative': true,
+                        if (preset != null)
+                          'window': {
+                            'center': preset.center,
+                            'width': preset.width,
+                          },
+                      };
+                      _run(_redraw());
+                    },
+                  ),
+                PopupMenuButton<String>(
+                  tooltip: 'Layers',
+                  icon: const Icon(Icons.layers_outlined),
+                  itemBuilder: (_) => [
+                    for (final tool in _Tool.values)
+                      if (tool.method != null)
+                        CheckedPopupMenuItem(
+                          value: tool.method,
+                          checked: !_hiddenLayers.contains(tool.method),
+                          child: Text(tool.label),
+                        ),
+                    CheckedPopupMenuItem(
+                      value: 'segmentation',
+                      checked: !_hiddenLayers.contains('segmentation'),
+                      child: const Text('Segmentation'),
+                    ),
+                    CheckedPopupMenuItem(
+                      value: 'pointer',
+                      checked: !_hiddenLayers.contains('pointer'),
+                      child: const Text('Pointer'),
+                    ),
+                  ],
+                  onSelected: (layer) => setState(() {
+                    if (!_hiddenLayers.remove(layer)) _hiddenLayers.add(layer);
+                  }),
+                ),
+                DropdownButton<String>(
+                  value: _render['palette'] == 'hot' ? 'hot' : 'gray',
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'gray',
+                      child: Text('Gray palette'),
+                    ),
+                    DropdownMenuItem(value: 'hot', child: Text('Hot palette')),
+                  ],
+                  onChanged: frame == null
+                      ? null
+                      : (value) {
+                          if (value == null) return;
+                          _render = {..._render, 'palette': value};
+                          _run(_redraw());
+                        },
+                ),
+                TextButton(
+                  onPressed: frame == null
+                      ? null
+                      : () {
+                          _pan = Offset.zero;
+                          _zoom = 1;
+                          _rotation = 0;
+                          _render = {};
+                          _preset = null;
+                          _run(_redraw());
+                          _notifyViewChange();
+                        },
+                  child: const Text('Reset'),
+                ),
+                if (_tool.method != null) ...[
+                  TextButton(
+                    onPressed: _draft.isEmpty
+                        ? null
+                        : () => setState(() => _draft.removeLast()),
+                    child: const Text('Undo point'),
+                  ),
+                  TextButton(
+                    onPressed: _draft.isEmpty ? null : () => _run(_calculate()),
+                    child: const Text('Calculate'),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         if (_tool.method != null) Text(pointLabel),
         if (_tool.projection case final projection?)
@@ -1175,15 +1600,48 @@ class RayKitViewerState extends State<RayKitViewer> {
                         ),
                       ),
                     ),
+                    if (_segmentation case final overlay?
+                        when !_hiddenLayers.contains('segmentation') &&
+                            overlay.frame == frame?.index)
+                      IgnorePointer(
+                        child: CustomPaint(
+                          painter: _ImagePainter(
+                            overlay.raster,
+                            transform,
+                            null,
+                            null,
+                            () {},
+                            clear: false,
+                          ),
+                        ),
+                      ),
+                    if (_pointer case final pointer?
+                        when !_hiddenLayers.contains('pointer') &&
+                            pointer.frame == frame?.index)
+                      IgnorePointer(
+                        child: CustomPaint(
+                          painter: _PointerPainter(transform, pointer.pixel),
+                        ),
+                      ),
                     RepaintBoundary(
                       child: CustomPaint(
                         painter: _LandmarkPainter(
                           transform,
                           colorScheme.tertiary,
-                          _paths(frame),
+                          _paths(records),
                         ),
                       ),
                     ),
+                    if (records.isNotEmpty)
+                      IgnorePointer(
+                        child: CustomPaint(
+                          painter: _MeasurementDetailsPainter(
+                            transform,
+                            colorScheme.tertiary,
+                            records,
+                          ),
+                        ),
+                      ),
                     RepaintBoundary(
                       child: CustomPaint(
                         painter: _LandmarkPainter(transform, Colors.amber, [
@@ -1197,32 +1655,64 @@ class RayKitViewerState extends State<RayKitViewer> {
             },
           ),
         ),
+        if (displayId == 'quantitative' && mapping != null)
+          SizedBox(
+            width: 200,
+            child: Column(
+              children: [
+                Container(
+                  height: 6,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: _render['invert'] == true
+                          ? const [
+                              Colors.white,
+                              Colors.yellow,
+                              Colors.red,
+                              Colors.black,
+                            ]
+                          : const [
+                              Colors.black,
+                              Colors.red,
+                              Colors.yellow,
+                              Colors.white,
+                            ],
+                    ),
+                  ),
+                ),
+                Text(
+                  "${(mapping['value_range'] as List).join(' – ')} ${(mapping['unit'] as Json)['value']}",
+                ),
+              ],
+            ),
+          ),
         if (_loading) const LinearProgressIndicator(),
         if (widget.showControls && count > 1)
           Row(
             children: [
               IconButton(
+                visualDensity: VisualDensity.compact,
                 tooltip: _playing ? 'Pause' : 'Play',
                 onPressed: () => _run(_play()),
                 icon: Icon(_playing ? Icons.pause : Icons.play_arrow),
               ),
               IconButton(
+                visualDensity: VisualDensity.compact,
                 tooltip: 'Previous frame',
                 onPressed: frame == null || frame.index == 0
                     ? null
                     : () {
-                        _pause();
-                        _run(_showFrame(frame.index - 1));
+                        _run(_navigate(frame.index - 1));
                       },
                 icon: const Icon(Icons.skip_previous),
               ),
               IconButton(
+                visualDensity: VisualDensity.compact,
                 tooltip: 'Next frame',
                 onPressed: frame == null || frame.index >= count - 1
                     ? null
                     : () {
-                        _pause();
-                        _run(_showFrame(frame.index + 1));
+                        _run(_navigate(frame.index + 1));
                       },
                 icon: const Icon(Icons.skip_next),
               ),
@@ -1234,13 +1724,12 @@ class RayKitViewerState extends State<RayKitViewer> {
                   value: _sliderTarget ?? (frame?.index ?? 0).toDouble(),
                   divisions: count - 1,
                   onChanged: (v) {
-                    _pause();
                     setState(() => _sliderTarget = v);
-                    _run(_showFrame(v.round(), continuous: true));
+                    _run(_navigate(v.round(), continuous: true));
                   },
                   onChangeEnd: (v) {
                     setState(() => _sliderTarget = null);
-                    _run(_showFrame(v.round()));
+                    _run(_navigate(v.round()));
                   },
                 ),
               ),
@@ -1259,7 +1748,13 @@ class RayKitViewerState extends State<RayKitViewer> {
               ),
             ],
           ),
-        if (widget.showControls) Text(_status, textAlign: TextAlign.center),
+        if (widget.showControls)
+          Text(
+            _status,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
         if (widget.showControls)
           SizedBox(
             height: MediaQuery.textScalerOf(context).scale(24),
@@ -1272,36 +1767,70 @@ class RayKitViewerState extends State<RayKitViewer> {
     );
   }
 
-  List<List<Offset>> _paths(RayKitFrame? frame) => _measurements
+  List<Json> _visibleRecords(RayKitFrame? frame) => _measurements
       .where(
-        (r) => (r['source'] as Json)['frame'] == frame?.index && r != _editing,
+        (r) =>
+            (r['source'] as Json)['frame'] == frame?.index &&
+            (r['source'] as Json)['content_sha256'] ==
+                frame?.source['content_sha256'] &&
+            !_hiddenLayers.contains((r['input'] as Json)['method']) &&
+            r != _editing,
       )
-      .expand((r) {
-        final input = r['input'] as Json;
-        final points = (input['points'] as List)
-            .cast<Json>()
-            .map(_readPoint)
-            .toList();
-        return switch (input['method']) {
-          'raykit:norberg' => [
-            [points[0], points[1]],
-            [points[0], points[2]],
-            [points[1], points[3]],
-          ],
-          'raykit:canine-vhs' => [
-            points.sublist(0, 2),
-            points.sublist(2, 4),
-            points.sublist(4),
-          ],
-          'raykit:tplo' => [
-            points.sublist(0, 2),
-            points.sublist(2, 4),
-            points.sublist(4),
-          ],
-          _ => [points],
-        };
-      })
       .toList();
+
+  List<List<Offset>> _paths(List<Json> records) => records.expand((r) {
+    final input = r['input'] as Json;
+    final points = (input['points'] as List)
+        .cast<Json>()
+        .map(_readPoint)
+        .toList();
+    return switch (input['method']) {
+      'raykit:norberg' => [
+        [points[0], points[1]],
+        [points[0], points[2]],
+        [points[1], points[3]],
+      ],
+      'raykit:canine-vhs' => [
+        points.sublist(0, 2),
+        points.sublist(2, 4),
+        points.sublist(4),
+      ],
+      'raykit:tplo' => [
+        points.sublist(0, 2),
+        points.sublist(2, 4),
+        points.sublist(4),
+      ],
+      _ => [points],
+    };
+  }).toList();
+}
+
+String _voiId(Json view) {
+  final selection = view['selection'] as Json;
+  return '${selection['kind']}:${selection['index']}';
+}
+
+class _PointerPainter extends CustomPainter {
+  const _PointerPainter(this.transform, this.point);
+  final _Transform? transform;
+  final Offset point;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = transform?.project(point);
+    if (p == null) return;
+    final paint = Paint()
+      ..color = Colors.amber
+      ..strokeWidth = 1.5;
+    for (final axis in const [Offset(1, 0), Offset(0, 1)]) {
+      canvas.drawLine(p - axis * 10, p - axis * 3, paint);
+      canvas.drawLine(p + axis * 3, p + axis * 10, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PointerPainter oldDelegate) =>
+      point != oldDelegate.point || transform != oldDelegate.transform;
 }
 
 Offset _readPoint(Json point) =>
@@ -1319,6 +1848,24 @@ class _Transform {
   final Offset origin;
   final Offset x;
   final Offset y;
+  Float64List get matrix => Float64List.fromList([
+    x.dx,
+    x.dy,
+    0,
+    0,
+    y.dx,
+    y.dy,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    origin.dx,
+    origin.dy,
+    0,
+    1,
+  ]);
   Offset project(Offset point) => origin + x * point.dx + y * point.dy;
   Offset unproject(Offset point) {
     final p = point - origin;
@@ -1330,48 +1877,111 @@ class _Transform {
   }
 }
 
+class _MeasurementDetailsPainter extends CustomPainter {
+  const _MeasurementDetailsPainter(this.transform, this.color, this.records);
+  final _Transform? transform;
+  final Color color;
+  final List<Json> records;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final view = transform;
+    if (view == null) return;
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    for (final record in records) {
+      final input = record['input'] as Json;
+      final method = _Tool.values
+          .where((tool) => tool.method == input['method'])
+          .firstOrNull;
+      if (method == null) continue;
+      final points = (input['points'] as List).cast<Json>();
+      final values = (record['values'] as List).cast<Json>();
+      final label = values
+          .map(
+            (value) =>
+                "${(value['value'] as num).toStringAsFixed(2)} ${value['unit']}",
+          )
+          .join(' / ');
+      final text = TextPainter(
+        text: TextSpan(
+          text: '${method.label} · $label',
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            backgroundColor: Colors.black87,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout(maxWidth: size.width);
+      text.paint(
+        canvas,
+        view.project(_readPoint(points.first)) + const Offset(7, -16),
+      );
+      text.dispose();
+      final calibration = record['calibration'] as Json;
+      if (method != _Tool.tplo || calibration['kind'] != 'projection') continue;
+      final radius =
+          values
+                  .where((value) => value['name'] == 'radius')
+                  .firstOrNull?['value']
+              as num?;
+      if (radius == null || radius <= 0) continue;
+      final spacing = _readPair(calibration['spacing_xy'] as List);
+      final brush = Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0;
+      canvas.save();
+      canvas.transform(view.matrix);
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: _readPoint(points[4]),
+          width: 2 * radius / spacing.dx,
+          height: 2 * radius / spacing.dy,
+        ),
+        brush,
+      );
+      canvas.restore();
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_MeasurementDetailsPainter previous) =>
+      transform != previous.transform ||
+      color != previous.color ||
+      !listEquals(records, previous.records);
+}
+
 class _ImagePainter extends CustomPainter {
   const _ImagePainter(
     this.raster,
     this.transform,
     this.shader,
     this.uniforms,
-    this.onPaint,
-  );
+    this.onPaint, {
+    this.clear = true,
+  });
   final FrameRaster? raster;
   final _Transform? transform;
   final MonochromeShader? shader;
   final List<double>? uniforms;
   final VoidCallback onPaint;
+  final bool clear;
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.black);
+    if (clear) {
+      canvas.drawRect(Offset.zero & size, Paint()..color = Colors.black);
+    }
     final pixels = raster;
     final view = transform;
     if (pixels == null || pixels.disposed || view == null) return;
     onPaint();
     canvas.save();
     canvas.clipRect(Offset.zero & size);
-    canvas.transform(
-      Float64List.fromList([
-        view.x.dx,
-        view.x.dy,
-        0,
-        0,
-        view.y.dx,
-        view.y.dy,
-        0,
-        0,
-        0,
-        0,
-        1,
-        0,
-        view.origin.dx,
-        view.origin.dy,
-        0,
-        1,
-      ]),
-    );
+    canvas.transform(view.matrix);
     if (pixels.texture && uniforms != null && shader != null) {
       shader!.draw(canvas, pixels.image, uniforms!);
     } else {

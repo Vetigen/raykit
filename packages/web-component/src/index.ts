@@ -1,5 +1,5 @@
-import { RaykitError, RaykitViewport } from '@raykit/web';
-import type { Measurement, MeasurementRequest, OpenOptions, PixelPoint, PresentedFrame, ScreenPoint, SegmentationOverlay, Source } from '@raykit/web';
+import { RaykitError, RaykitSession, RaykitViewport } from '@raykit/web';
+import type { Measurement, MeasurementRequest, OpenOptions, PatientPlane, PixelPoint, PresentedFrame, RenderOptions, ScreenPoint, SegmentationOverlay, Source, SourceSample, Triple } from '@raykit/web';
 
 const styles = `
 :host{display:block;min-height:30rem;font:14px/1.5 system-ui,sans-serif;color:#e9edf4;background:#11151c;color-scheme:dark}
@@ -13,6 +13,9 @@ button:not(:disabled){cursor:pointer}button:disabled,select:disabled,input:disab
 .surface{position:relative;min-width:0;min-height:0;overflow:hidden;isolation:isolate;background:#020307;touch-action:none;outline:0;border:1px solid #263748}
 .surface[data-active='true']{border-color:#62ccbb}.surface:focus-visible{box-shadow:inset 0 0 0 2px #62ccbb}
 .overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}.count{font-variant-numeric:tabular-nums}
+.panel-label{position:absolute;top:.35rem;left:.4rem;z-index:3;background:#101722df;padding:.1rem .4rem;pointer-events:none}
+.scale{position:absolute;right:.5rem;bottom:.4rem;z-index:3;background:#101722df;padding:.25rem .5rem;pointer-events:none;max-width:80%}
+.scale i{display:block;height:.4rem;background:linear-gradient(to right,black,red,yellow,white)}
 output{white-space:pre-wrap}.error{color:#ffb6ab}input[type=number]{width:6rem}
 `;
 
@@ -24,10 +27,19 @@ const methods = {
   tplo: ['raykit:tplo', 'Cranial and caudal medial plateau, proximal and distal mechanical axis, osteotomy center'],
 } as const;
 type Tool = keyof typeof methods | 'pan' | 'window' | 'sample';
+const presets = {
+  'preset:soft': { label: 'RayKit soft tissue', window: { center: 40, width: 400 } },
+  'preset:bone': { label: 'RayKit bone', window: { center: 500, width: 2000 } },
+  'preset:lung': { label: 'RayKit lung', window: { center: -600, width: 1500 } },
+} as const;
+const layers = ['length', 'angle', 'vhs', 'norberg', 'tplo', 'segmentation', 'pointer'] as const;
+type Layer = typeof layers[number];
+type Look = { id: string; label: string; render: RenderOptions };
 const projections = { vhs: 'lateral_thorax', norberg: 'ventrodorsal_extended_hips', tplo: 'mediolateral_stifle' } as const;
 const projectionLabels = { vhs: 'Lateral thorax', norberg: 'Ventrodorsal extended hips', tplo: 'Mediolateral stifle' } as const;
-type Panel = { viewport: RaykitViewport; surface: HTMLElement; overlay: HTMLCanvasElement; records: Measurement[];
+type Panel = { viewport: RaykitViewport; surface: HTMLElement; overlay: HTMLCanvasElement; label: HTMLElement; scale: HTMLElement; records: Measurement[];
   draft: PixelPoint[]; editing?: Measurement; generation: number; playing: boolean;
+  preset?: keyof typeof presets; hidden: Set<Layer>; pointer?: { pixel: PixelPoint; frame: PresentedFrame['source'] };
   frame?: number; sliderTarget?: number;
   segmentation?: { source: SegmentationOverlay['source']; image: HTMLCanvasElement } };
 
@@ -35,6 +47,9 @@ export class RaykitViewer extends HTMLElement {
   readonly #root = this.attachShadow({ mode: 'open' });
   readonly #panels: Panel[] = [];
   #active = 0;
+  #linkingView = false;
+  #pointerTicket = 0;
+  readonly #registrations = new WeakMap<RaykitSession, WeakMap<RaykitSession, string>>();
   #drag?: { panel: Panel; start: ScreenPoint; last: ScreenPoint; pointer: number; moved: boolean; landmark: number };
 
   connectedCallback(): void {
@@ -43,6 +58,7 @@ export class RaykitViewer extends HTMLElement {
       <div class="bar" role="toolbar" aria-label="Image tools">
         <button data-action="open">Open DICOM</button><input data-file hidden type="file">
         <button data-action="new">Add panel</button><button data-action="close">Close panel</button>
+        <button data-action="compare">Compare same source</button><label><input data-link type="checkbox" checked> Link views</label>
         <label>Tool <select data-tool>
           <option value="pan">Pan / zoom</option><option value="window">Window / level</option><option value="sample">Pixel value</option>
           <option value="length">Ruler</option><option value="angle">Angle</option><option value="vhs">VHS</option>
@@ -51,6 +67,16 @@ export class RaykitViewer extends HTMLElement {
         <button data-action="zoom-in" aria-label="Zoom in">+</button><button data-action="zoom-out" aria-label="Zoom out">−</button>
         <button data-action="rotate">Rotate</button><button data-action="invert">Invert</button>
         <label>Palette <select data-palette><option value="gray">Gray</option><option value="hot">Hot</option></select></label>
+        <label>Display <select data-voi></select></label>
+        <details><summary>Layers</summary>
+          <label><input type="checkbox" data-layer="length" checked> Ruler</label>
+          <label><input type="checkbox" data-layer="angle" checked> Angle</label>
+          <label><input type="checkbox" data-layer="vhs" checked> VHS</label>
+          <label><input type="checkbox" data-layer="norberg" checked> Norberg</label>
+          <label><input type="checkbox" data-layer="tplo" checked> TPLO</label>
+          <label><input type="checkbox" data-layer="segmentation" checked> Segmentation</label>
+          <label><input type="checkbox" data-layer="pointer" checked> Pointer</label>
+        </details>
         <button data-action="reset">Reset view</button>
       </div>
       <div class="method" data-method></div>
@@ -70,6 +96,20 @@ export class RaykitViewer extends HTMLElement {
       input.value = '';
     };
     this.#field<HTMLSelectElement>('[data-tool]').onchange = () => this.#method();
+    this.#field<HTMLSelectElement>('[data-voi]').onchange = event => {
+      const panel = this.#panel;
+      if (panel) this.#applyLook(panel, (event.currentTarget as HTMLSelectElement).value);
+    };
+    this.#root.querySelectorAll<HTMLInputElement>('[data-layer]').forEach(input => {
+      input.onchange = () => {
+        const panel = this.#panel;
+        if (!panel) return;
+        const layer = input.dataset.layer as Layer;
+        if (input.checked) panel.hidden.delete(layer);
+        else panel.hidden.add(layer);
+        this.#paint(panel);
+      };
+    });
     this.#field<HTMLSelectElement>('[data-palette]').onchange = event => {
       const panel = this.#panel;
       if (panel) panel.viewport.setRenderOptions({ ...panel.viewport.renderOptions, palette: (event.currentTarget as HTMLSelectElement).value === 'hot' ? 'hot' : 'gray' });
@@ -80,13 +120,13 @@ export class RaykitViewer extends HTMLElement {
       if (!panel) return;
       panel.playing = false;
       panel.sliderTarget = seek.valueAsNumber - 1;
-      this.#run(panel.viewport.scrubFrame(panel.sliderTarget));
+      this.#run(Promise.all(this.#linked(panel).map(item => item.viewport.scrubFrame(panel.sliderTarget!))));
     };
     const release = () => {
       const panel = this.#panel;
       if (!panel) return;
       panel.sliderTarget = undefined;
-      this.#run(panel.viewport.settle());
+      this.#run(Promise.all(this.#linked(panel).map(item => item.viewport.settle())));
       this.#controls();
     };
     seek.onchange = release;
@@ -103,6 +143,7 @@ export class RaykitViewer extends HTMLElement {
 
   get #panel(): Panel | undefined { return this.#panels[this.#active]; }
   get viewport(): RaykitViewport | undefined { return this.#panel?.viewport; }
+  get viewports(): readonly RaykitViewport[] { return this.#panels.map(panel => panel.viewport); }
   get measurements(): readonly Measurement[] { return this.#panel?.records.map(record => structuredClone(record)) ?? []; }
 
   #click = (event: Event) => {
@@ -116,6 +157,8 @@ export class RaykitViewer extends HTMLElement {
     const generation = ++panel.generation;
     panel.records = [];
     panel.segmentation = undefined;
+    panel.pointer = undefined;
+    panel.preset = undefined;
     panel.draft = [];
     panel.editing = undefined;
     panel.playing = false;
@@ -135,6 +178,89 @@ export class RaykitViewer extends HTMLElement {
     } finally {
       if (generation === panel.generation) { this.#controls(); this.#paint(panel); }
     }
+  }
+
+  async compare(): Promise<void> {
+    const panel = this.#panel;
+    const session = panel?.viewport.session;
+    const frame = panel?.viewport.frame;
+    if (!panel || !session || !frame || this.#panels.length >= 4) return;
+    const initial = frame.views?.find(candidate => candidate.selection.kind === 'window' && candidate.selection.index === 0);
+    if (initial && this.#lookId(panel) === 'default') this.#applyLook(panel, lookId(initial.selection));
+    const other = this.#addPanel()!;
+    const view = frame.views?.find(candidate => candidate.selection.kind === 'window' && candidate.selection.index > 0);
+    await other.viewport.attach(session, {
+      frame: frame.source.frame,
+      view: panel.viewport.view,
+      render: view ? { voi: view.selection } : {},
+    });
+    if (this.#panels.includes(panel) && panel.viewport.session === session && this.#panel === other) this.#select(panel);
+  }
+
+  async openPanel(source: Source, options: OpenOptions = {}): Promise<RaykitViewport> {
+    const panel = this.#addPanel();
+    if (!panel) throw new RaykitError('limit', 'Comparison panel count');
+    await this.open(source, options);
+    return panel.viewport;
+  }
+
+  /** Bind a host-verified registration to the currently authorized source revisions. */
+  registerPair(left: RaykitViewport, right: RaykitViewport, registration: {
+    left: { sha256: string; revision: string };
+    right: { sha256: string; revision: string };
+    frameOfReference: string;
+  }): void {
+    const a = left.session;
+    const b = right.session;
+    const matching = (viewport: RaykitViewport, expected: typeof registration.left) => {
+      const shown = viewport.presented;
+      return shown && shown.source.content_sha256 === expected.sha256 && shown.revision === expected.revision
+        && shown.source.frame_of_reference_uid === registration.frameOfReference;
+    };
+    if (!a || !b || a === b || !registration.frameOfReference || !a.inspection.study_uid
+      || a.inspection.study_uid !== b.inspection.study_uid || !matching(left, registration.left) || !matching(right, registration.right)) {
+      throw new RaykitError('integrity', 'Registration does not match the displayed sources');
+    }
+    for (const [from, to] of [[a, b], [b, a]]) {
+      if (!this.#registrations.has(from)) this.#registrations.set(from, new WeakMap());
+      this.#registrations.get(from)!.set(to, registration.frameOfReference);
+    }
+  }
+
+  #linked(panel: Panel): Panel[] {
+    const session = panel.viewport.session;
+    return !session || !this.#field<HTMLInputElement>('[data-link]').checked ? [panel]
+      : this.#panels.filter(item => item.viewport.session === session);
+  }
+
+  #looks(panel: Panel): Look[] {
+    const frame = panel.viewport.frame;
+    const choices: Look[] = [];
+    for (const view of frame?.views ?? []) {
+      choices.push({ id: lookId(view.selection), label: 'Device · ' + view.label, render: { voi: view.selection } });
+    }
+    if (frame?.modality_unit === 'HU') {
+      for (const [id, preset] of Object.entries(presets)) choices.push({ id, label: preset.label, render: { window: preset.window } });
+    }
+    if (frame?.quantitative_scale) choices.push({ id: 'quantitative',
+      label: frame.quantitative_scale.quantity.meaning, render: { quantitative: true } });
+    return choices;
+  }
+
+  #applyLook(panel: Panel, id: string): void {
+    const { palette, invert } = panel.viewport.renderOptions;
+    const look = this.#looks(panel).find(choice => choice.id === id);
+    if (id !== 'default' && !look) return;
+    panel.preset = id in presets ? id as keyof typeof presets : undefined;
+    panel.viewport.setRenderOptions({ palette, invert, ...look?.render });
+  }
+
+  #lookId(panel: Panel): string {
+    const options = panel.viewport.presented?.render ?? {};
+    if (options.quantitative) return 'quantitative';
+    if (options.voi) return lookId(options.voi);
+    if (options.window) return panel.preset ?? 'manual';
+    return 'default';
   }
 
   async restoreMeasurement(record: Measurement): Promise<Measurement> {
@@ -173,7 +299,7 @@ export class RaykitViewer extends HTMLElement {
   #field<T extends HTMLElement>(selector: string): T { return this.#root.querySelector<T>(selector)!; }
   get #tool(): Tool { return this.#field<HTMLSelectElement>('[data-tool]').value as Tool; }
 
-  #addPanel(): void {
+  #addPanel(): Panel | undefined {
     if (this.#panels.length >= 4) return;
     const surface = document.createElement('div');
     surface.className = 'surface';
@@ -183,13 +309,33 @@ export class RaykitViewer extends HTMLElement {
     overlay.className = 'overlay';
     overlay.setAttribute('aria-hidden', 'true');
     surface.append(overlay);
+    const label = document.createElement('output');
+    label.className = 'panel-label';
+    label.hidden = true;
+    surface.append(label);
+    const scale = document.createElement('output');
+    scale.className = 'scale';
+    scale.hidden = true;
+    surface.append(scale);
     this.#field('.grid').append(surface);
     const viewport = new RaykitViewport(surface);
-    const panel: Panel = { surface, overlay, viewport, records: [], draft: [], generation: 0, playing: false };
+    const panel: Panel = { surface, overlay, viewport, label, scale, records: [], draft: [], hidden: new Set(), generation: 0, playing: false };
     this.#panels.push(panel);
     this.#select(panel);
     viewport.addEventListener('presented', event => {
       const detail = (event as CustomEvent<PresentedFrame>).detail;
+      panel.label.hidden = false;
+      const series = viewport.session?.inspection.series_description;
+      panel.label.textContent = (series ? series + ' · ' : '') + (this.#looks(panel).find(look => look.id === this.#lookId(panel))?.label
+        ?? (detail.render.window ? 'Manual window' : 'Initial display')) + ' · ' + (detail.source.frame + 1);
+      const mapping = detail.render.quantitative ? viewport.frame?.quantitative_scale : null;
+      panel.scale.hidden = !mapping;
+      panel.scale.replaceChildren();
+      if (mapping) {
+        const ramp = document.createElement('i');
+        if (detail.render.invert) ramp.style.transform = 'scaleX(-1)';
+        panel.scale.append(mapping.quantity.meaning, ramp, mapping.value_range.join(' – ') + ' ' + mapping.unit.value);
+      }
       if (panel.frame !== detail.source.frame) {
         panel.frame = detail.source.frame;
         panel.draft = [];
@@ -209,8 +355,16 @@ export class RaykitViewer extends HTMLElement {
       this.dispatchEvent(new CustomEvent('raykit-presented', { bubbles: true, composed: true,
         detail: { panel: this.#panels.indexOf(panel), ...detail } }));
     });
+    viewport.addEventListener('viewchange', () => {
+      if (this.#linkingView || panel !== this.#panel) return;
+      this.#linkingView = true;
+      try { for (const item of this.#linked(panel)) if (item !== panel) item.viewport.setView(viewport.view); }
+      finally { this.#linkingView = false; }
+    });
     viewport.addEventListener('diagnostic', event => this.#error((event as CustomEvent<RaykitError>).detail));
     viewport.addEventListener('closed', () => {
+      label.hidden = true;
+      scale.hidden = true;
       this.#paint(panel);
       this.dispatchEvent(new CustomEvent('raykit-closed', { detail: { panel: this.#panels.indexOf(panel) } }));
     });
@@ -230,6 +384,7 @@ export class RaykitViewer extends HTMLElement {
       const action = actions[event.key];
       if (action) { event.preventDefault(); this.#run(this.#action(action)); }
     };
+    return panel;
   }
 
   #select(panel: Panel): void {
@@ -257,7 +412,20 @@ export class RaykitViewer extends HTMLElement {
     }
     this.#field('[data-action=play]').textContent = panel?.playing ? 'Pause' : 'Play';
     this.#field<HTMLButtonElement>('[data-action=new]').disabled = this.#panels.length === 4;
+    this.#field<HTMLButtonElement>('[data-action=compare]').disabled = frame === undefined || this.#panels.length === 4;
     this.#field<HTMLSelectElement>('[data-palette]').value = viewport?.renderOptions.palette ?? 'gray';
+    const display = this.#field<HTMLSelectElement>('[data-voi]');
+    display.disabled = !viewport?.frame?.display;
+    display.replaceChildren(new Option('Initial display', 'default'));
+    if (panel) {
+      display.append(...this.#looks(panel).map(look => new Option(look.label, look.id)));
+      const id = this.#lookId(panel);
+      if (id === 'manual') display.append(new Option('Manual window', 'manual'));
+      display.value = id;
+    }
+    this.#root.querySelectorAll<HTMLInputElement>('[data-layer]').forEach(input => {
+      input.checked = !panel?.hidden.has(input.dataset.layer as Layer);
+    });
   }
 
   async #action(action: string): Promise<void> {
@@ -267,6 +435,7 @@ export class RaykitViewer extends HTMLElement {
     switch (action) {
       case 'open': this.#field<HTMLInputElement>('[data-file]').click(); break;
       case 'new': this.#addPanel(); this.#panel?.surface.focus(); break;
+      case 'compare': await this.compare(); break;
       case 'close':
         panel.generation++;
         vp.dispose();
@@ -279,7 +448,7 @@ export class RaykitViewer extends HTMLElement {
       case 'zoom-in': case 'zoom-out': vp.setView({ ...vp.view, zoom: vp.view.zoom * (action === 'zoom-in' ? 1.25 : 0.8) }); break;
       case 'rotate': vp.setView({ ...vp.view, quarter_turns: vp.view.quarter_turns + 1 }); break;
       case 'invert': vp.setRenderOptions({ ...vp.renderOptions, invert: !vp.renderOptions.invert }); break;
-      case 'reset': vp.reset(); break;
+      case 'reset': panel.preset = undefined; vp.reset(); vp.setView(vp.view); break;
       case 'previous': case 'next':
         await this.#seek((vp.presented?.source.frame ?? 0) + (action === 'previous' ? -1 : 1));
         break;
@@ -300,7 +469,9 @@ export class RaykitViewer extends HTMLElement {
     const session = panel?.viewport.session;
     if (!panel || !session) return;
     panel.playing = false; panel.sliderTarget = undefined;
-    await panel.viewport.showFrame(Math.max(0, Math.min(wanted, session.inspection.frames - 1)));
+    const index = Math.max(0, Math.min(wanted, session.inspection.frames - 1));
+    const panels = this.#linked(panel);
+    await Promise.all(panels.map(item => item.viewport.showFrame(index, panels.length === 1)));
   }
 
   #method(): void {
@@ -359,9 +530,13 @@ export class RaykitViewer extends HTMLElement {
     if (this.#tool === 'pan') vp.setView({ ...vp.view, pan: [vp.view.pan[0] + dx, vp.view.pan[1] + dy] });
     if (this.#tool === 'window') {
       const display = vp.frame?.display;
-      const window = vp.renderOptions.window ?? (display?.voi.kind === 'window' ? display.voi.window : display?.automatic_window);
-      if (window) vp.setRenderOptions({ ...vp.renderOptions, window: { ...window, center: window.center + dy * window.width / 220,
-        width: Math.max((window.function ?? 'linear') === 'linear' ? 1 : 0.01, window.width * Math.exp(dx * 0.01)) } });
+      const window = vp.renderOptions.window ?? this.#looks(panel).find(look => look.id === this.#lookId(panel))?.render.window
+        ?? (display?.voi.kind === 'window' ? display.voi.window : display?.automatic_window);
+      if (window) {
+        panel.preset = undefined;
+        vp.setRenderOptions({ ...vp.renderOptions, quantitative: undefined, voi: undefined, window: { ...window, center: window.center + dy * window.width / 220,
+          width: Math.max((window.function ?? 'linear') === 'linear' ? 1 : 0.01, window.width * Math.exp(dx * 0.01)) } });
+      }
     }
   }
 
@@ -378,13 +553,38 @@ export class RaykitViewer extends HTMLElement {
     if (viewport.session !== session || tool !== this.#tool || !viewport.presented) return;
     const index = viewport.presented.source.frame;
     if (drag.landmark >= 0 && index !== before) return;
-    const { pixel } = await viewport.mapPoint(this.#point(panel, event));
+    const { pixel, patient } = await viewport.mapPoint(this.#point(panel, event));
     const format = viewport.frame?.format;
     if (tool !== this.#tool || !pixel || !format || pixel.x < -0.5 || pixel.y < -0.5 || pixel.x >= format.columns - 0.5 || pixel.y >= format.rows - 0.5) return;
     if (tool === 'sample') {
-      const sample = await viewport.samplePresented(Math.round(pixel.x), Math.round(pixel.y));
-      if (session !== viewport.session || index !== viewport.presented?.source.frame) return;
-      this.#result(sample.kind === 'monochrome' ? `Stored ${sample.stored}, modality ${sample.modality}${sample.padding ? ' (padding)' : ''}` : `${sample.space} ${sample.values.join(', ')}`);
+      const ticket = ++this.#pointerTicket;
+      const targets = this.#linked(panel).filter(item => item.viewport.presented?.source.frame === index).map(item => ({ item, pixel }));
+      const plane = viewport.frame?.geometry.patient_plane;
+      const anchor = viewport.presented;
+      if (patient && plane && this.#field<HTMLInputElement>('[data-link]').checked) {
+        for (const item of this.#panels) {
+          const other = item.viewport.session;
+          const space = other && this.#registrations.get(session)?.get(other);
+          if (!other || !space) continue;
+          const match = await other.locatePatient(patient, space, planeNormal(plane));
+          if (ticket !== this.#pointerTicket || anchor !== viewport.presented || item.viewport.session !== other) return;
+          if (!match) { item.pointer = undefined; this.#paint(item); continue; }
+          if (item.viewport.presented?.source.frame !== match.frame) await item.viewport.showFrame(match.frame, false);
+          if (ticket !== this.#pointerTicket || anchor !== viewport.presented || item.viewport.session !== other) return;
+          targets.push({ item, pixel: match.pixel });
+        }
+      }
+      const results = await Promise.all(targets.map(async target => {
+        const actual = target.item.viewport.presented!;
+        const value = await target.item.viewport.session!.sampleAt(actual.source.frame, Math.round(target.pixel.x), Math.round(target.pixel.y));
+        return { ...target, actual, value };
+      }));
+      if (ticket !== this.#pointerTicket || results.some(({item, actual}) => item.viewport.presented !== actual)) return;
+      for (const { item, actual, pixel } of results) {
+        item.pointer = { pixel, frame: actual.source };
+        this.#paint(item);
+      }
+      this.#result(results.map(({ item, value }) => `Panel ${this.#panels.indexOf(item) + 1} · ${sampleText(value)}`).join('\n'));
       return;
     }
     if (drag.landmark < 0) panel.draft.push(pixel);
@@ -442,7 +642,7 @@ export class RaykitViewer extends HTMLElement {
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     const { source, transform } = presented;
     const segmentation = panel.segmentation;
-    if (segmentation?.source.frame === source.frame && segmentation.source.content_sha256 === source.content_sha256) {
+    if (!panel.hidden.has('segmentation') && segmentation?.source.frame === source.frame && segmentation.source.content_sha256 === source.content_sha256) {
       const { origin, x_axis: a, y_axis: b } = transform;
       ctx.save(); ctx.transform(a[0], a[1], b[0], b[1], origin.x, origin.y);
       ctx.imageSmoothingEnabled = false;
@@ -450,11 +650,21 @@ export class RaykitViewer extends HTMLElement {
       ctx.restore();
     }
     const count = (point: PixelPoint) => project(presented, point);
+    const pointer = panel.pointer;
+    if (!panel.hidden.has('pointer') && pointer?.frame.frame === source.frame && pointer.frame.content_sha256 === source.content_sha256) {
+      const { x, y } = count(pointer.pixel);
+      ctx.strokeStyle = '#f4dc97'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 2]); ctx.beginPath();
+      ctx.moveTo(x - 10, y); ctx.lineTo(x + 10, y); ctx.moveTo(x, y - 10); ctx.lineTo(x, y + 10); ctx.stroke(); ctx.setLineDash([]);
+    }
     const draftTool = this.#tool;
-    const paths = panel.records.filter(r => r.source.frame === presented.source.frame && r.input.id !== panel.editing?.input.id)
-      .map(r => ({ points: r.input.points.map(count), method: r.input.method, color: '#62ccbb' }));
-    if (draftTool in methods && panel.draft.length) paths.push({ points: panel.draft.map(count), method: methods[draftTool as keyof typeof methods][0], color: '#ffdc7e' });
-    for (const { points, method, color } of paths) {
+    const visible = (r: Measurement) => r.source.frame === source.frame && r.source.content_sha256 === source.content_sha256
+      && !layers.some(layer => panel.hidden.has(layer) && r.input.method === methods[layer as keyof typeof methods]?.[0]);
+    const paths = panel.records.filter(r => visible(r) && r.input.id !== panel.editing?.input.id)
+      .map(r => ({ points: r.input.points.map(count), method: r.input.method, color: '#62ccbb',
+        label: (Object.keys(methods).find(key => methods[key as keyof typeof methods][0] === r.input.method) ?? r.input.method)
+          + ' · ' + r.values.map(value => Number(value.value.toFixed(2)) + ' ' + value.unit).join(' / ') }));
+    if (draftTool in methods && panel.draft.length) paths.push({ points: panel.draft.map(count), method: methods[draftTool as keyof typeof methods][0], color: '#ffdc7e', label: '' });
+    for (const { points, method, color, label } of paths) {
       ctx.strokeStyle = ctx.fillStyle = color; ctx.lineWidth = 2;
       const segments = method === methods.norberg[0] ? [[0, 1], [0, 2], [1, 3]]
         : method === methods.vhs[0] ? [[0, 1], [2, 3], points.slice(4).map((_, i) => i + 4)]
@@ -465,9 +675,15 @@ export class RaykitViewer extends HTMLElement {
         ctx.stroke();
       }
       for (const p of points) { ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill(); }
+      if (label && points[0]) {
+        ctx.font = '12px system-ui, sans-serif';
+        ctx.strokeStyle = '#07131a'; ctx.lineWidth = 3;
+        ctx.strokeText(label, points[0].x + 8, points[0].y - 7);
+        ctx.fillText(label, points[0].x + 8, points[0].y - 7);
+      }
     }
     for (const record of panel.records) {
-      if (record.source.frame !== source.frame || record.input.method !== methods.tplo[0] || record.calibration.kind !== 'projection') continue;
+      if (!visible(record) || record.input.method !== methods.tplo[0] || record.calibration.kind !== 'projection') continue;
       const center = record.input.points[4];
       const radius = record.values.find(v => v.name === 'radius')?.value;
       if (!center || !radius) continue;
@@ -509,6 +725,21 @@ export class RaykitViewer extends HTMLElement {
 }
 
 function near(a: ScreenPoint, b: ScreenPoint): boolean { return Math.hypot(a.x - b.x, a.y - b.y) <= 12; }
+
+function lookId(voi: NonNullable<RenderOptions['voi']>): string { return voi.kind + ':' + voi.index; }
+
+function sampleText({ sample, modality_unit: unit, quantitative, doppler_axes: axes }: SourceSample): string {
+  const value = sample.kind === 'color' ? sample.space + ' ' + sample.values.join(', ')
+    : sample.padding ? 'Padding · stored ' + sample.stored
+    : 'Stored ' + sample.stored + ' · ' + sample.modality + (unit ? ' ' + unit : ' modality');
+  return value + (quantitative ? ' · ' + quantitative.quantity.meaning + ' ' + quantitative.value + ' ' + quantitative.unit.value : '')
+    + (axes ? ' · Spectral axis ' + axes.spectral + ' ' + axes.spectral_unit + ' at ' + axes.time + ' s' : '');
+}
+
+function planeNormal(plane: PatientPlane): Triple {
+  const [a, b, c] = plane.column_axis, [d, e, f] = plane.row_axis;
+  return [b * f - c * e, c * d - a * f, a * e - b * d];
+}
 
 function project(presented: PresentedFrame, point: PixelPoint): ScreenPoint {
   const { origin, x_axis: x, y_axis: y } = presented.transform;

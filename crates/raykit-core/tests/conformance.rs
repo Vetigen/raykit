@@ -6,8 +6,203 @@ use raykit_core::{
     Error, Limits, Sample, Session,
     geometry::PixelPoint,
     measurement::{Length, Request, Unit},
-    pixel::{RenderOptions, Window, WindowFunction},
+    pixel::{RenderOptions, VoiScope, VoiSelection, Window, WindowFunction},
 };
+
+fn open(bytes: Vec<u8>) -> Session {
+    Session::open(bytes, Limits::default()).unwrap()
+}
+
+#[test]
+fn device_views_keep_original_samples_and_registered_mr_requires_a_matching_plane() {
+    let mut ct = open(comparison_ct());
+    let alternatives = ct.voi_alternatives(150).unwrap();
+    assert!(matches!(alternatives[0].scope, VoiScope::Shared));
+    assert_eq!(
+        [
+            alternatives[0].label.as_str(),
+            alternatives[1].label.as_str()
+        ],
+        ["Soft tissue", "Bone"]
+    );
+    let frame = ct.read_frame(150).unwrap();
+    let soft = frame.render_rgba(RenderOptions::default()).unwrap();
+    let selected = ct.select_voi(150, VoiSelection::Window(0)).unwrap();
+    assert_eq!(
+        soft,
+        frame
+            .render_rgba_with_voi(RenderOptions::default(), Some(&selected))
+            .unwrap()
+    );
+    let bone = ct.select_voi(150, VoiSelection::Window(1)).unwrap();
+    assert_ne!(
+        soft,
+        frame
+            .render_rgba_with_voi(RenderOptions::default(), Some(&bone))
+            .unwrap()
+    );
+    assert!(matches!(
+        frame.sample(256, 256).unwrap(),
+        Sample::Monochrome {
+            stored: 474,
+            modality: 448.0,
+            padding: false
+        }
+    ));
+    assert_eq!(ct.modality_unit(150).unwrap(), Some("HU"));
+    assert_eq!(ct.memory().decoded_frames, 1);
+
+    let t1 = open(mr_comparison(1));
+    let mut t2 = open(mr_comparison(2));
+    let shifted = open(mr_comparison(3));
+    let plane = t1.geometry(0).unwrap().patient_plane.unwrap();
+    let patient = plane.at(PixelPoint { x: 3.0, y: 2.0 });
+    let actual_reference = t1
+        .source_reference(0)
+        .unwrap()
+        .frame_of_reference_uid
+        .unwrap();
+    let (index, pixel) = t2
+        .locate_patient(patient, &actual_reference, plane.normal())
+        .unwrap()
+        .unwrap();
+    assert_eq!(index, 1);
+    assert!((pixel.x - 3.0).abs() < 1e-8 && (pixel.y - 2.0).abs() < 1e-8);
+    assert_eq!(
+        shifted
+            .locate_patient(patient, &actual_reference, plane.normal())
+            .unwrap(),
+        None
+    );
+    assert_eq!(t2.modality_unit(index).unwrap(), None);
+    let scale = t2.quantitative_scale(index).unwrap();
+    assert_eq!(scale.unit.value, "1/s");
+    assert!(t1.quantitative_scale(0).is_none());
+    let frame = t2.read_frame(index).unwrap();
+    let Sample::Monochrome { stored, .. } = frame.sample(3, 2).unwrap() else {
+        panic!("monochrome sample");
+    };
+    assert_eq!(scale.value(stored), Some(f64::from(stored) * 0.25 + 0.5));
+    assert!(scale.value(1024).is_none());
+    assert_ne!(
+        frame.render_quantitative(&scale, false).unwrap(),
+        frame.render_rgba(RenderOptions::default()).unwrap()
+    );
+}
+
+#[test]
+fn separate_voi_luts_and_declared_spectral_axes_have_independent_values() {
+    let mut dx = open(alternate_luts());
+    let views = dx.voi_alternatives(0).unwrap();
+    assert_eq!(views[0].label, "VOI LUT 1");
+    assert_eq!(views[1].label, "Alternative contrast");
+    let frame = dx.read_frame(0).unwrap();
+    assert_eq!(
+        frame.render_rgba(RenderOptions::default()).unwrap()[..4],
+        [0, 0, 0, 255]
+    );
+    let chosen = dx.select_voi(0, VoiSelection::Lut(1)).unwrap();
+    assert_eq!(
+        frame
+            .render_rgba_with_voi(RenderOptions::default(), Some(&chosen))
+            .unwrap()[..4],
+        [255; 4]
+    );
+
+    let plain = open(native_us(true, true));
+    assert!(plain.doppler_point(0, 3, 2).is_none());
+    let mut spectral = open(spectral_us());
+    let axis = spectral.doppler_point(0, 3, 2).unwrap();
+    assert_eq!(
+        (axis.time, axis.time_unit, axis.spectral, axis.spectral_unit),
+        (0.02, "s", 5.0, "cm/s")
+    );
+    assert!(spectral.doppler_point(0, 1, 2).is_none());
+    assert!(matches!(
+        spectral.read_frame(0).unwrap().sample(3, 2).unwrap(),
+        Sample::Color {
+            values: [12, 34, 56],
+            ..
+        }
+    ));
+}
+
+#[test]
+fn authenticated_proof_and_tiled_projections_preserve_source_identity() {
+    use raykit_core::tiles::{Region, TiledImage};
+    let mut full = open(cine([32, 24], 4, Offsets::Basic, true));
+    let catalog = full.create_frame_proofs("synthetic-v1").unwrap();
+    let pin = catalog.root_sha256();
+    let mut wrong = catalog.packet(1).unwrap();
+    *wrong.last_mut().unwrap() ^= 1;
+    assert!(matches!(
+        Session::open_frame_proof(wrong, &pin, "synthetic-v1", 1, Limits::default(), None),
+        Err(Error::Integrity(_))
+    ));
+    let expected = full.inspection().content_sha256.clone();
+    let mut detached = Session::open_frame_proof(
+        catalog.packet(1).unwrap(),
+        &pin,
+        "synthetic-v1",
+        1,
+        Limits::default(),
+        Some(&expected),
+    )
+    .unwrap();
+    assert_eq!(
+        detached.read_frame(1).unwrap().samples,
+        full.read_frame(1).unwrap().samples
+    );
+    assert!(matches!(
+        detached.stage_frame_proof(2, catalog.packet(1).unwrap()),
+        Err(Error::Integrity(_))
+    ));
+    detached
+        .stage_frame_proof(2, catalog.packet(2).unwrap())
+        .unwrap();
+    assert_eq!(
+        detached.read_frame(2).unwrap().samples,
+        full.read_frame(2).unwrap().samples
+    );
+    assert_eq!(detached.memory().range_reads, 2);
+
+    let mut original = open(detail_xray());
+    let tiles = original.create_tiles(0, 256, "projection-v1").unwrap();
+    let (pin, manifest) = tiles.manifest().unwrap();
+    let mut tiled = TiledImage::open(&manifest, &pin, "projection-v1").unwrap();
+    let rect = Region {
+        x: 254,
+        y: 254,
+        width: 8,
+        height: 8,
+    };
+    let indices = tiled.needed(rect).unwrap();
+    assert_eq!(indices.len(), 4);
+    let mut damaged = tiles.tile(indices[0]).unwrap();
+    damaged[0] ^= 1;
+    assert!(matches!(
+        tiled.stage(indices[0], damaged),
+        Err(Error::Integrity(_))
+    ));
+    for i in indices {
+        tiled.stage(i, tiles.tile(i).unwrap()).unwrap();
+    }
+    let options = RenderOptions::default();
+    let whole = original
+        .read_frame(0)
+        .unwrap()
+        .render_rgba(options)
+        .unwrap();
+    let expected: Vec<u8> = (254..262)
+        .flat_map(|y| {
+            whole[(y * 2048 + 254) * 4..(y * 2048 + 262) * 4]
+                .iter()
+                .copied()
+        })
+        .collect();
+    assert_eq!(tiled.rgba(rect, options).unwrap(), expected);
+    assert_eq!(tiled.cached_bytes(), 4 * 256 * 256 * 4);
+}
 
 #[cfg(unix)]
 #[test]

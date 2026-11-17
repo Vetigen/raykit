@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:raykit/raykit.dart';
 import 'package:raykit_example/main.dart' as example;
@@ -10,8 +12,7 @@ void main() {
     'example opens a bundled DICOM and releases the native source between openings',
     (tester) async {
       await tester.pumpWidget(const MaterialApp(home: example.ExampleViewer()));
-      await tester.tap(find.text('Synthetic radiograph'));
-      await tester.pump();
+      await chooseFixture(tester, 'Synthetic radiograph');
       await until(
         tester,
         () => find.textContaining('Original · 64 × 48').evaluate().isNotEmpty,
@@ -58,8 +59,7 @@ void main() {
         }
       });
       expect(rejected, isTrue);
-      await tester.tap(find.text('Synthetic radiograph'));
-      await tester.pump();
+      await chooseFixture(tester, 'Synthetic radiograph');
       await until(
         tester,
         () => find.textContaining('Original · 64 × 48').evaluate().isNotEmpty,
@@ -80,8 +80,7 @@ void main() {
     (tester) async {
       await tester.pumpWidget(const MaterialApp(home: example.ExampleViewer()));
       await tester.tap(find.text('16-bit shader'));
-      await tester.tap(find.text('Synthetic radiograph'));
-      await tester.pump();
+      await chooseFixture(tester, 'Synthetic radiograph');
       RayKitViewerController controller() =>
           tester.widget<RayKitViewer>(find.byType(RayKitViewer)).controller!;
       await until(tester, () => controller().presented != null);
@@ -96,8 +95,7 @@ void main() {
         controller().displayStats['image_upload_bytes'],
         stats['image_upload_bytes'],
       );
-      await tester.tap(find.text('Indexed ultrasound'));
-      await tester.pump();
+      await chooseFixture(tester, 'Indexed ultrasound');
       await until(
         tester,
         () =>
@@ -107,7 +105,14 @@ void main() {
       );
       expect(controller().presented!.renderer, 'cpu');
       final moving = controller().seek(349);
-      await until(tester, () => controller().presented?.source['frame'] == 349);
+      await until(
+        tester,
+        () => controller().presented?.source['frame'] == 349,
+        reason: () =>
+            'Indexed seek ended at ${controller().presented?.source["frame"]} '
+            'with view ${controller().presented?.view} and counters ${controller().displayStats}. '
+            'Image area ${tester.getSize(find.descendant(of: find.byType(RayKitViewer), matching: find.byType(LayoutBuilder)).first)}.',
+      );
       await moving;
       expect(
         (await tester.runAsync(
@@ -115,8 +120,7 @@ void main() {
         ))!['values'],
         [189, 87, 75],
       );
-      await tester.tap(find.text('300-slice CT'));
-      await tester.pump();
+      await chooseFixture(tester, '300-slice CT');
       await until(tester, () => find.text('Volume').evaluate().isNotEmpty);
       await tester.tap(find.text('Volume'));
       await tester.pump();
@@ -159,9 +163,80 @@ void main() {
       expect(find.byType(RayKitViewer), findsNothing);
     },
   );
+
+  testWidgets(
+    'a local study keeps separate source identities in the comparison',
+    (tester) async {
+      final folder = Directory.systemTemp.createTempSync('raykit-study-test-');
+      try {
+        await tester.runAsync(() async {
+          for (final file in ['comparison-mr-t1.dcm', 'comparison-mr-t2.dcm']) {
+            final asset = await rootBundle.load('assets/raykit/$file');
+            File('${folder.path}/$file').writeAsBytesSync(
+              asset.buffer.asUint8List(
+                asset.offsetInBytes,
+                asset.lengthInBytes,
+              ),
+            );
+          }
+        });
+        await tester.pumpWidget(
+          MaterialApp(home: example.ExampleViewer(initialPath: folder.path)),
+        );
+        final viewer = find.byType(RayKitViewer);
+        await until(
+          tester,
+          () =>
+              viewer.evaluate().isNotEmpty &&
+              tester.widget<RayKitViewer>(viewer).controller?.presented != null,
+        );
+        await tester.tap(find.text('Compare study series'));
+        await tester.pumpAndSettle();
+        expect(find.byType(SimpleDialogOption), findsOneWidget);
+        await tester.tap(find.byType(SimpleDialogOption));
+        await tester.pump();
+        final compared = find.descendant(
+          of: find.byType(RayKitComparison),
+          matching: viewer,
+        );
+        await until(tester, () {
+          final panels = tester.widgetList<RayKitViewer>(compared).toList();
+          return panels.length == 2 &&
+              panels.every((panel) => panel.controller?.presented != null);
+        });
+        final sources = tester
+            .widgetList<RayKitViewer>(compared)
+            .map((panel) => panel.controller!.presented!.source['instance_uid'])
+            .toSet();
+        expect(sources, {'2.25.1971', '2.25.1972'});
+        expect(
+          tester
+              .widget<RayKitComparison>(find.byType(RayKitComparison))
+              .registration,
+          isNull,
+        );
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump();
+      } finally {
+        folder.deleteSync(recursive: true);
+      }
+    },
+  );
 }
 
-Future<void> until(WidgetTester tester, bool Function() done) async {
+Future<void> chooseFixture(WidgetTester tester, String fixture) async {
+  await tester.tap(find.text('Synthetic cases'));
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text(fixture));
+  await tester.tap(find.text(fixture));
+  await tester.pump();
+}
+
+Future<void> until(
+  WidgetTester tester,
+  bool Function() done, {
+  String Function()? reason,
+}) async {
   final timeout = Stopwatch()..start();
   while (!done() && timeout.elapsedMilliseconds < 5000) {
     await tester.runAsync(
@@ -169,5 +244,5 @@ Future<void> until(WidgetTester tester, bool Function() done) async {
     );
     await tester.pump();
   }
-  expect(done(), isTrue);
+  expect(done(), isTrue, reason: done() ? null : reason?.call());
 }

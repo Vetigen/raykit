@@ -42,5 +42,5 @@ export function writeNotices(directory, crate, target, noDefaults = false) {
   writeFileSync(join(directory, 'README.txt'),
     'Third-party dependency inventory. The SPDX expressions are those declared by each dependency.\n' +
     'The inventory includes license and copyright files from published crates and the pinned upstream repositories.\n' +
-    'The RayKit project license is pending. Benchmark libraries are outside these packages.\n');
+    'The RayKit project uses Apache-2.0. Benchmark libraries are outside these packages.\n');
 }

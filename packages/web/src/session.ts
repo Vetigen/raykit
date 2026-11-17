@@ -1,7 +1,7 @@
 import { RaykitError } from './types.js';
-import type { EngineCapabilities, Frame, FrameIndex, IndexedSource, Inspection, MappedPoint, Measurement, MeasurementRequest,
+import type { EngineCapabilities, Frame, FrameIndex, FrameProof, IndexedSource, Inspection, MappedPoint, Measurement, MeasurementRequest, ProofSource,
   OpenOptions, Presentation, Reader, RenderOptions, Sample, ScreenPoint, SegmentationOverlay, SliceImage, SliceRequest, Source, SourceBytes, SrOptions,
-  SliceOptions, Stats, Triple, View, Volume, VolumeCandidates, WindowLevel } from './types.js';
+  PixelPoint, SliceOptions, SourceSample, Stats, TileRegion, TiledInspection, TiledSource, Triple, View, VoiAlternative, Volume, VolumeCandidates, WindowLevel } from './types.js';
 import type { Message, Reply } from './worker.js';
 
 const sourceCeiling = 192 * 1024 * 1024;
@@ -165,20 +165,29 @@ function metadata<T>(reply: Reply): T {
   return JSON.parse(reply.metadata) as T;
 }
 
-export class RaykitSession {
+export class RaykitSession extends EventTarget {
   readonly #lifetime = new AbortController();
+  #owners = 1;
+  #ownerReleased = false;
   #planeQueue = Promise.resolve();
   #planeTicket = 0;
-  constructor(readonly inspection: Inspection, readonly revision: string, private readonly channel: Channel) {}
+  constructor(readonly inspection: Inspection, readonly revision: string, private readonly channel: Channel,
+    readonly firstFrame = 0) { super(); }
 
-  async readFrame(index: number, options: { output?: 'rgba' | 'stored'; signal?: AbortSignal } = {}): Promise<Frame> {
-    const reply = await this.#request({ op: 'frame', index, output: options.output }, options.signal);
+  async readFrame(index: number, options: { output?: 'rgba' | 'stored' | 'stored16'; render?: RenderOptions; fallbackVoi?: boolean; signal?: AbortSignal } = {}): Promise<Frame> {
+    const reply = await this.#request({ op: 'frame', index, output: options.output,
+      options: options.render, fallback_voi: options.fallbackVoi }, options.signal);
     const info = metadata<Omit<Frame, 'pixels' | 'requestId' | 'workerReadMs'>>(reply);
     if (info.source.frame !== index || info.source.content_sha256 !== this.inspection.content_sha256) {
       throw new RaykitError('integrity', 'Frame reply does not match source and index');
     }
     if (!reply.pixels) throw new RaykitError('internal', 'Missing decoded pixels');
     return { ...info, pixels: reply.pixels, requestId: reply.id, workerReadMs: reply.workMs ?? 0 };
+  }
+
+  views(index: number, signal?: AbortSignal): Promise<VoiAlternative[]> { return this.#value({ op: 'views', index }, signal); }
+  frameInfo(index: number, signal?: AbortSignal): Promise<Pick<Frame, 'source' | 'format' | 'geometry' | 'views' | 'modality_unit' | 'quantitative_scale' | 'doppler_scales'>> {
+    return this.#value({ op: 'frame_info', index }, signal);
   }
 
   async render(index: number, options: RenderOptions, signal?: AbortSignal): Promise<Uint8Array<ArrayBuffer>> {
@@ -193,8 +202,18 @@ export class RaykitSession {
     return { bytes: reply.pixels, sha256: metadata<{ sha256: string }>(reply).sha256 };
   }
 
+  async createFrameProof(index: number, revision: string, signal?: AbortSignal): Promise<FrameProof> {
+    const reply = await this.#request({ op: 'frame_proof', index, revision }, signal);
+    if (!reply.pixels) throw new RaykitError('internal', 'Missing frame proof');
+    return { ...metadata<Omit<FrameProof, 'bytes'>>(reply), bytes: reply.pixels };
+  }
+
   prefetch(index: number, signal?: AbortSignal): Promise<void> { return this.#value({ op: 'prefetch', index }, signal); }
   sample(index: number, x: number, y: number, signal?: AbortSignal): Promise<Sample> { return this.#value({ op: 'sample', index, x, y }, signal); }
+  sampleAt(index: number, x: number, y: number, signal?: AbortSignal): Promise<SourceSample> { return this.#value({ op: 'sample_at', index, x, y }, signal); }
+  locatePatient(point: Triple, reference: string, normal: Triple, signal?: AbortSignal): Promise<{ frame: number; pixel: PixelPoint } | null> {
+    return this.#value({ op: 'locate_patient', point, reference, normal }, signal);
+  }
   transform(index: number, view: View, point?: ScreenPoint, signal?: AbortSignal): Promise<MappedPoint> {
     return this.#value({ op: 'transform', index, view, point }, signal);
   }
@@ -223,7 +242,7 @@ export class RaykitSession {
   }
 
   async #append(source: Source, options: AppendOptions, attachment?: Record<string, unknown>): Promise<Reply> {
-    if ('frameIndex' in source) throw new RaykitError('unsupported', 'Appending a range source');
+    if ('frameIndex' in source || 'frameProof' in source) throw new RaykitError('unsupported', 'Appending a partial source');
     const { signal, ...settings } = options;
     const scope = new AbortController();
     const abort = () => scope.abort();
@@ -286,7 +305,31 @@ export class RaykitSession {
     return metadata<T>(await this.#request(command, signal));
   }
 
-  close(): void { this.#lifetime.abort(); this.channel.close(); }
+  /** Retain this verified source for another panel in the same access context. */
+  retain(): () => void {
+    if (this.#lifetime.signal.aborted) throw new RaykitError('closed');
+    this.#owners++;
+    let released = false;
+    return () => { if (!released) { released = true; this.#release(); } };
+  }
+
+  #release(): void {
+    if (!this.#lifetime.signal.aborted && --this.#owners === 0) this.revoke();
+  }
+
+  close(): void {
+    if (this.#ownerReleased) return;
+    this.#ownerReleased = true;
+    this.#release();
+  }
+
+  /** Close the channel and invalidate all attached panels immediately. */
+  revoke(): void {
+    if (this.#lifetime.signal.aborted) return;
+    this.#lifetime.abort();
+    this.channel.close();
+    this.dispatchEvent(new Event('closed'));
+  }
 }
 
 function media(reply: Reply): Blob {
@@ -307,9 +350,13 @@ export async function open(source: Source, options: OpenOptions = {}): Promise<R
     checkAbort(scope.signal);
     if (isSourceBytes(source)) checkSourceSize(source, max, settings.expected_size);
     const indexed = 'frameIndex' in source;
-    channel = new Channel(workerFactory, indexed);
+    const proved = 'frameProof' in source;
+    channel = new Channel(workerFactory, indexed || proved);
     let reply: Reply;
-    if (indexed) {
+    if (proved) {
+      if (revision !== undefined && revision !== source.frameProof.revision) throw new RaykitError('integrity', 'Frame proof revision');
+      reply = await channel.run({ op: 'open_proof', source: source.frameProof, options: JSON.stringify(settings) }, scope.signal);
+    } else if (indexed) {
       const { bytes, sha256 } = source.frameIndex;
       if (bytes.byteLength > 8 * 1024 * 1024 || !/^[a-f0-9]{64}$/i.test(sha256)) throw new RaykitError('integrity', 'Frame index size or SHA-256 pin');
       const manifest = Uint8Array.from(bytes).buffer;
@@ -321,7 +368,8 @@ export async function open(source: Source, options: OpenOptions = {}): Promise<R
     }
     checkAbort(scope.signal);
     const info = metadata<Inspection>(reply);
-    return new RaykitSession(info, revision ?? info.content_sha256, channel);
+    return new RaykitSession(info, proved ? source.frameProof.revision : revision ?? info.content_sha256, channel,
+      proved ? source.frameProof.firstFrame : 0);
   } catch (error) {
     channel?.close();
     throw error;
@@ -330,6 +378,41 @@ export async function open(source: Source, options: OpenOptions = {}): Promise<R
 
 export function indexedBlob(blob: Blob, frameIndex: FrameIndex): IndexedSource {
   return { frameIndex, range: { kind: 'blob', blob } };
+}
+
+export class TiledSession {
+  constructor(readonly inspection: TiledInspection, private readonly channel: Channel) {}
+  async renderRegion(rect: TileRegion, options: Pick<RenderOptions, 'window' | 'palette' | 'invert'> = {}, signal?: AbortSignal) {
+    const reply = await this.#command({ op: 'render', rect, options }, signal);
+    if (!reply.pixels || reply.pixels.byteLength !== rect.width * rect.height * 4) throw new RaykitError('integrity', 'Tiled region pixels');
+    return reply.pixels;
+  }
+  async sample(x: number, y: number, signal?: AbortSignal): Promise<Sample> { return metadata(await this.#command({ op: 'sample', x, y }, signal)); }
+  async measure(request: MeasurementRequest, signal?: AbortSignal): Promise<Measurement> { return metadata(await this.#command({ op: 'measure', request }, signal)); }
+  async stats(): Promise<{ cached_tile_bytes: number; bytes_read: number; requests: number }> { return metadata(await this.#command({ op: 'stats' })); }
+  #command(command: unknown, signal?: AbortSignal): Promise<Reply> { return this.channel.run({ op: 'command', command: JSON.stringify(command) }, signal); }
+  close(): void { this.channel.close(); }
+}
+
+export async function openTiled(source: TiledSource, options: Pick<OpenOptions, 'signal' | 'workerFactory'> = {}): Promise<TiledSession> {
+  const url = new URL(source.baseUrl, globalThis.location?.href);
+  checkAbort(options.signal);
+  const channel = new Channel(options.workerFactory ?? defaultWorker, true);
+  try {
+    const reply = await channel.run({ op: 'open_tiles', source: { ...source, baseUrl: url.href } }, options.signal);
+    checkAbort(options.signal);
+    return new TiledSession(metadata(reply), channel);
+  } catch (error) { channel.close(); throw error; }
+}
+
+/** Load proof packets named by zero-based frame number from a host-owned directory. */
+export function frameProofHttp(directory: string | URL, pin: { rootSha256: string; revision: string },
+  options: { firstFrame?: number; headers?: Record<string, string> } = {}): ProofSource {
+  const url = new URL(directory, globalThis.location?.href);
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || !url.pathname.endsWith('/')) {
+    throw new RaykitError('invalid_request', 'Frame proof directory URL');
+  }
+  return { frameProof: { ...pin, baseUrl: url.href, firstFrame: options.firstFrame ?? 0, headers: options.headers } };
 }
 
 export function indexedHttp(url: string | URL, frameIndex: FrameIndex, options: { etag: string; headers?: Record<string, string> }): IndexedSource {

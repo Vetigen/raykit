@@ -1,11 +1,13 @@
 import { registerRaykitViewer } from '@raykit/web-component';
 import { indexedBlob, open } from '@raykit/web';
 import { extras } from './extras';
+import { delivery } from './delivery';
 
 registerRaykitViewer();
 const viewer = document.querySelector('raykit-viewer')!;
 const status = document.querySelector<HTMLOutputElement>('#sample-error')!;
 extras(viewer);
+delivery(viewer);
 let opening: AbortController | undefined;
 
 for (const button of document.querySelectorAll<HTMLButtonElement>('button[data-fixture]')) {

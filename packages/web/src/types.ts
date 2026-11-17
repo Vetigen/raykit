@@ -37,7 +37,22 @@ export interface FrameIndex {
 export type RangeSource = { kind: 'blob'; blob: Blob }
   | { kind: 'http'; url: string; etag: string; headers?: Record<string, string> };
 export interface IndexedSource { readonly frameIndex: FrameIndex; readonly range: RangeSource }
-export type Source = SourceBytes | Reader | IndexedSource;
+export interface ProofSource {
+  readonly frameProof: { baseUrl: string; rootSha256: string; revision: string; firstFrame: number; headers?: Record<string, string> };
+}
+export interface TiledSource { baseUrl: string; manifestSha256: string; revision: string; headers?: Record<string, string> }
+export interface TileRegion { x: number; y: number; width: number; height: number }
+export interface TiledInspection { source: SourceReference; format: PixelFormat; display_spacing_xy: Pair;
+  calibration: Geometry['calibration']; revision: string; edge: number; tile_count: number }
+export interface FrameProof {
+  bytes: Uint8Array<ArrayBuffer>;
+  root_sha256: string;
+  revision: string;
+  frame: number;
+  frames: number;
+  source: SourceReference;
+}
+export type Source = SourceBytes | Reader | IndexedSource | ProofSource;
 
 export interface OpenOptions {
   /** Opt in to preparing an independent JPEG frame while Web Crypto checks the source. */
@@ -86,11 +101,12 @@ export interface Geometry {
 }
 
 export interface Inspection {
-  verification: 'full_source' | 'pinned_frame_index';
+  verification: 'full_source' | 'pinned_frame_index' | 'pinned_frame_proof';
   sop_class_uid: string;
   instance_uid: string;
   study_uid: string | null;
   series_uid: string | null;
+  series_description?: string | null;
   content_sha256: string;
   transfer_syntax: string;
   object: 'projection' | 'ultrasound' | 'ct' | 'enhanced_ct' | 'mr' | 'enhanced_mr' | 'pdf'
@@ -122,7 +138,19 @@ export interface WindowLevel {
   width: number;
   function?: 'linear' | 'linear_exact' | 'sigmoid';
 }
-export interface RenderOptions { window?: WindowLevel | null; invert?: boolean; palette?: 'gray' | 'hot' }
+export interface VoiSelection { kind: 'window' | 'lut'; index: number }
+export interface VoiAlternative {
+  selection: VoiSelection;
+  scope: 'instance' | 'shared' | 'frame';
+  label: string;
+  window: WindowLevel | null;
+}
+export interface RenderOptions { window?: WindowLevel | null; voi?: VoiSelection | null; invert?: boolean; palette?: 'gray' | 'hot'; quantitative?: boolean }
+export interface CodedValue { value: string; scheme: string; meaning: string }
+export interface QuantitativeScale { quantity: CodedValue; unit: CodedValue; stored_range: Pair; value_range: Pair }
+export interface QuantitativeSample { value: number; quantity: CodedValue; unit: CodedValue }
+export interface DopplerAxis { origin_pixel: number; origin_value: number; delta: number; unit: 's' | 'Hz' | 'cm/s' }
+export interface DopplerScale { bounds: readonly [number, number, number, number]; time: DopplerAxis; spectral: DopplerAxis }
 export interface Lut { first: number; bits: number; values: number[] }
 export interface Display {
   modality: { kind: 'linear'; slope: number; intercept: number } | { kind: 'lut'; table: Lut };
@@ -136,13 +164,20 @@ export interface Frame {
   format: PixelFormat;
   geometry: Geometry;
   display: Display | null;
-  encoding: 'rgba8' | 'mono_i32_le' | 'rgb8' | 'ybr_full8';
+  views?: VoiAlternative[];
+  modality_unit?: 'HU' | null;
+  quantitative_scale?: QuantitativeScale | null;
+  doppler_scales?: DopplerScale[];
+  encoding: 'rgba8' | 'mono_i32_le' | 'mono_i16_le' | 'rgb8' | 'ybr_full8';
   pixels: Uint8Array<ArrayBuffer>;
   requestId: number;
   workerReadMs: number;
 }
 export type Sample = { kind: 'monochrome'; stored: number; modality: number; padding: boolean }
   | { kind: 'color'; space: 'rgb' | 'ybr_full'; values: Triple };
+export interface SourceSample { sample: Sample; source: SourceReference; geometry: Geometry; patient: Triple | null;
+  modality_unit: 'HU' | null; quantitative?: QuantitativeSample | null;
+  doppler_axes?: { time: number; time_unit: 's'; spectral: number; spectral_unit: 'Hz' | 'cm/s' } | null }
 
 export interface View { viewport: Pair; pan: Pair; zoom: number; quarter_turns: number }
 export interface ViewTransform { origin: ScreenPoint; x_axis: Pair; y_axis: Pair }
@@ -180,6 +215,8 @@ export interface Stats {
     decoded_frames: number;
     fragment_copy_bytes: number;
     produced_pixel_bytes: number;
+    source_read_bytes: number;
+    range_reads: number;
   };
   output_copy_bytes: number;
   peak_output_bytes: number;

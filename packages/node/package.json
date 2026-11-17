@@ -1,0 +1,11 @@
+{
+  "name": "@raykit/node",
+  "version": "0.1.0",
+  "description": "RayKit by Vetigen DICOM toolkit for Node.js",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "exports": { ".": { "types": "./index.d.ts", "import": "./index.js" } },
+  "files": ["index.js", "index.d.ts", "README.md", "LICENSE", "native", "notices"]
+}

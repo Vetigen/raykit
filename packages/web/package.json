@@ -3,8 +3,12 @@
   "version": "0.1.0",
   "description": "Framework-independent RayKit DICOM SDK",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./worker": { "types": "./dist/worker.d.ts", "import": "./dist/worker.js" }
+  },
   "files": ["dist"],
   "scripts": { "build": "tsc -p tsconfig.json" }
 }

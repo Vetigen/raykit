@@ -1,0 +1,25 @@
+{
+  "pydicom": "3.0.2",
+  "sha256": "bd7d9b180fa3cc398faa048c5fea6a6b28d71ebd4e4f2f6340254dd095a35090",
+  "frame": 150,
+  "pixel": [
+    256,
+    256
+  ],
+  "patient": [
+    179.2,
+    204.8,
+    180.0
+  ],
+  "stored": 474,
+  "modality": 448.0,
+  "unit": "HU",
+  "labels": [
+    "Soft tissue",
+    "Bone"
+  ],
+  "rgba_sha256": [
+    "5e9f026a3c2698b3a4a36f08b4a53b9ed709b920071c221358519b3966f05ba2",
+    "c847199f732c763ade10f584c24a9b88e4b4a46023540d0b694e5ab58244890b"
+  ]
+}

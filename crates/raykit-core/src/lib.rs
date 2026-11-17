@@ -1,17 +1,22 @@
 mod codec;
 mod dicom;
 mod frame_index;
+mod frame_proof;
 #[cfg(not(target_arch = "wasm32"))]
 mod native_file;
 mod source;
 
+pub mod doppler;
 pub mod geometry;
 pub mod interop;
 pub mod measurement;
 pub mod pixel;
+pub mod quantitative;
+pub mod tiles;
 pub mod volume;
 
 pub use frame_index::{FrameIndex, FrameRange, MAX_FRAME_INDEX_BYTES};
+pub use frame_proof::{FrameProofCatalog, MAX_FRAME_PROOF_BYTES};
 #[cfg(not(target_arch = "wasm32"))]
 pub use native_file::NativeFile;
 pub use source::{

@@ -193,6 +193,43 @@ pub(crate) struct File {
 }
 
 impl File {
+    pub(crate) fn read_meta(bytes: &[u8], limits: Limits) -> Result<(usize, Dataset)> {
+        if bytes.get(128..132) != Some(b"DICM") {
+            return Err(Error::InvalidDicom("Part 10 signature"));
+        }
+        let mut meta = Parser::new(bytes, 132, Encoding::EXPLICIT_LE, limits);
+        let meta_end = if meta.key()? == (2, 0) {
+            let (_, length) = meta.header()?;
+            if length != 4 {
+                return Err(Error::InvalidDicom("file meta group length"));
+            }
+            let size = meta.number()? as usize;
+            Some(meta.end(size, bytes.len())?)
+        } else {
+            meta.pos = 132;
+            None
+        };
+        let mut information = Dataset::default();
+        let meta_bound = meta_end.unwrap_or(bytes.len());
+        while meta.pos < meta_bound {
+            let key = meta.key()?;
+            if key.0 != 2 {
+                meta.pos -= 4;
+                break;
+            }
+            let element = meta.element(key, meta_bound, 0)?;
+            if !matches!(element.value, Value::Bytes(_))
+                || information.elements.insert(key, element).is_some()
+            {
+                return Err(Error::InvalidDicom("file meta information"));
+            }
+        }
+        if meta_end.is_some_and(|end| end != meta.pos) {
+            return Err(Error::InvalidDicom("file meta group length"));
+        }
+        Ok((meta.pos, information))
+    }
+
     pub(crate) fn parse(
         bytes: Vec<u8>,
         limits: Limits,
@@ -253,40 +290,7 @@ impl File {
         source_bytes: usize,
         sha256: String,
     ) -> Result<Self> {
-        if bytes.get(128..132) != Some(b"DICM") {
-            return Err(Error::InvalidDicom("Part 10 signature"));
-        }
-        let mut meta = Parser::new(&bytes, 132, Encoding::EXPLICIT_LE, limits);
-        let meta_end = if meta.key()? == (2, 0) {
-            let (_, length) = meta.header()?;
-            if length != 4 {
-                return Err(Error::InvalidDicom("file meta group length"));
-            }
-            let size = meta.number()? as usize;
-            Some(meta.end(size, bytes.len())?)
-        } else {
-            meta.pos = 132;
-            None
-        };
-        let mut information = Dataset::default();
-        let meta_bound = meta_end.unwrap_or(bytes.len());
-        while meta.pos < meta_bound {
-            let key = meta.key()?;
-            if key.0 != 2 {
-                meta.pos -= 4;
-                break;
-            }
-            let element = meta.element(key, meta_bound, 0)?;
-            if !matches!(element.value, Value::Bytes(_))
-                || information.elements.insert(key, element).is_some()
-            {
-                return Err(Error::InvalidDicom("file meta information"));
-            }
-        }
-        if meta_end.is_some_and(|end| end != meta.pos) {
-            return Err(Error::InvalidDicom("file meta group length"));
-        }
-        let offset = meta.pos;
+        let (offset, information) = Self::read_meta(&bytes, limits)?;
         let class_uid = uid(information.text(&bytes, (2, 2)))?.to_owned();
         let instance_uid = uid(information.text(&bytes, (2, 3)))?.to_owned();
         let syntax = TransferSyntax::from_uid(uid(information.text(&bytes, (2, 0x10)))?)?;

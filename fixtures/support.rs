@@ -600,13 +600,47 @@ fn classic_frame(
 }
 
 pub fn enhanced_volume(mr: bool) -> Vec<u8> {
-    let (class, uid, modality) = if mr {
-        (ENHANCED_MR, "2.25.951", "MR")
-    } else {
-        (ENHANCED_CT, "2.25.950", "CT")
+    enhanced_fixture(mr, 0)
+}
+
+pub fn mr_comparison(profile: u8) -> Vec<u8> {
+    enhanced_fixture(true, profile)
+}
+
+fn enhanced_fixture(mr: bool, comparison: u8) -> Vec<u8> {
+    let (class, uid, modality) = match (mr, comparison) {
+        (_, 1) => (ENHANCED_MR, "2.25.1971", "MR"),
+        (_, 2) => (ENHANCED_MR, "2.25.1972", "MR"),
+        (_, 3) => (ENHANCED_MR, "2.25.1973", "MR"),
+        (true, _) => (ENHANCED_MR, "2.25.951", "MR"),
+        _ => (ENHANCED_CT, "2.25.950", "CT"),
     };
     let mut d = Dataset::new(EXPLICIT_LE);
     identify(&mut d, class, uid, modality);
+    if comparison > 0 {
+        d.text(
+            8,
+            0x103e,
+            "LO",
+            if comparison == 1 {
+                "Synthetic T1"
+            } else {
+                "Synthetic T2"
+            },
+        );
+        d.text(
+            0x28,
+            0x1050,
+            "DS",
+            if comparison == 1 { "250" } else { "600" },
+        );
+        d.text(
+            0x28,
+            0x1051,
+            "DS",
+            if comparison == 1 { "500" } else { "1500" },
+        );
+    }
     d.text(0x10, 0x2210, "CS", "QUADRUPED");
     d.text(0x18, 0x15, "CS", "SKULL");
     d.text(0x20, 0x52, "UI", PHANTOM_SPACE);
@@ -620,7 +654,11 @@ pub fn enhanced_volume(mr: bool) -> Vec<u8> {
         pointer
     });
     d.sequence(0x20, 0x9222, &dimensions);
-    let frames = [(2, 1), (0, 2), (1, 1), (2, 2), (0, 1), (1, 2)];
+    let frames: &[(u16, u32)] = match comparison {
+        1 => &[(2, 1), (0, 1), (1, 1)],
+        2 | 3 => &[(1, 1), (2, 1), (0, 1)],
+        _ => &[(2, 1), (0, 2), (1, 1), (2, 2), (0, 1), (1, 2)],
+    };
     pixel_module(
         &mut d,
         PHANTOM_SIZE,
@@ -636,38 +674,77 @@ pub fn enhanced_volume(mr: bool) -> Vec<u8> {
     let mut metrics = Dataset::new(EXPLICIT_LE);
     physical_metadata(&mut metrics);
     shared.sequence(0x28, 0x9110, &[metrics]);
+    if comparison == 2 {
+        let coded = |value, scheme, meaning| {
+            let mut code = Dataset::new(EXPLICIT_LE);
+            code.text(8, 0x100, "SH", value);
+            code.text(8, 0x102, "SH", scheme);
+            code.text(8, 0x104, "LO", meaning);
+            code
+        };
+        let mut quantity = Dataset::new(EXPLICIT_LE);
+        quantity.text(0x40, 0xa040, "CS", "CODE");
+        quantity.sequence(0x40, 0xa043, &[coded("246205007", "SCT", "Quantity")]);
+        quantity.sequence(0x40, 0xa168, &[coded("126394", "DCM", "R2")]);
+        let mut mapping = Dataset::new(EXPLICIT_LE);
+        mapping.us(0x40, 0x9216, 0);
+        mapping.us(0x40, 0x9211, 1023);
+        mapping.element(0x40, 0x9224, "FD", &0.5_f64.to_le_bytes());
+        mapping.element(0x40, 0x9225, "FD", &0.25_f64.to_le_bytes());
+        mapping.sequence(0x40, 0x08ea, &[coded("1/s", "UCUM", "per second")]);
+        mapping.sequence(0x40, 0x9220, &[quantity]);
+        shared.sequence(0x40, 0x9096, &[mapping]);
+    }
     d.sequence(0x5200, 0x9229, &[shared]);
     let mut data = Vec::new();
-    let per_frame = frames.map(|(z, temporal)| {
-        let mut frame = Dataset::new(EXPLICIT_LE);
-        let mut location = Dataset::new(EXPLICIT_LE);
-        location.text(0x20, 0x32, "DS", &position(f64::from(z)));
-        frame.sequence(0x20, 0x9113, &[location]);
-        let mut content = Dataset::new(EXPLICIT_LE);
-        content.text(0x20, 0x9056, "SH", "A");
-        content.ul(0x20, 0x9057, u32::from(z) + 1);
-        content.ul(0x20, 0x9128, temporal);
-        let indices = [u32::from(z) + 1, temporal]
-            .into_iter()
-            .flat_map(u32::to_le_bytes)
-            .collect::<Vec<_>>();
-        content.element(0x20, 0x9157, "UL", &indices);
-        frame.sequence(0x20, 0x9111, &[content]);
-        let mut transformation = Dataset::new(EXPLICIT_LE);
-        transformation.text(0x28, 0x1053, "DS", "1");
-        transformation.text(0x28, 0x1052, "DS", if temporal == 1 { "0" } else { "1000" });
-        frame.sequence(0x28, 0x9145, &[transformation]);
-        data.extend(pixels_for_slice(z));
-        frame
-    });
+    let per_frame: Vec<_> = frames
+        .iter()
+        .map(|&(z, temporal)| {
+            let mut frame = Dataset::new(EXPLICIT_LE);
+            let mut location = Dataset::new(EXPLICIT_LE);
+            location.text(
+                0x20,
+                0x32,
+                "DS",
+                &position(f64::from(z) + if comparison == 3 { 20.0 } else { 0.0 }),
+            );
+            frame.sequence(0x20, 0x9113, &[location]);
+            let mut content = Dataset::new(EXPLICIT_LE);
+            content.text(0x20, 0x9056, "SH", "A");
+            content.ul(0x20, 0x9057, u32::from(z) + 1);
+            content.ul(0x20, 0x9128, temporal);
+            let indices = [u32::from(z) + 1, temporal]
+                .into_iter()
+                .flat_map(u32::to_le_bytes)
+                .collect::<Vec<_>>();
+            content.element(0x20, 0x9157, "UL", &indices);
+            frame.sequence(0x20, 0x9111, &[content]);
+            let mut transformation = Dataset::new(EXPLICIT_LE);
+            transformation.text(0x28, 0x1053, "DS", if comparison >= 2 { "2" } else { "1" });
+            transformation.text(0x28, 0x1052, "DS", if temporal == 1 { "0" } else { "1000" });
+            frame.sequence(0x28, 0x9145, &[transformation]);
+            data.extend(pixels_for_slice(z));
+            frame
+        })
+        .collect();
     d.sequence(0x5200, 0x9230, &per_frame);
     d.element(0x7fe0, 0x10, "OW", &data);
     part10(class, uid, EXPLICIT_LE, d.bytes)
 }
 
 pub fn large_volume(mr: bool) -> Vec<u8> {
+    large_volume_fixture(mr, false)
+}
+
+pub fn comparison_ct() -> Vec<u8> {
+    large_volume_fixture(false, true)
+}
+
+fn large_volume_fixture(mr: bool, named_windows: bool) -> Vec<u8> {
     let (class, uid, modality) = if mr {
         (ENHANCED_MR, "2.25.1951", "MR")
+    } else if named_windows {
+        (ENHANCED_CT, "2.25.1952", "CT")
     } else {
         (ENHANCED_CT, "2.25.1950", "CT")
     };
@@ -678,10 +755,19 @@ pub fn large_volume(mr: bool) -> Vec<u8> {
     pointer.at(0x20, 0x9165, [0x20, 0x9057]);
     d.sequence(0x20, 0x9222, &[pointer]);
     pixel_module(&mut d, [512, 512], [16, 16, 15], 300, "MONOCHROME2", false);
-    d.text(0x28, 0x1050, "DS", "500");
-    d.text(0x28, 0x1051, "DS", "1000");
+    if !named_windows {
+        d.text(0x28, 0x1050, "DS", "500");
+        d.text(0x28, 0x1051, "DS", "1000");
+    }
     d.us(0x28, 0x120, 65535);
     let mut shared = Dataset::new(RLE);
+    if named_windows {
+        let mut voi = Dataset::new(RLE);
+        voi.text(0x28, 0x1050, "DS", "40\\500");
+        voi.text(0x28, 0x1051, "DS", "400\\2000");
+        voi.text(0x28, 0x1055, "LO", "Soft tissue\\Bone");
+        shared.sequence(0x28, 0x9132, &[voi]);
+    }
     let mut orientation = Dataset::new(RLE);
     orientation.text(0x20, 0x37, "DS", "1\\0\\0\\0\\1\\0");
     shared.sequence(0x20, 0x9116, &[orientation]);
@@ -711,6 +797,9 @@ pub fn large_volume(mr: bool) -> Vec<u8> {
         let mut transform = Dataset::new(RLE);
         transform.text(0x28, 0x1053, "DS", "2");
         transform.text(0x28, 0x1052, "DS", &format!("{}", -500 + i32::from(z % 2)));
+        if named_windows {
+            transform.text(0x28, 0x1054, "LO", "HU");
+        }
         frame.sequence(0x28, 0x9145, &[transform]);
         per_frame.push(frame);
 
@@ -859,7 +948,17 @@ pub fn measured_sr() -> Vec<u8> {
 }
 
 pub fn native_us(color: bool, spatial: bool) -> Vec<u8> {
-    let instance = if color {
+    native_us_fixture(color, spatial, false)
+}
+
+pub fn spectral_us() -> Vec<u8> {
+    native_us_fixture(true, true, true)
+}
+
+fn native_us_fixture(color: bool, spatial: bool, spectral: bool) -> Vec<u8> {
+    let instance = if spectral {
+        "2.25.1840"
+    } else if color {
         "2.25.840"
     } else if spatial {
         "2.25.841"
@@ -891,6 +990,27 @@ pub fn native_us(color: bool, spatial: bool) -> Vec<u8> {
     region.us(0x18, 0x6026, 3);
     region.element(0x18, 0x602c, "FD", &0.1_f64.to_le_bytes());
     region.element(0x18, 0x602e, "FD", &(-0.2_f64).to_le_bytes());
+    if spectral {
+        region = Dataset::new(EXPLICIT_LE);
+        region.us(0x18, 0x6012, 3);
+        region.us(0x18, 0x6014, 3);
+        region.ul(0x18, 0x6018, 2);
+        region.ul(0x18, 0x601a, 1);
+        region.ul(0x18, 0x601c, 7);
+        region.ul(0x18, 0x601e, 5);
+        region.element(0x18, 0x6020, "SL", &(-1_i32).to_le_bytes());
+        region.element(0x18, 0x6022, "SL", &2_i32.to_le_bytes());
+        region.us(0x18, 0x6024, 4);
+        region.us(0x18, 0x6026, 7);
+        for (key, value) in [
+            (0x6028, 0.0_f64),
+            (0x602a, 0.0),
+            (0x602c, 0.01),
+            (0x602e, -5.0),
+        ] {
+            region.element(0x18, key, "FD", &value.to_le_bytes());
+        }
+    }
     data.sequence(0x18, 0x6011, &[region]);
     let pixels = if color {
         [vec![12; 48], vec![34; 48], vec![56; 48]].concat()
@@ -902,6 +1022,14 @@ pub fn native_us(color: bool, spatial: bool) -> Vec<u8> {
 }
 
 pub fn lut_projection(class: &str, instance: &str, modality: &str) -> Vec<u8> {
+    projection_with_luts(class, instance, modality, false)
+}
+
+pub fn alternate_luts() -> Vec<u8> {
+    projection_with_luts("1.2.840.10008.5.1.4.1.1.1.1", "2.25.1841", "DX", true)
+}
+
+fn projection_with_luts(class: &str, instance: &str, modality: &str, multiple: bool) -> Vec<u8> {
     let mut data = Dataset::new(EXPLICIT_LE);
     identify(&mut data, class, instance, modality);
     pixel_module(&mut data, [2, 2], [8, 8, 7], 1, "MONOCHROME1", false);
@@ -924,11 +1052,13 @@ pub fn lut_projection(class: &str, instance: &str, modality: &str) -> Vec<u8> {
         item
     };
     data.sequence(0x28, 0x3000, &[table(&[0, 4, 8, 12])]);
-    data.sequence(
-        0x28,
-        0x3010,
-        &[table(&(0..16).map(|n| n * 16).collect::<Vec<_>>())],
-    );
+    let mut views = vec![table(&(0..16).map(|n| n * 16).collect::<Vec<_>>())];
+    if multiple {
+        let mut alternative = table(&(0..16).map(|n| 255 - n * 16).collect::<Vec<_>>());
+        alternative.text(0x28, 0x3003, "LO", "Alternative contrast");
+        views.push(alternative);
+    }
+    data.sequence(0x28, 0x3010, &views);
     data.text(0x2050, 0x20, "CS", "IDENTITY");
     data.element(0x7fe0, 0x10, "OB", &[0, 1, 2, 3]);
     part10(class, instance, EXPLICIT_LE, data.bytes)

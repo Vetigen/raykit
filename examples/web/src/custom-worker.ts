@@ -1,0 +1,1 @@
+import '@raykit/web/worker';

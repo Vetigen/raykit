@@ -1,0 +1,400 @@
+{
+  "browser": "131.0.6778.33",
+  "graphics": {
+    "gpuAttempts": 1,
+    "textureBytes": 194,
+    "uploads": 2,
+    "uploadBytes": 6288,
+    "textureAllocations": 2
+  },
+  "proof": {
+    "ms": 128.79999995231628,
+    "first": {
+      "active_pixel_bytes_upper_bound": 3439800,
+      "output_copy_bytes": 4586400,
+      "peak_output_bytes": 4586400,
+      "plane_cache_bytes": 0,
+      "plane_cache_hits": 0,
+      "plane_work_bytes": 0,
+      "planes_computed": 0,
+      "rendered_frame_bytes": 4586400,
+      "rendered_frames": 1,
+      "retained_dataset_bytes": 496,
+      "session": {
+        "cached_frames": 1,
+        "cached_pixel_bytes": 3439800,
+        "dataset_elements": 17,
+        "decoded_frames": 1,
+        "fragment_copy_bytes": 0,
+        "frame_index_bytes": 108,
+        "frame_index_input_bytes": 0,
+        "peak_cached_pixel_bytes": 3439800,
+        "produced_pixel_bytes": 3439800,
+        "range_reads": 1,
+        "resident_dataset_bytes": 496,
+        "source_bytes": 9766844,
+        "source_read_bytes": 28000
+      },
+      "volume": null,
+      "wasm_linear_memory_bytes": 11927552,
+      "wasm_input_copy_bytes": 28000,
+      "wasm_output_copy_bytes": 4586400,
+      "indexed_range_read_bytes": 28000,
+      "indexed_full_fallback_bytes": 0,
+      "range_requests": 1,
+      "engine": "baseline"
+    },
+    "later": {
+      "active_pixel_bytes_upper_bound": 3439800,
+      "output_copy_bytes": 9172800,
+      "peak_output_bytes": 4586400,
+      "plane_cache_bytes": 0,
+      "plane_cache_hits": 0,
+      "plane_work_bytes": 0,
+      "planes_computed": 0,
+      "rendered_frame_bytes": 9172800,
+      "rendered_frames": 2,
+      "retained_dataset_bytes": 496,
+      "session": {
+        "cached_frames": 2,
+        "cached_pixel_bytes": 6879600,
+        "dataset_elements": 17,
+        "decoded_frames": 2,
+        "fragment_copy_bytes": 0,
+        "frame_index_bytes": 108,
+        "frame_index_input_bytes": 0,
+        "peak_cached_pixel_bytes": 6879600,
+        "produced_pixel_bytes": 6879600,
+        "range_reads": 2,
+        "resident_dataset_bytes": 496,
+        "source_bytes": 9766844,
+        "source_read_bytes": 58176
+      },
+      "volume": null,
+      "wasm_linear_memory_bytes": 16515072,
+      "wasm_input_copy_bytes": 58176,
+      "wasm_output_copy_bytes": 9172800,
+      "indexed_range_read_bytes": 58176,
+      "indexed_full_fallback_bytes": 0,
+      "range_requests": 2,
+      "engine": "baseline"
+    },
+    "firstSample": {
+      "kind": "color",
+      "space": "rgb",
+      "values": [
+        32,
+        64,
+        63
+      ]
+    },
+    "mid": {
+      "kind": "color",
+      "space": "rgb",
+      "values": [
+        207,
+        77,
+        137
+      ]
+    }
+  },
+  "tile": {
+    "tilesBefore": {
+      "cached_tile_bytes": 1048576,
+      "bytes_read": 1053655,
+      "requests": 5
+    },
+    "tilesAfter": {
+      "cached_tile_bytes": 1572864,
+      "bytes_read": 1577943,
+      "requests": 8
+    },
+    "sample": {
+      "kind": "monochrome",
+      "stored": -1506,
+      "modality": -1506,
+      "padding": false
+    },
+    "measurement": {
+      "source": {
+        "sop_class_uid": "1.2.840.10008.5.1.4.1.1.1",
+        "instance_uid": "2.25.104",
+        "content_sha256": "22c6e34aeb35e77e7bb4b5a48b705e868858c82c5f63865e34e97e999f0f9c5c",
+        "frame_of_reference_uid": null,
+        "frame": 0
+      },
+      "coordinate_system": "source_pixel_centers",
+      "input": {
+        "id": "tiled-ruler",
+        "method": "raykit:length",
+        "version": 1,
+        "points": [
+          {
+            "x": 256,
+            "y": 256
+          },
+          {
+            "x": 261,
+            "y": 256
+          }
+        ],
+        "parameters": null
+      },
+      "calibration": {
+        "kind": "projection",
+        "spacing_xy": [
+          0.5,
+          0.25
+        ],
+        "method": "fiducial"
+      },
+      "values": [
+        {
+          "name": "length",
+          "value": 2.5,
+          "unit": "millimeter"
+        }
+      ]
+    },
+    "region": {
+      "x": 254,
+      "y": 254,
+      "width": 8,
+      "height": 8
+    }
+  },
+  "sample": {
+    "doppler_axes": null,
+    "geometry": {
+      "anatomy": "unknown",
+      "calibration": {
+        "kind": "patient_plane",
+        "spacing_xy": [
+          0.7,
+          0.8
+        ]
+      },
+      "detector_spacing_xy": null,
+      "display_spacing_xy": [
+        0.7,
+        0.8
+      ],
+      "increasing_column": null,
+      "increasing_row": null,
+      "patient_plane": {
+        "column_axis": [
+          1,
+          0,
+          0
+        ],
+        "origin": [
+          0,
+          0,
+          180
+        ],
+        "row_axis": [
+          0,
+          1,
+          0
+        ],
+        "spacing_xy": [
+          0.7,
+          0.8
+        ]
+      }
+    },
+    "modality_unit": "HU",
+    "patient": [
+      179.2,
+      204.8,
+      180
+    ],
+    "quantitative": null,
+    "sample": {
+      "kind": "monochrome",
+      "modality": 448,
+      "padding": false,
+      "stored": 474
+    },
+    "source": {
+      "content_sha256": "bd7d9b180fa3cc398faa048c5fea6a6b28d71ebd4e4f2f6340254dd095a35090",
+      "frame": 150,
+      "frame_of_reference_uid": "2.25.1999",
+      "instance_uid": "2.25.1952",
+      "sop_class_uid": "1.2.840.10008.5.1.4.1.1.2.1"
+    }
+  },
+  "mr": {
+    "from": [
+      -7.959999999999999,
+      6.779999999999999,
+      17.8
+    ],
+    "match": {
+      "frame": 1,
+      "pixel": {
+        "x": 2.9999999999999996,
+        "y": 2
+      }
+    },
+    "misaligned": null,
+    "quantitative": {
+      "quantity": {
+        "meaning": "R2",
+        "scheme": "DCM",
+        "value": "126394"
+      },
+      "unit": {
+        "meaning": "per second",
+        "scheme": "UCUM",
+        "value": "1/s"
+      },
+      "value": 59.5
+    }
+  },
+  "live": {
+    "frozen": 0,
+    "original": {
+      "source": {
+        "sop_class_uid": "1.2.840.10008.5.1.4.1.1.6.1",
+        "instance_uid": "2.25.840",
+        "content_sha256": "3b66858de4e8bd6994c4e59c16c6bb849c66379a3d95e0c3ede1691457c20cb7",
+        "frame_of_reference_uid": null,
+        "frame": 0
+      },
+      "coordinate_system": "source_pixel_centers",
+      "input": {
+        "id": "live-distance",
+        "method": "raykit:length",
+        "version": 1,
+        "points": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 3,
+            "y": 0
+          }
+        ],
+        "parameters": {
+          "require_mm": true
+        }
+      },
+      "calibration": {
+        "kind": "ultrasound_region",
+        "index": 0,
+        "spacing_xy": [
+          1,
+          -2
+        ]
+      },
+      "values": [
+        {
+          "name": "length",
+          "value": 3,
+          "unit": "millimeter"
+        }
+      ]
+    },
+    "resumed": 2,
+    "acquisitions": 3
+  },
+  "rejected": {
+    "corrupt": "integrity",
+    "wrong-frame": "integrity",
+    "truncated": "integrity",
+    "wrong-metadata": "integrity",
+    "missing": "io",
+    "root": "integrity",
+    "revision": "integrity",
+    "tile": "integrity",
+    "capture": "integrity",
+    "calibration": "geometry"
+  },
+  "codec": {
+    "basic": {
+      "ms": 16.90000009536743,
+      "stats": {
+        "active_pixel_bytes_upper_bound": 12288,
+        "output_copy_bytes": 12288,
+        "peak_output_bytes": 12288,
+        "plane_cache_bytes": 0,
+        "plane_cache_hits": 0,
+        "plane_work_bytes": 0,
+        "planes_computed": 0,
+        "rendered_frame_bytes": 12288,
+        "rendered_frames": 1,
+        "retained_dataset_bytes": 6728,
+        "session": {
+          "cached_frames": 1,
+          "cached_pixel_bytes": 12288,
+          "dataset_elements": 24,
+          "decoded_frames": 1,
+          "fragment_copy_bytes": 0,
+          "frame_index_bytes": 0,
+          "frame_index_input_bytes": 0,
+          "peak_cached_pixel_bytes": 12288,
+          "produced_pixel_bytes": 12288,
+          "range_reads": 0,
+          "resident_dataset_bytes": 6728,
+          "source_bytes": 6728,
+          "source_read_bytes": 6728
+        },
+        "volume": null,
+        "wasm_linear_memory_bytes": 1441792,
+        "wasm_input_copy_bytes": 13456,
+        "wasm_output_copy_bytes": 12288,
+        "indexed_range_read_bytes": 0,
+        "indexed_full_fallback_bytes": 0,
+        "range_requests": 0,
+        "engine": "baseline"
+      }
+    },
+    "advanced": {
+      "ms": 29.299999952316284,
+      "stats": {
+        "active_pixel_bytes_upper_bound": 1024,
+        "output_copy_bytes": 1024,
+        "peak_output_bytes": 1024,
+        "plane_cache_bytes": 0,
+        "plane_cache_hits": 0,
+        "plane_work_bytes": 0,
+        "planes_computed": 0,
+        "rendered_frame_bytes": 1024,
+        "rendered_frames": 1,
+        "retained_dataset_bytes": 594,
+        "session": {
+          "cached_frames": 1,
+          "cached_pixel_bytes": 1024,
+          "dataset_elements": 14,
+          "decoded_frames": 1,
+          "fragment_copy_bytes": 0,
+          "frame_index_bytes": 20,
+          "frame_index_input_bytes": 0,
+          "peak_cached_pixel_bytes": 1024,
+          "produced_pixel_bytes": 1024,
+          "range_reads": 0,
+          "resident_dataset_bytes": 594,
+          "source_bytes": 594,
+          "source_read_bytes": 594
+        },
+        "volume": null,
+        "wasm_linear_memory_bytes": 2949120,
+        "wasm_input_copy_bytes": 1188,
+        "wasm_output_copy_bytes": 1024,
+        "indexed_range_read_bytes": 0,
+        "indexed_full_fallback_bytes": 0,
+        "range_requests": 0,
+        "engine": "advanced"
+      }
+    },
+    "basicRequests": [
+      "/sdk/generated/raykit_wasm_bg.wasm"
+    ],
+    "advancedRequests": [
+      "/sdk/generated/raykit_wasm_bg.wasm",
+      "/sdk/generated/advanced/raykit_wasm_bg.wasm"
+    ]
+  }
+}

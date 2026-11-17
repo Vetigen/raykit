@@ -25,9 +25,11 @@ class _RayKitVolumeViewState extends State<RayKitVolumeView> {
   FrameRaster? _image;
   String _orientation = 'axial';
   String _slab = 'single';
+  String _sampling = 'trilinear';
   String _palette = 'gray';
   String _status = 'Preparing volume…';
   double _offset = 0, _span = 6, _center = 200, _width = 800;
+  double _thickness = 5;
 
   @override
   void initState() {
@@ -113,6 +115,7 @@ class _RayKitVolumeViewState extends State<RayKitVolumeView> {
       'axial' => [0.0, 0.0, 1.0],
       'coronal' => [0.0, 1.0, 0.0],
       'sagittal' => [1.0, 0.0, 0.0],
+      'source' => normal,
       _ => _cross(column, tilted),
     };
     final center = _vector(volume['center']);
@@ -127,6 +130,9 @@ class _RayKitVolumeViewState extends State<RayKitVolumeView> {
         ].reduce(math.max) /
         200;
     const size = 256;
+    final onGrid = _orientation == 'source';
+    final columns = onGrid ? dims[0] : size;
+    final rows = onGrid ? dims[1] : size;
     try {
       final result = await session.reslice(
         {
@@ -135,19 +141,24 @@ class _RayKitVolumeViewState extends State<RayKitVolumeView> {
             (i) => center[i] + _offset * direction[i],
           ),
           'orientation': {
-            'kind': _orientation,
+            'kind': onGrid ? 'oblique' : _orientation,
+            if (onGrid) 'axes': [...column, ...row],
             if (_orientation == 'oblique') 'axes': [...column, ...tilted],
           },
-          'dimensions': [size, size],
-          'spacing_xy': [spacing, spacing],
-          'slab': {'kind': _slab, if (_slab != 'single') 'thickness_mm': 5.0},
+          'dimensions': [columns, rows],
+          'spacing_xy': onGrid ? pixelSize : [spacing, spacing],
+          'slab': {
+            'kind': _slab,
+            if (_slab != 'single') 'thickness_mm': _thickness,
+          },
         },
         window: {'center': _center, 'width': _width},
         palette: _palette,
+        sampling: _sampling,
         cancellation: token,
       );
       token.check();
-      final image = FrameRaster(await decodeRgba(result.pixels, size, size));
+      final image = FrameRaster(await decodeRgba(result.pixels, columns, rows));
       if (!mounted || token.isCancelled || session.isClosed) {
         image.dispose();
         return;
@@ -224,12 +235,39 @@ class _RayKitVolumeViewState extends State<RayKitVolumeView> {
             'coronal': 'Coronal',
             'sagittal': 'Sagittal',
             'oblique': 'Oblique',
+            'source': 'Source grid',
           }, (v) => _orientation = v),
           _select(_slab, {
             'single': 'Single',
-            'average': 'Average 5 mm',
-            'maximum': 'MIP 5 mm',
+            'average': 'Average',
+            'maximum': 'MIP',
           }, (v) => _slab = v),
+          _select(_sampling, {
+            'trilinear': 'Trilinear',
+            'nearest': 'Nearest',
+          }, (v) => _sampling = v),
+          if (_slab != 'single')
+            SizedBox(
+              width: 112,
+              child: TextFormField(
+                decoration: const InputDecoration(labelText: 'Thickness (mm)'),
+                initialValue: _thickness.toString(),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                onFieldSubmitted: (text) {
+                  final value = double.tryParse(text);
+                  if (value == null ||
+                      !value.isFinite ||
+                      value <= 0 ||
+                      value > 500) {
+                    return;
+                  }
+                  setState(() => _thickness = value);
+                  unawaited(_draw());
+                },
+              ),
+            ),
           _select(_palette, {
             'gray': 'Gray',
             'hot': 'Hot',
