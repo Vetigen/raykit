@@ -13,9 +13,9 @@ const color = i => [32 + i % 192, 64 + (i * 3) % 128, 64 + (i * 7) % 128];
 await mkdir(directory, { recursive: true });
 await writeFile(`${directory}/index.html`, '<!doctype html><meta charset="utf-8"><title>Synthetic dependent video</title>');
 const encoder = spawn(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'rawvideo', '-pixel_format', 'rgb24',
-  '-video_size', `${width}x${height}`, '-framerate', String(fps), '-i', 'pipe:0', '-c:v', 'libx264', '-g', String(gop),
-  '-keyint_min', String(gop), '-sc_threshold', '0', '-bf', '0', '-pix_fmt', 'yuv420p', '-crf', '18',
-  '-threads', '4', '-movflags', '+faststart', `${directory}/cine.mp4`], { stdio: ['pipe', 'ignore', 'inherit'] });
+  '-video_size', `${width}x${height}`, '-framerate', String(fps), '-i', 'pipe:0', '-c:v', 'libvpx-vp9', '-g', String(gop),
+  '-keyint_min', String(gop), '-lag-in-frames', '0', '-cpu-used', '6', '-row-mt', '1',
+  '-pix_fmt', 'yuv420p', '-crf', '18', '-b:v', '0', '-threads', '4', `${directory}/cine.webm`], { stdio: ['pipe', 'ignore', 'inherit'] });
 const finished = once(encoder, 'close');
 const row = Buffer.alloc(width * 3);
 const frame = Buffer.alloc(row.length * height);
@@ -42,8 +42,8 @@ try {
         const video = document.createElement('video');
         video.muted = true; video.playsInline = true; video.preload = 'auto';
         document.body.append(video);
-        const response = await fetch('cine.mp4');
-        const url = URL.createObjectURL(new Blob([await response.arrayBuffer()], { type: 'video/mp4' }));
+        const response = await fetch('cine.webm');
+        const url = URL.createObjectURL(new Blob([await response.arrayBuffer()], { type: 'video/webm' }));
         const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
         const context = canvas.getContext('2d');
         try {
@@ -52,9 +52,14 @@ try {
             const start = performance.now();
             const mediaTime = await new Promise((resolve, reject) => {
               const timer = setTimeout(() => reject(new Error(`No video frame presentation for ${index}`)), 10_000);
+              const failure = () => {
+                clearTimeout(timer);
+                reject(new Error(`Host video decode failed (${video.error?.code})`));
+              };
+              video.addEventListener('error', failure, { once: true });
               const observe = (_, metadata) => {
                 if (Math.abs(metadata.mediaTime - index / fps) > 0.5 / fps) { video.requestVideoFrameCallback(observe); return; }
-                clearTimeout(timer); resolve(metadata.mediaTime);
+                clearTimeout(timer); video.removeEventListener('error', failure); resolve(metadata.mediaTime);
               };
               video.requestVideoFrameCallback(observe);
               if (index === 0) video.src = url;
@@ -78,8 +83,8 @@ try {
   });
   const evidence = { commit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     browser: browser.version(), encoder: execFileSync(ffmpeg, ['-version'], { encoding: 'utf8' }).split('\n')[0],
-    codec: 'H.264 in MP4', dimensions: [width, height], count, fps, gop, tolerance,
-    bytes: (await stat(`${directory}/cine.mp4`)).size, summary, runs };
+    codec: 'VP9 in WebM', dimensions: [width, height], count, fps, gop, tolerance,
+    bytes: (await stat(`${directory}/cine.webm`)).size, summary, runs };
   await writeFile('benchmarks/results/dependent-video.json', JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(summary));
 } finally { await browser?.close(); server.close(); }
