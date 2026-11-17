@@ -1,4 +1,4 @@
-# RayKit
+# RayKit by Vetigen — Open-source DICOM viewer SDK for web and Flutter.
 
 RayKit is a Rust-based DICOM SDK for veterinary imaging. Its TypeScript and Flutter packages open a local file, present a selected original frame, retrieve stored samples, and reopen measurements on the exact same source. The standalone examples use generated data and run without an account or a remote service.
 
