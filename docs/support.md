@@ -38,7 +38,7 @@ exact commit and artifact.
 The initial 0.1.0 rehearsal exercised installed npm apps in all three browser
 engines below and the unpacked Flutter SDK in a Linux consumer. Both Linux
 native architectures passed the CLI, C, Node and Python package checks. The
-Linux desktop archive opened the reference CT through its viewer. The rehearsal
+Linux and both macOS desktop archives opened the reference CT through their viewers. The rehearsal
 also identified Android, macOS and Windows packaging issues for the next run.
 Use the candidate report for the definitive release inventory and its passed
 checks. [Initial rehearsal](https://github.com/Vetigen/raykit/actions/runs/44202855691)
@@ -52,7 +52,7 @@ checks. [Initial rehearsal](https://github.com/Vetigen/raykit/actions/runs/44202
 | Windows WebView2 | Static WebView host path documented. Windows runtime verification remains open. |
 | macOS WKWebView | Static WebView host path documented. macOS runtime verification remains open. |
 | Flutter and desktop, Linux x64 | Flutter 3.44.9. Installed Flutter sources passed offline viewer tests. The Linux release bundle drew and queried frame 150 from an external file under Xvfb. Shared session, source identity, live freeze, renderer, indexed reads and calibrated measurement were exercised. [Desktop record](../benchmarks/evidence/delivery-desktop.json) |
-| Native macOS desktop | Standalone Flutter runner and host archive command are provided. The Rust FFI and CLI passed the Apple Silicon target check. A macOS app build and native UI acceptance remain open. |
+| Native macOS desktop | Hosted Intel and Apple Silicon runners launched the extracted Flutter desktop apps and verified the reference CT. Developer signing and notarization remain open. |
 | Native Windows desktop | Standalone Flutter runner and host archive command are provided. The Rust FFI and CLI passed the Windows GNU x64 target check. A Windows app build and native UI acceptance remain open. |
 | Android ARM64 | Flutter profile APK built with Android SDK 36 and NDK 28.2.13676358. The APK contains the AArch64 FFI library, descriptor entry points, shader and matching source bytes. Runtime verification on physical Android remains open. [Build evidence](../benchmarks/evidence/delivery-platforms.json) |
 | iOS ARM64 | Current Rust FFI target checked with Rust 1.97.1. App linking with Xcode and physical iPhone runtime verification remain open. |

@@ -1,4 +1,4 @@
-"""Install the CLI by name in an empty Cargo consumer, then verify the reference CT."""
+"""Install the CLI and use the Rust SDK from an empty Cargo consumer."""
 
 import argparse
 from contextlib import contextmanager
@@ -121,6 +121,47 @@ def verify_cli(work, version, rust, options):
     return {"sample": sample, "measurement": verified["values"], "tamper_rejected": True}
 
 
+def verify_rust_sdk(work, version, rust, options):
+    source = work / "src"
+    source.mkdir()
+    (work / "Cargo.toml").write_text(
+        '[package]\nname = "raykit-consumer"\nversion = "0.0.0"\nedition = "2024"\n'
+        f'[dependencies]\nraykit-core = "={version}"\n', encoding="utf-8",
+    )
+    (source / "main.rs").write_text("""use raykit_core::{Limits, Sample, Session};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut args = std::env::args().skip(1);
+    let bytes = std::fs::read(args.next().unwrap())?;
+    let sha = args.next().unwrap();
+    let index = args.next().unwrap().parse()?;
+    let x = args.next().unwrap().parse()?;
+    let y = args.next().unwrap().parse()?;
+    let mut source = Session::open_verified(bytes, Limits::default(), Some(&sha))?;
+    let frame = source.read_frame(index)?;
+    let Sample::Monochrome { stored, modality, padding: false } = frame.sample(x, y)? else {
+        panic!("expected a monochrome sample");
+    };
+    println!("{stored} {modality}");
+    Ok(())
+}
+""", encoding="utf-8")
+    output = subprocess.check_output([
+        "cargo", f"+{rust}", "run", "--quiet", "--release", *options, "--",
+        ROOT / "fixtures/generated/comparison-ct.dcm", REFERENCE["sha256"], str(REFERENCE["frame"]),
+        *map(str, REFERENCE["pixel"]),
+    ], env={**os.environ, "CARGO_HOME": str(work / "cargo-home")}, cwd=work, text=True)
+    stored, modality = output.split()
+    assert int(stored) == REFERENCE["stored"] and float(modality) == REFERENCE["modality"]
+    return {"stored": int(stored), "modality": float(modality), "frame": REFERENCE["frame"]}
+
+
+def verify_consumers(work, version, rust, options):
+    evidence = verify_cli(work, version, rust, options)
+    evidence["rust_sdk"] = verify_rust_sdk(work, version, rust, options)
+    return evidence
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     source = parser.add_mutually_exclusive_group(required=True)
@@ -130,10 +171,10 @@ def main():
     version, rust, _ = check_versions()
     with tempfile.TemporaryDirectory(prefix="raykit-cargo-consumer-") as directory:
         if args.published:
-            evidence = verify_cli(Path(directory), version, rust, [])
+            evidence = verify_consumers(Path(directory), version, rust, [])
         else:
             with local_registry(args.packages, version) as options:
-                evidence = verify_cli(Path(directory), version, rust, options)
+                evidence = verify_consumers(Path(directory), version, rust, options)
     print(json.dumps(evidence, indent=2))
 
 

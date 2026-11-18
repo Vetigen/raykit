@@ -502,15 +502,24 @@ jobs:
           RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node scripts/prepare-flutter-consumer.mjs "$RUNNER_TEMP/consumer" --integration
       - working-directory: ${{ runner.temp }}/consumer/examples/flutter
         run: flutter build ios --release --no-codesign --no-pub
-      - working-directory: ${{ runner.temp }}/consumer/examples/flutter
+      - name: Boot an available iPhone simulator
+        id: simulator
+        timeout-minutes: 8
         run: |
           simulator=$(xcrun simctl list devices available -j | jq -er '[.devices | to_entries | reverse[] | select(.key | contains("iOS")) | .value[] | select(.name | startswith("iPhone"))][0].udid')
           if ! xcrun simctl list devices booted | grep -Fq "$simulator"; then
             xcrun simctl boot "$simulator"
           fi
           xcrun simctl bootstatus "$simulator" -b
-          flutter test --no-pub -d "$simulator" integration_test/release_test.dart
-          jq -n --arg xcode "$(xcodebuild -version)" --arg simulator "$simulator" \
+          printf 'device=%s\n' "$simulator" >> "$GITHUB_OUTPUT"
+      - name: Exercise the installed SDK on the simulator
+        working-directory: ${{ runner.temp }}/consumer/examples/flutter
+        timeout-minutes: 20
+        env:
+          SIMULATOR: ${{ steps.simulator.outputs.device }}
+        run: |
+          flutter test --no-pub -d "$SIMULATOR" --reporter expanded integration_test/release_test.dart
+          jq -n --arg xcode "$(xcodebuild -version)" --arg simulator "$SIMULATOR" \
             '{device_link:"passed",simulator_runtime:"passed",physical_device:"not run",xcode:$xcode,simulator:$simulator}' > "$RUNNER_TEMP/ios.json"
       - run: python3 scripts/release.py shard "$SHARD" ios "$COMMIT" --evidence "$RUNNER_TEMP/ios.json"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

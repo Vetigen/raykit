@@ -41,6 +41,43 @@ RAYKIT_FLUTTER_LINUX=/path/to/candidate/raykit_example \
   node benchmarks/flutter-linux-profile.mjs --startup > benchmarks/results/release-flutter.json
 ```
 
+The 0.1.0 measurements used Linux x64 on a Ryzen 9 9900X with the packaged
+runtime from `7d6fcdc1166620940342dbabeb554157889297bb`. Chromium
+131.0.6778.33 drew through software WebGL2. Flutter 3.44.9 used the CPU
+image path. Its reference SDK came from the initial `c95fb0b` rehearsal.
+Each fixture and engine had 20 fresh-process opens and used the same
+synthetic bytes, display settings and filesystem cache conditions.
+
+| Consumer | Fixture | Open to original p50 / p95 (ms) | Fast seek p95 (ms) | Sampled peak RSS p95 (MiB) | RSS after close 1 → 11 (MiB) |
+| --- | --- | ---: | ---: | ---: | ---: |
+| RayKit Chromium | Signed MONOCHROME1 | 39.2 / 42.1 | — | 113.1 | 114.8 → 111.5 |
+| DWV 0.36.4 Chromium | Signed MONOCHROME1 | 81.6 / 83.8 | — | 108.7 | 107.2 → 112.9 |
+| RayKit Chromium | 350-frame cine | 85.6 / 99.6 | 17.1 | 253.6 | 137.7 → 306.7 |
+| DWV 0.36.4 Chromium | 350-frame cine | 211.2 / 224.4 | 43.3 | 2315.1 | 1450.4 → 1556.5 |
+| Flutter reference | Signed MONOCHROME1 | 37.5 / 54.2 | — | 254.8 | 236.9 → 245.6 |
+| Flutter candidate | Signed MONOCHROME1 | 37.0 / 54.4 | — | 252.6 | 237.0 → 245.3 |
+| Flutter reference | 350-frame cine | 40.5 / 69.1 | 32.5 | 364.7 | 338.4 → 347.4 |
+| Flutter candidate | 350-frame cine | 40.5 / 69.2 | 31.7 | 367.1 | 341.8 → 350.2 |
+
+Browser RSS covers the sampled renderer processes. The close-cycle entries
+come from one run per browser and fixture. Flutter RSS covers the profile
+app process and the close-cycle entries are medians across 20 runs. RSS
+includes allocations retained for reuse after the source is closed.
+
+| RayKit phase p50 (ms) | Chromium radiograph | Chromium cine | Flutter radiograph | Flutter cine |
+| --- | ---: | ---: | ---: | ---: |
+| File read | 1.10 | 15.90 | 0.006 | 2.03 |
+| Input handoff to Worker | 3.55 | 2.10 | — | — |
+| Worker or native isolate start | 9.60 | 12.15 | 1.40 | 1.37 |
+| Open-time SHA-256 | 0.10 | 5.60 | 0.007 | 3.74 |
+| Frame decode and delivery | 1.75 | 11.85 | 1.20 | 6.71 |
+| Draw preparation to presentation | 18.80 | 21.90 | 12.85 | 12.54 |
+
+The browser harness checks the fixture pin before handing the bytes to each
+engine. That separate check had a median of 0.20 ms for the radiograph and
+5.80 ms for cine. A Dart native open call includes the FFI work and isolate
+handoff. The phase medians describe individual intervals within the total.
+
 ## Standalone delivery
 
 Use Node.js 24 or later, Python 3.11 or later, Docker for native Linux
