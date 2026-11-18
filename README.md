@@ -102,6 +102,8 @@ raykit measurements verify fixtures/generated/comparison-ct.dcm measurement.json
 
 Install the Node SDK with `npm install @vetigen/raykit-node`. The loader selects the optional native addon for the current platform. Its session opens local sources and renders on Node-API's asynchronous work pool. The [Node.js proof example](examples/node/proofs.mjs) writes packets for a static host.
 
+If your npm configuration directs `@vetigen` to another registry, append `--@vetigen:registry=https://registry.npmjs.org` when installing RayKit packages from the public registry.
+
 Install the Python SDK with `python -m pip install raykit-dicom` and import `raykit_dicom`. Run the NumPy example with `python sample.py SOURCE --frame 150 --x 256 --y 256`. NumPy views retain their owned bytes after close. [NumPy example](examples/python/sample.py)
 
 ## Local packages

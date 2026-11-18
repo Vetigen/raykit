@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { tar } from '../scripts/release-lib.mjs';
+import { npmRegistryArgs, tar } from '../scripts/release-lib.mjs';
 
 const exec = promisify(execFile);
 
@@ -36,7 +36,7 @@ export async function installFromTarballs(work, name, tarballs) {
   const url = `http://127.0.0.1:${server.address().port}`;
   try {
     const args = ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--engine-strict',
-      '--registry', url, '--cache', join(work, 'npm-cache'), name];
+      ...npmRegistryArgs(url), '--cache', join(work, 'npm-cache'), name];
     const command = process.platform === 'win32' ? process.execPath : 'npm';
     if (process.platform === 'win32') args.unshift(join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js'));
     await exec(command, args, { cwd: work });

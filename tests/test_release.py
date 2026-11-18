@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from release import (
     REFERENCE, check_versions, inventory, required_lanes, sha256, verify_bundle, write_json,
 )
-from release_registry import Package, publish, registry_file
+from release_registry import Package, publish, registry_file, upload_npm
 
 
 class CandidateTests(unittest.TestCase):
@@ -68,6 +68,16 @@ class CandidateTests(unittest.TestCase):
 
 
 class RegistryTests(unittest.TestCase):
+    def test_npm_upload_pins_scope_to_public_registry(self):
+        path = Path("vetigen-raykit-node-1.0.0.tgz")
+        package = Package(path, "@vetigen/raykit-node", "", "1.0.0")
+        with patch("release_registry.subprocess.run") as run:
+            upload_npm(package)
+        args = run.call_args.args[0]
+        self.assertEqual(args[:3], ["npm", "publish", str(path.resolve())])
+        self.assertIn("--@vetigen:registry=https://registry.npmjs.org", args)
+        self.assertTrue(run.call_args.kwargs["check"])
+
     def test_resume_only_missing_versions_and_wait_in_order(self):
         packages = [Package(Path(name + ".crate"), name, name, "1.0.0") for name in ("core", "vet", "protocol")]
         remote = {"core": "core"}

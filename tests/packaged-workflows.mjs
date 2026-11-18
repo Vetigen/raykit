@@ -6,7 +6,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium, firefox, webkit } from 'playwright-core';
 import { serve } from './static-server.mjs';
-import { artifacts, flutterArchive, npmArchive, npmPackageName, tar, version } from '../scripts/release-lib.mjs';
+import { artifacts, flutterArchive, npmArchive, npmPackageName, npmRegistryArgs, tar, version } from '../scripts/release-lib.mjs';
 
 const root = resolve('.');
 const tree = mkdtempSync(join(tmpdir(), 'raykit-consumer-'));
@@ -55,7 +55,7 @@ try {
   const packages = ['web', 'web-component'];
   const files = packages.map(name => join(artifacts, npmArchive(name)));
   run(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--cache', join(tree, 'npm-cache'),
-    ...(published ? ['--registry', 'https://registry.npmjs.org', ...packages.map(name => npmPackageName(name) + '@' + version)] : files),
+    ...npmRegistryArgs(), ...(published ? packages.map(name => npmPackageName(name) + '@' + version) : files),
     'vite@7.3.1', 'typescript@5.9.3'], web);
   const lock = JSON.parse(readFileSync(join(web, 'package-lock.json')));
   for (const [index, name] of packages.entries()) {

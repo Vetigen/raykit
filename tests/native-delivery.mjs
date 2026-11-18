@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import {
-  addonArchive, artifacts, cArchive, cliArchive, nativeTarget, nodeArchive, npm, npmPackageName,
+  addonArchive, artifacts, cArchive, cliArchive, nativeTarget, nodeArchive, npm, npmPackageName, npmRegistryArgs,
   python, root, run as runTool, tar, version, wheelArchive,
 } from '../scripts/release-lib.mjs';
 import { installFromTarballs } from './npm-registry.mjs';
@@ -36,7 +36,7 @@ async function verifyDelivery(work) {
   for (const file of [node, addon, cliFile, sdkFile, wheel]) assert(existsSync(file), file);
   for (const file of [cliFile, sdkFile]) run(tar, ['-xzf', file]);
   writeFileSync(join(work, 'package.json'), '{"type":"module","private":true}');
-  if (published) runTool(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--registry', 'https://registry.npmjs.org',
+  if (published) runTool(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund', ...npmRegistryArgs(),
     '--cache', join(work, 'npm-cache'), nodePackage + '@' + version], { cwd: work });
   else await installFromTarballs(work, nodePackage, [node, addon]);
   const lock = JSON.parse(readFileSync(join(work, 'package-lock.json'), 'utf8'));

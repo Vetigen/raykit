@@ -56,9 +56,11 @@ run checks existing packages against the same candidate before proceeding.
   and all package names. The scope maintainer publishes or stages each approved
   tarball and completes any required 2FA review. Publish all six platform
   addons before `@vetigen/raykit-node`, and `@vetigen/raykit-web` before
-  `@vetigen/raykit-web-component`. In each package's trusted publisher settings, use
-  `Vetigen/raykit`, workflow `release.yml` and environment `release`. Allow
-  direct `npm publish`. [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/)
+  `@vetigen/raykit-web-component`. The publish helper routes the `@vetigen`
+  scope to the public npm registry for the upload. In each package's trusted
+  publisher settings, use `Vetigen/raykit`, workflow `release.yml` and
+  environment `release`. Allow direct `npm publish`.
+  [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/)
 - **PyPI.** For a new `raykit-dicom` project, register a pending trusted
   publisher for `Vetigen/raykit`, `release.yml` and environment `release`.
   The first workflow upload can create the project. The import is

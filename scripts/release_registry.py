@@ -195,8 +195,10 @@ def upload_pub(package):
 
 
 def upload_npm(package):
+    registry = "https://registry.npmjs.org"
+    scope = package.name.partition("/")[0]
     subprocess.run(["npm", "publish", str(package.path.resolve()), "--access", "public", "--ignore-scripts",
-                    "--registry", "https://registry.npmjs.org"], check=True)
+                    "--registry", registry, f"--{scope}:registry={registry}"], check=True)
 
 
 def wait_for_file(package, lookup, attempts=36, delay=5):

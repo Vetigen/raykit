@@ -15,7 +15,10 @@ export const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 export const flutter = process.platform === 'win32' ? 'flutter.bat' : 'flutter';
 export const python = process.env.RAYKIT_PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
 export const tar = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
-export const npmPackageName = name => `@vetigen/raykit-${name}`;
+const npmScope = '@vetigen';
+export const npmPackageName = name => `${npmScope}/raykit-${name}`;
+export const npmRegistryArgs = (registry = 'https://registry.npmjs.org') =>
+  ['--registry', registry, `--${npmScope}:registry=${registry}`];
 export const npmArchive = name => `${npmPackageName(name).slice(1).replace('/', '-')}-${version}.tgz`;
 export const nodeArchive = npmArchive('node');
 export const flutterArchive = `raykit-flutter-${version}.tar.gz`;
