@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { artifacts, desktopArchive, nativeTarget, root, run } from '../scripts/release-lib.mjs';
+import { artifacts, desktopArchive, nativeTarget, root, run, tar } from '../scripts/release-lib.mjs';
 
 const target = nativeTarget();
 const name = desktopArchive(target.desktop);
@@ -11,7 +11,7 @@ const evidence = JSON.parse(readFileSync(join(root, 'benchmarks/evidence/deliver
 const reference = JSON.parse(readFileSync(join(root, 'benchmarks/evidence/comparison-reference.json')));
 const work = mkdtempSync(join(tmpdir(), 'raykit-desktop-consumer-'));
 try {
-  run('tar', ['-xzf', join(artifacts, name)], { cwd: work });
+  run(tar, ['-xzf', join(artifacts, name)], { cwd: work });
   const binary = join(work, name.replace(/\.tar\.gz$/, ''), {
     linux: 'raykit_example', darwin: 'raykit_example.app/Contents/MacOS/raykit_example', win32: 'raykit_example.exe',
   }[target.os]);

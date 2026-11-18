@@ -400,7 +400,17 @@ jobs:
       - run: |
           node scripts/prepare-examples.mjs --assets-only
           RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node scripts/prepare-flutter-consumer.mjs "$RUNNER_TEMP/consumer"
-          RAYKIT_FLUTTER_APP="$RUNNER_TEMP/consumer/examples/flutter" node scripts/package-desktop.mjs
+      - if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        with:
+          arch: x64
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RAYKIT_FLUTTER_APP: ${{ runner.temp }}/consumer/examples/flutter
+        run: node scripts/package-desktop.mjs
+      - if: runner.os != 'Windows'
+        run: RAYKIT_FLUTTER_APP="$RUNNER_TEMP/consumer/examples/flutter" node scripts/package-desktop.mjs
       - env:
           LIBGL_ALWAYS_SOFTWARE: '1'
         run: |

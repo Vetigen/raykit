@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
+import { tar } from '../scripts/release-lib.mjs';
 
 const exec = promisify(execFile);
 
@@ -12,7 +13,7 @@ export async function installFromTarballs(work, name, tarballs) {
   const packages = new Map();
   const files = new Map();
   for (const tarball of tarballs) {
-    const manifest = JSON.parse(execFileSync('tar', ['-xOzf', tarball, 'package/package.json'], { encoding: 'utf8' }));
+    const manifest = JSON.parse(execFileSync(tar, ['-xOzf', tarball, 'package/package.json'], { encoding: 'utf8' }));
     packages.set(manifest.name, { manifest, filename: basename(tarball) });
     files.set(basename(tarball), readFileSync(tarball));
   }

@@ -6,7 +6,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium, firefox, webkit } from 'playwright-core';
 import { serve } from './static-server.mjs';
-import { artifacts, flutterArchive, version } from '../scripts/release-lib.mjs';
+import { artifacts, flutterArchive, tar, version } from '../scripts/release-lib.mjs';
 
 const root = resolve('.');
 const tree = mkdtempSync(join(tmpdir(), 'raykit-consumer-'));
@@ -243,7 +243,7 @@ try {
     for (const path of ['examples/flutter/pubspec.yaml', 'examples/flutter/analysis_options.yaml', 'examples/flutter/lib',
       'examples/flutter/test', 'examples/flutter/assets/raykit']) copy(path);
     mkdirSync(join(tree, 'packages'));
-    run('tar', ['-xzf', join(artifacts, flutterArchive)], join(tree, 'packages'));
+    run(tar, ['-xzf', join(artifacts, flutterArchive)], join(tree, 'packages'));
     renameSync(join(tree, 'packages/raykit'), join(tree, 'packages/flutter'));
     assertNotices(join(tree, 'packages/flutter/notices'));
     assert.deepEqual(readFileSync(join(tree, 'packages/flutter/LICENSE')), readFileSync(join(root, 'LICENSE')));

@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import {
-  addonArchive, artifacts, cArchive, cliArchive, nativeTarget, nodeArchive, npm, python, root, run as runTool, version, wheelArchive,
+  addonArchive, artifacts, cArchive, cliArchive, nativeTarget, nodeArchive, npm, python, root, run as runTool, tar, version, wheelArchive,
 } from '../scripts/release-lib.mjs';
 import { installFromTarballs } from './npm-registry.mjs';
 
@@ -32,7 +32,7 @@ try {
   const sdkFile = join(artifacts, cArchive(platform));
   const wheel = join(artifacts, wheelArchive(target));
   for (const file of [node, addon, cliFile, sdkFile, wheel]) assert(existsSync(file), file);
-  for (const file of [cliFile, sdkFile]) run('tar', ['-xzf', file]);
+  for (const file of [cliFile, sdkFile]) run(tar, ['-xzf', file]);
   writeFileSync(join(work, 'package.json'), '{"type":"module","private":true}');
   if (published) runTool(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--registry', 'https://registry.npmjs.org',
     '--cache', join(work, 'npm-cache'), '@raykit/node@' + version], { cwd: work });

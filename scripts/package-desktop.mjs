@@ -2,7 +2,7 @@ import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { writeNotices } from './notices.mjs';
-import { artifacts, desktopArchive, flutter, nativeTarget, requireFresh, root, run } from './release-lib.mjs';
+import { artifacts, desktopArchive, flutter, nativeTarget, requireFresh, root, run, tar } from './release-lib.mjs';
 
 const target = nativeTarget();
 if (!target.desktop) throw new Error('No standalone desktop archive for ' + target.rust);
@@ -25,5 +25,5 @@ try {
   cpSync(join(app, bundle), host === 'macos' ? join(out, 'raykit_example.app') : out, { recursive: true, verbatimSymlinks: true });
   cpSync(join(root, 'LICENSE'), join(out, 'LICENSE'));
   writeNotices(join(out, 'notices'), 'raykit-ffi', target.rust);
-  run('tar', ['-czf', join(artifacts, archive), name], { cwd: stage });
+  run(tar, ['-czf', join(artifacts, archive), name], { cwd: stage });
 } finally { rmSync(stage, { recursive: true, force: true }); }

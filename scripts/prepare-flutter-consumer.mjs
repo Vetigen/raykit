@@ -1,6 +1,6 @@
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { artifacts, flutter, flutterArchive, root, run, version } from './release-lib.mjs';
+import { artifacts, flutter, flutterArchive, root, run, tar, version } from './release-lib.mjs';
 
 const work = resolve(process.argv[2]);
 const registry = process.argv.includes('--registry');
@@ -26,7 +26,7 @@ if (registry) {
 } else {
   const packages = join(work, 'packages');
   mkdirSync(packages);
-  run('tar', ['-xzf', join(artifacts, flutterArchive)], { cwd: packages });
+  run(tar, ['-xzf', join(artifacts, flutterArchive)], { cwd: packages });
   pubspec = pubspec.replace('path: ../../packages/flutter', 'path: ../../packages/raykit');
 }
 if (integration) {

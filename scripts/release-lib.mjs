@@ -14,6 +14,7 @@ if (!version || !rustVersion) throw new Error('Missing stable release version or
 export const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 export const flutter = process.platform === 'win32' ? 'flutter.bat' : 'flutter';
 export const python = process.env.RAYKIT_PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
+export const tar = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
 export const nodeArchive = `raykit-node-${version}.tgz`;
 export const flutterArchive = `raykit-flutter-${version}.tar.gz`;
 export const pythonSdist = `raykit_dicom-${version}.tar.gz`;

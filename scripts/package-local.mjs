@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { writeNotices } from './notices.mjs';
 import {
   artifacts, flutterArchive, nodeArchive, npm, python, pythonSdist, releaseTargets,
-  requireFresh, root, run, stageRust, version,
+  requireFresh, root, run, stageRust, tar, version,
 } from './release-lib.mjs';
 
 const args = process.argv.slice(2);
@@ -38,7 +38,7 @@ try {
     writeNotices(join(flutter, 'notices'), 'raykit-ffi', [
       ...releaseTargets.targets.map(t => t.rust), 'aarch64-linux-android', 'aarch64-apple-ios', 'aarch64-apple-ios-sim',
     ]);
-    run('tar', ['-czf', join(artifacts, flutterArchive), 'raykit'], { cwd: staging });
+    run(tar, ['-czf', join(artifacts, flutterArchive), 'raykit'], { cwd: staging });
   }
   if (args.includes('--python-source')) {
     requireFresh(artifacts, [pythonSdist]);

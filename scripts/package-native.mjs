@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { writeNotices } from './notices.mjs';
 import {
   addonArchive, artifacts, cArchive, cliArchive, library, nativeTarget, npm, python,
-  requireFresh, root, run, rustVersion, version, wheelArchive,
+  requireFresh, root, run, rustVersion, tar, version, wheelArchive,
 } from './release-lib.mjs';
 
 const target = nativeTarget();
@@ -33,7 +33,7 @@ function archive(name, crate, assemble) {
   assemble(directory);
   cpSync(join(root, 'LICENSE'), join(directory, 'LICENSE'));
   writeNotices(join(directory, 'notices'), crate, target.rust);
-  run('tar', ['-czf', join(artifacts, name), folder], { cwd: staging });
+  run(tar, ['-czf', join(artifacts, name), folder], { cwd: staging });
 }
 
 try {
