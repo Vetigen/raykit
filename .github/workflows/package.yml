@@ -241,9 +241,9 @@ jobs:
           VERSION: ${{ needs.versions.outputs.version }}
         run: |
           addon_host_dir="$RUNNER_TEMP/portable/files"
-          cp "$addon_host_dir/raykit-node-$VERSION.tgz" "$RAYKIT_ARTIFACTS/"
+          cp "$addon_host_dir/vetigen-raykit-node-$VERSION.tgz" "$RAYKIT_ARTIFACTS/"
           node tests/native-delivery.mjs
-          rm "$RAYKIT_ARTIFACTS/raykit-node-$VERSION.tgz"
+          rm "$RAYKIT_ARTIFACTS/vetigen-raykit-node-$VERSION.tgz"
           python scripts/release.py shard "$SHARD" "native-$RAYKIT_EXPECT_TARGET" "$COMMIT" --evidence "$RAYKIT_NATIVE_EVIDENCE_DIR/acceptance.json"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:

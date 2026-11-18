@@ -1,6 +1,6 @@
-import { Dicomweb, LiveSeries, LiveViewport, ProgressiveSeries, RaykitViewport, SharedView } from '@raykit/web';
-import type { RaykitSession, SharedViewEvent, SliceOrientation, Slab, Triple, Volume } from '@raykit/web';
-import type { RaykitViewer } from '@raykit/web-component';
+import { Dicomweb, LiveSeries, LiveViewport, ProgressiveSeries, RaykitViewport, SharedView } from '@vetigen/raykit-web';
+import type { RaykitSession, SharedViewEvent, SliceOrientation, Slab, Triple, Volume } from '@vetigen/raykit-web';
+import type { RaykitViewer } from '@vetigen/raykit-web-component';
 
 function byId<T extends HTMLElement>(id: string): T { return document.getElementById(id) as T; }
 

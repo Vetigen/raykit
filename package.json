@@ -18,7 +18,7 @@
     "package:desktop": "node scripts/package-desktop.mjs",
     "benchmark:build": "vite build benchmarks --config benchmarks/vite.config.mjs",
     "benchmark": "node benchmarks/compare.mjs",
-    "example:web": "npm run --workspace @raykit/example-web dev"
+    "example:web": "npm run --workspace @vetigen/raykit-example-web dev"
   },
   "devDependencies": {
     "@cornerstonejs/core": "5.19.4",

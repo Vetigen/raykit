@@ -1,5 +1,5 @@
-import { registerRaykitViewer } from '@raykit/web-component';
-import { indexedBlob, open } from '@raykit/web';
+import { registerRaykitViewer } from '@vetigen/raykit-web-component';
+import { indexedBlob, open } from '@vetigen/raykit-web';
 import { extras } from './extras';
 import { delivery } from './delivery';
 

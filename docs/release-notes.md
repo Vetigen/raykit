@@ -5,6 +5,9 @@ Python and Flutter. It includes original DICOM pixel access, device window
 selection, calibrated measurements, CT and MR volume reslicing, and indexed
 JPEG cine and live review capabilities.
 
+The npm packages are `@vetigen/raykit-web`, `@vetigen/raykit-web-component`,
+and `@vetigen/raykit-node` with six native Node addons.
+
 The package matrix verifies the same synthetic CT at frame 150 and pixel
 (256, 256). The stored value is 474, the modality value is 448 HU, and the
 calibrated distance is 7 mm. The release report identifies the tested targets,

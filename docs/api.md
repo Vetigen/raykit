@@ -12,11 +12,11 @@ For cross-series MR, supply a host-verified common-space registration pinned to 
 
 ## Custom Worker
 
-The `@raykit/web/worker` subpath is a dedicated module-worker entry. Import it inside the worker and pass the factory to `open`. The host can inspect, decode, render a preview, sample and measure without creating a viewport. The entry speaks the same protocol as the packaged Worker. Close the session when the worker or its source is retired.
+The `@vetigen/raykit-web/worker` subpath is a dedicated module-worker entry. Import it inside the worker and pass the factory to `open`. The host can inspect, decode, render a preview, sample and measure without creating a viewport. The entry speaks the same protocol as the packaged Worker. Close the session when the worker or its source is retired.
 
 ```ts
 // custom-worker.ts
-import '@raykit/web/worker';
+import '@vetigen/raykit-web/worker';
 
 // host.ts
 const session = await open(localFile, {
@@ -121,7 +121,7 @@ For adding authorized members, binding a frozen preview and relaying a checked f
 
 ## Desktop WebViews
 
-Build the web example with `npm run build -w @raykit/example-web`. Keep the generated HTML and assets together. The embedded page uses the same public TypeScript entry points as a browser page.
+Build the web example with `npm run build -w @vetigen/raykit-example-web`. Keep the generated HTML and assets together. The embedded page uses the same public TypeScript entry points as a browser page.
 
 - In WebView2, map the built folder to a dedicated application origin through `SetVirtualHostNameToFolderMapping` with cross-origin access denied. Navigate the initialized control to that origin's `/index.html`. The dedicated worker script and WASM module belong to the same origin. [Microsoft WebView2 local content](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/working-with-local-content)
 - In WKWebView, serve the build on an application-controlled HTTP origin bound to loopback or on an application-controlled HTTPS origin. Load it with a `URLRequest`. Serve JavaScript as JavaScript and WASM as `application/wasm`. [Apple WKWebView](https://developer.apple.com/documentation/webkit/wkwebview)

@@ -20,7 +20,7 @@ individual intervals. A fast-seek series checks the requested frame. One
 trial per fixture and engine records renderer RSS after ten further cycles.
 
 ```sh
-RAYKIT_WEB_DIST=/path/to/installed/@raykit/web/dist npm run benchmark:build
+RAYKIT_WEB_DIST=/path/to/installed/@vetigen/raykit-web/dist npm run benchmark:build
 RAYKIT_RELEASE_PROFILE=1 RAYKIT_ENGINES=raykit,dwv \
   RAYKIT_REPEATS=20 RAYKIT_CINE_REPEATS=20 \
   RAYKIT_COMPARISON_OUTPUT=benchmarks/results/release-web.json node benchmarks/compare.mjs
@@ -91,7 +91,7 @@ npm run fixtures
 npm run fixtures:delivery
 npm run package:local
 npm run package:native
-npm run build -w @raykit/example-web
+npm run build -w @vetigen/raykit-example-web
 mkdir -p benchmarks/results
 node tests/packaged-workflows.mjs
 RAYKIT_PREP_REPEATS=6 RAYKIT_NATIVE_EVIDENCE_DIR=benchmarks/results/delivery-native \
@@ -189,7 +189,7 @@ DWV and Cornerstone3D are benchmark-only npm dependencies. The benchmark build c
 Use `RAYKIT_BROWSER=webkit` on a host with the matching Playwright browser and system libraries. The measurements here use Playwright WebKit 18.2 with the Ubuntu 24.04 libraries in its container.
 
 ```sh
-npm run build -w @raykit/example-web
+npm run build -w @vetigen/raykit-example-web
 mkdir -p benchmarks/results
 docker run --rm --init --network none --shm-size=1g \
   --user "$(id -u):$(id -g)" --workdir /raykit \
@@ -232,7 +232,7 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 npm run fixtures
 npm run package:local
 npx playwright-core install chromium firefox
-npm run build -w @raykit/example-web
+npm run build -w @vetigen/raykit-example-web
 node tests/web-source-open.mjs
 node tests/web-workflow.mjs
 node tests/web-conformance.mjs

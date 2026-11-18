@@ -6,7 +6,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium, firefox, webkit } from 'playwright-core';
 import { serve } from './static-server.mjs';
-import { artifacts, flutterArchive, tar, version } from '../scripts/release-lib.mjs';
+import { artifacts, flutterArchive, npmArchive, npmPackageName, tar, version } from '../scripts/release-lib.mjs';
 
 const root = resolve('.');
 const tree = mkdtempSync(join(tmpdir(), 'raykit-consumer-'));
@@ -53,25 +53,24 @@ try {
   for (const path of ['tsconfig.base.json', 'examples/web/package.json', 'examples/web/tsconfig.json', 'examples/web/vite.config.mjs',
     'examples/web/dicomweb-fixture.mjs', 'examples/web/index.html', 'examples/web/src', 'fixtures/generated']) copy(path);
   const packages = ['web', 'web-component'];
-  const files = packages.map(name => join(artifacts, 'raykit-' + name + '-' + version + '.tgz'));
+  const files = packages.map(name => join(artifacts, npmArchive(name)));
   run(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--cache', join(tree, 'npm-cache'),
-    ...(published ? ['--registry', 'https://registry.npmjs.org', ...packages.map(name => '@raykit/' + name + '@' + version)] : files),
+    ...(published ? ['--registry', 'https://registry.npmjs.org', ...packages.map(name => npmPackageName(name) + '@' + version)] : files),
     'vite@7.3.1', 'typescript@5.9.3'], web);
   const lock = JSON.parse(readFileSync(join(web, 'package-lock.json')));
   for (const [index, name] of packages.entries()) {
-    const pkg = lock.packages['node_modules/@raykit/' + name];
+    const pkg = lock.packages['node_modules/' + npmPackageName(name)];
     assert.equal(pkg.version, version);
     assert.equal(pkg.integrity, 'sha512-' + createHash('sha512').update(readFileSync(files[index])).digest('base64'));
+    const license = join(web, 'node_modules', npmPackageName(name), 'dist/LICENSE');
+    assert.deepEqual(readFileSync(license), readFileSync(join(root, 'LICENSE')));
   }
-  assertNotices(join(web, 'node_modules/@raykit/web/dist/notices'));
-  for (const name of ['web', 'web-component']) {
-    assert.deepEqual(readFileSync(join(web, 'node_modules/@raykit', name, 'dist/LICENSE')), readFileSync(join(root, 'LICENSE')));
-  }
-  assertPortableBinary(join(web, 'node_modules/@raykit/web/dist/generated/raykit_wasm_bg.wasm'));
-  assertPortableBinary(join(web, 'node_modules/@raykit/web/dist/generated/advanced/raykit_wasm_bg.wasm'));
+  const sdk = join(web, 'node_modules', npmPackageName('web'), 'dist');
+  assertNotices(join(sdk, 'notices'));
+  assertPortableBinary(join(sdk, 'generated/raykit_wasm_bg.wasm'));
+  assertPortableBinary(join(sdk, 'generated/advanced/raykit_wasm_bg.wasm'));
   run(npm, ['run', 'build'], web);
   const requests = [];
-  const sdk = join(web, 'node_modules/@raykit/web/dist');
   const service = await serve(join(web, 'dist'), (req, res, next) => {
     requests.push(req.url);
     next();

@@ -1,4 +1,4 @@
-import { RaykitViewport, WebGlRenderer } from '@raykit/web';
+import { RaykitViewport, WebGlRenderer } from '@vetigen/raykit-web';
 import { observeDraw, originalPixel } from './presentation.js';
 
 export async function create(host, file, count, probe) {

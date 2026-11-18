@@ -22,11 +22,11 @@ For a side-by-side reading, choose **Open CT with named windows**, then **Compar
 
 Select **Ruler**, mark two endpoints, and click **Calculate**. For a canine VHS record, select **VHS**, confirm the lateral projection and place the cardiac and vertebral landmarks shown in the tool. Export the measurements and import the JSON after reopening the same DICOM bytes. **Open local DICOMweb series** demonstrates a clearly labeled preview, verification of the original bytes and progressive series loading.
 
-The packages expose a framework-independent session and viewport. `@raykit/web-component` registers the ready viewer.
+The packages expose a framework-independent session and viewport. `@vetigen/raykit-web-component` registers the ready viewer.
 
 ```ts
-import { open } from '@raykit/web';
-import { registerRaykitViewer } from '@raykit/web-component';
+import { open } from '@vetigen/raykit-web';
+import { registerRaykitViewer } from '@vetigen/raykit-web-component';
 
 registerRaykitViewer();
 const viewer = document.querySelector('raykit-viewer')!;
@@ -100,7 +100,7 @@ raykit frame-index fixtures/generated/cine-350.dcm --out cine.rki
 raykit measurements verify fixtures/generated/comparison-ct.dcm measurement.json
 ```
 
-Install the Node SDK with `npm install @raykit/node`. The loader selects the optional native addon for the current platform. Its session opens local sources and renders on Node-API's asynchronous work pool. The [Node.js proof example](examples/node/proofs.mjs) writes packets for a static host.
+Install the Node SDK with `npm install @vetigen/raykit-node`. The loader selects the optional native addon for the current platform. Its session opens local sources and renders on Node-API's asynchronous work pool. The [Node.js proof example](examples/node/proofs.mjs) writes packets for a static host.
 
 Install the Python SDK with `python -m pip install raykit-dicom` and import `raykit_dicom`. Run the NumPy example with `python sample.py SOURCE --frame 150 --x 256 --y 256`. NumPy views retain their owned bytes after close. [NumPy example](examples/python/sample.py)
 
@@ -109,7 +109,7 @@ Install the Python SDK with `python -m pip install raykit-dicom` and import `ray
 Run `npm run package:local` from a build checkout. The `artifacts/` directory contains the web, Node loader and Flutter source packages. Run `npm run package:native` for the CLI, C SDK, native Node addon and Python wheel. Set `RAYKIT_ARTIFACTS` to select an empty output directory. Extract the Flutter archive and point your app's `raykit` dependency at the extracted directory. The native sources and lockfile travel with the Flutter bundle.
 
 ```sh
-npm install path/to/raykit-web-0.1.0.tgz path/to/raykit-web-component-0.1.0.tgz
+npm install path/to/vetigen-raykit-web-0.1.0.tgz path/to/vetigen-raykit-web-component-0.1.0.tgz
 tar -xzf path/to/raykit-flutter-0.1.0.tar.gz
 ```
 

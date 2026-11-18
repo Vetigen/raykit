@@ -1,1 +1,1 @@
-import '@raykit/web/worker';
+import '@vetigen/raykit-web/worker';

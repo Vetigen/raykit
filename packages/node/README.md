@@ -1,11 +1,11 @@
 # RayKit by Vetigen for Node.js
 
-Run `npm install @raykit/node` on Node.js 22.14 or later. npm selects the optional native package for Linux with glibc 2.28 or later, macOS, or Windows on x64 and arm64.
+Run `npm install @vetigen/raykit-node` on Node.js 22.14 or later. npm selects the optional native package for Linux with glibc 2.28 or later, macOS, or Windows on x64 and arm64.
 
 Open a local Part 10 file without a DOM. A native session serializes submitted operations and performs IO, verification, decoding and rendering on the Node-API async work pool.
 
 ```js
-import { open } from '@raykit/node';
+import { open } from '@vetigen/raykit-node';
 
 const source = await open('computed-tomography.dcm');
 try {

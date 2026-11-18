@@ -52,11 +52,11 @@ run checks existing packages against the same candidate before proceeding.
   protocol, then ffi, wasm, cli and node. Add a trusted publisher to each crate
   for `Vetigen/raykit`, workflow `release.yml` and environment `release`.
   [crates.io trusted publishing](https://crates.io/docs/trusted-publishing)
-- **npm.** Verify the organization or account controls the `@raykit` scope
+- **npm.** Verify the organization or account controls the `@vetigen` scope
   and all package names. The scope maintainer publishes or stages each approved
   tarball and completes any required 2FA review. Publish all six platform
-  addons before `@raykit/node`, and `@raykit/web` before
-  `@raykit/web-component`. In each package's trusted publisher settings, use
+  addons before `@vetigen/raykit-node`, and `@vetigen/raykit-web` before
+  `@vetigen/raykit-web-component`. In each package's trusted publisher settings, use
   `Vetigen/raykit`, workflow `release.yml` and environment `release`. Allow
   direct `npm publish`. [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/)
 - **PyPI.** For a new `raykit-dicom` project, register a pending trusted

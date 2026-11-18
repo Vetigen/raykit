@@ -36,7 +36,7 @@ jobs:
           bindgen: ${{ steps.versions.outputs.bindgen }}
           rust: ${{ steps.versions.outputs.rust }}
       - run: node scripts/package-local.mjs --web
-      - run: npm run fixtures && npm run fixtures:delivery && npm run build -w @raykit/example-web
+      - run: npm run fixtures && npm run fixtures:delivery && npm run build -w @vetigen/raykit-example-web
       - run: npx --no-install playwright-core install --with-deps chromium
       - name: Check packaged pixels and measurement
         run: RAYKIT_WEB_EVIDENCE="$RAYKIT_ARTIFACTS/reference.json" node tests/packaged-workflows.mjs --web
@@ -45,7 +45,7 @@ jobs:
           VERSION: ${{ steps.versions.outputs.version }}
         run: |
           mkdir "$RUNNER_TEMP/benchmark-sdk"
-          tar -xzf "$RAYKIT_ARTIFACTS/raykit-web-$VERSION.tgz" -C "$RUNNER_TEMP/benchmark-sdk"
+          tar -xzf "$RAYKIT_ARTIFACTS/vetigen-raykit-web-$VERSION.tgz" -C "$RUNNER_TEMP/benchmark-sdk"
           RAYKIT_WEB_DIST="$RUNNER_TEMP/benchmark-sdk/package/dist" node benchmarks/delivery.mjs > "$RAYKIT_ARTIFACTS/trend.json"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always() && !cancelled()

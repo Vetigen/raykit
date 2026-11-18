@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIG = json.loads((ROOT / "scripts/release-targets.json").read_text())
 CRATES = ("core", "vet", "protocol", "ffi", "wasm", "cli", "node")
 BROWSERS = ("chromium", "firefox", "webkit")
+NPM_PREFIX = "@vetigen/raykit-"
+NPM_ARCHIVE_PREFIX = NPM_PREFIX.removeprefix("@").replace("/", "-")
 REFERENCE = json.loads((ROOT / "benchmarks/evidence/comparison-reference.json").read_text())
 
 
@@ -87,17 +89,18 @@ def check_versions(root=ROOT, tag=None):
     require(example["private"], "Web example must be private")
     for name in ("web", "web-component", "node"):
         manifest = json_file(root / f"packages/{name}/package.json")
-        require(manifest["name"] == f"@raykit/{name}" and manifest["version"] == version and not manifest.get("private")
+        package_name = f"{NPM_PREFIX}{name}"
+        require(manifest["name"] == package_name and manifest["version"] == version and not manifest.get("private")
                 and manifest["publishConfig"]["access"] == "public", f"npm release metadata differs for {name}")
         if name != "node":
-            require(npm_lock["packages"][f"packages/{name}"]["version"] == example["dependencies"][f"@raykit/{name}"] == version,
+            require(npm_lock["packages"][f"packages/{name}"]["version"] == example["dependencies"][package_name] == version,
                     f"{name}: npm lockfile or example version differs")
         else:
-            require(manifest["optionalDependencies"] == {f"@raykit/{t['nodePackage']}": version for t in CONFIG["targets"]},
+            require(manifest["optionalDependencies"] == {f"{NPM_PREFIX}{t['nodePackage']}": version for t in CONFIG["targets"]},
                     "Node optional addon inventory or versions differ")
             require(manifest["engines"]["node"] == f">={CONFIG['node']}", "Node consumer runtime and engines differ")
         if name == "web-component":
-            require(manifest["dependencies"]["@raykit/web"] == version, "Web component requires a different SDK version")
+            require(manifest["dependencies"][f"{NPM_PREFIX}web"] == version, "Web component requires a different SDK version")
 
     python = toml(root / "packages/python/pyproject.toml")["project"]
     require(python["name"] == "raykit-dicom" and python["version"] == version, "Python release metadata differs")
@@ -130,12 +133,12 @@ def inventory(version):
         add(lane, "github", f"raykit-{version}-{triple}.tar.gz", "raykit", triple)
         add(lane, "github", f"raykit-c-sdk-{version}-{triple}.tar.gz", "raykit-c-sdk", triple)
         name = target["nodePackage"]
-        add(lane, "npm", f"raykit-{name}-{version}.tgz", f"@raykit/{name}", triple)
+        add(lane, "npm", f"{NPM_ARCHIVE_PREFIX}{name}-{version}.tgz", f"{NPM_PREFIX}{name}", triple)
         add(lane, "pypi", f"raykit_dicom-{version}-py3-none-{target['wheel']}.whl", "raykit-dicom", triple)
         if desktop := target.get("desktop"):
             add(f"desktop-{desktop}", "github", f"raykit-desktop-{version}-{desktop}.tar.gz", "raykit-desktop", desktop)
     for name in ("node", "web", "web-component"):
-        add("portable", "npm", f"raykit-{name}-{version}.tgz", f"@raykit/{name}")
+        add("portable", "npm", f"{NPM_ARCHIVE_PREFIX}{name}-{version}.tgz", f"{NPM_PREFIX}{name}")
     add("portable", "pypi", f"raykit_dicom-{version}.tar.gz", "raykit-dicom")
     add("portable", "pub", f"raykit-flutter-{version}.tar.gz", "raykit")
     return files
@@ -168,13 +171,13 @@ def validate_archive(path, meta, version, commit):
         if channel == "npm":
             package = json.loads(read("package/package.json"))
             require(package["version"] == version and package["name"] == name, f"Unexpected package.json in {path.name}")
-            if name == "@raykit/web":
+            if name == f"{NPM_PREFIX}web":
                 for file in ("index.d.ts", "worker.js", "worker.d.ts", "generated/raykit_wasm_bg.wasm",
                              "generated/advanced/raykit_wasm_bg.wasm", "notices/inventory.json", "LICENSE"):
                     require(f"package/dist/{file}" in members, f"Missing {file} in {path.name}")
-            elif name == "@raykit/node":
+            elif name == f"{NPM_PREFIX}node":
                 require("package/LICENSE" in members and not any(p.endswith(".node") for p in members), "Invalid portable Node package")
-            elif name.startswith("@raykit/node-"):
+            elif name.startswith(f"{NPM_PREFIX}node-"):
                 target = next(t for t in CONFIG["targets"] if t["rust"] == meta["target"])
                 require(package["os"] == [target["os"]] and package["cpu"] == [target["arch"]]
                         and package.get("libc") == (["glibc"] if target.get("manylinux") else None)

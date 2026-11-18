@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeNotices } from './notices.mjs';
 import {
-  artifacts, flutterArchive, nodeArchive, npm, python, pythonSdist, releaseTargets,
-  requireFresh, root, run, stageRust, tar, version,
+  artifacts, flutterArchive, nodeArchive, npm, npmArchive, python, pythonSdist, releaseTargets,
+  requireFresh, root, run, stageRust, tar,
 } from './release-lib.mjs';
 
 const args = process.argv.slice(2);
@@ -15,7 +15,7 @@ const staging = mkdtempSync(join(tmpdir(), 'raykit-package-'));
 
 try {
   if (!args.length || args.includes('--web')) {
-    requireFresh(artifacts, [`raykit-web-${version}.tgz`, `raykit-web-component-${version}.tgz`, nodeArchive]);
+    requireFresh(artifacts, [npmArchive('web'), npmArchive('web-component'), nodeArchive]);
     run(npm, ['run', 'build:web']);
     run(npm, ['pack', '--ignore-scripts', '--pack-destination', artifacts, './packages/web', './packages/web-component']);
     const node = join(staging, 'node');

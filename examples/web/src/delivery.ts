@@ -1,6 +1,6 @@
-import { frameProofHttp, open, openTiled, TiledViewport } from '@raykit/web';
-import type { FrameProof, PixelPoint } from '@raykit/web';
-import type { RaykitViewer } from '@raykit/web-component';
+import { frameProofHttp, open, openTiled, TiledViewport } from '@vetigen/raykit-web';
+import type { FrameProof, PixelPoint } from '@vetigen/raykit-web';
+import type { RaykitViewer } from '@vetigen/raykit-web-component';
 
 export function delivery(viewer: RaykitViewer): void {
   const field = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;

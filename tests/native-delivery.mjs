@@ -7,7 +7,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import {
-  addonArchive, artifacts, cArchive, cliArchive, nativeTarget, nodeArchive, npm, python, root, run as runTool, tar, version, wheelArchive,
+  addonArchive, artifacts, cArchive, cliArchive, nativeTarget, nodeArchive, npm, npmPackageName,
+  python, root, run as runTool, tar, version, wheelArchive,
 } from '../scripts/release-lib.mjs';
 import { installFromTarballs } from './npm-registry.mjs';
 
@@ -27,6 +28,8 @@ async function verifyDelivery(work) {
   const run = (cmd, args) => execFileSync(cmd, args, { cwd: work, encoding: 'utf8' });
   const node = join(artifacts, nodeArchive);
   const addon = join(artifacts, addonArchive(target));
+  const nodePackage = npmPackageName('node');
+  const addonPackage = npmPackageName(target.nodePackage);
   const cliFile = join(artifacts, cliArchive(platform));
   const sdkFile = join(artifacts, cArchive(platform));
   const wheel = join(artifacts, wheelArchive(target));
@@ -34,13 +37,13 @@ async function verifyDelivery(work) {
   for (const file of [cliFile, sdkFile]) run(tar, ['-xzf', file]);
   writeFileSync(join(work, 'package.json'), '{"type":"module","private":true}');
   if (published) runTool(npm, ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--registry', 'https://registry.npmjs.org',
-    '--cache', join(work, 'npm-cache'), '@raykit/node@' + version], { cwd: work });
-  else await installFromTarballs(work, '@raykit/node', [node, addon]);
+    '--cache', join(work, 'npm-cache'), nodePackage + '@' + version], { cwd: work });
+  else await installFromTarballs(work, nodePackage, [node, addon]);
   const lock = JSON.parse(readFileSync(join(work, 'package-lock.json'), 'utf8'));
-  assert.equal(lock.packages['node_modules/@raykit/node'].version, version);
-  assert.equal(lock.packages['node_modules/@raykit/' + target.nodePackage].version, version);
-  for (const [pkg, file] of [['@raykit/node', node], ['@raykit/' + target.nodePackage, addon]]) {
-    assert.equal(lock.packages['node_modules/' + pkg].integrity, 'sha512-' + createHash('sha512').update(readFileSync(file)).digest('base64'));
+  for (const [pkg, file] of [[nodePackage, node], [addonPackage, addon]]) {
+    const installed = lock.packages['node_modules/' + pkg];
+    assert.equal(installed.version, version);
+    assert.equal(installed.integrity, 'sha512-' + createHash('sha512').update(readFileSync(file)).digest('base64'));
   }
   const cli = join(work, cliName, process.platform === 'win32' ? 'raykit.exe' : 'raykit');
   assert.equal(run(cli, ['--version']).trim(), 'raykit ' + version);
@@ -62,7 +65,7 @@ async function verifyDelivery(work) {
   assert.throws(() => json(render), error => error.status === 4);
   assert.equal(digest(readFileSync(join(work, 'ct.png'))), digest(png));
 
-  writeFileSync(join(work, 'binding.mjs'), "export * from '@raykit/node';\n");
+  writeFileSync(join(work, 'binding.mjs'), `export * from '${nodePackage}';\n`);
   const module = await import(pathToFileURL(join(work, 'binding.mjs')));
   let ticks = 0;
   const timer = setInterval(() => ticks++, 1);

@@ -73,7 +73,7 @@ jobs:
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: ci-web
-          path: ${{ env.RAYKIT_ARTIFACTS }}/raykit-web*.tgz
+          path: ${{ env.RAYKIT_ARTIFACTS }}/vetigen-raykit-web*.tgz
           retention-days: 3
           overwrite: true
           if-no-files-found: error

@@ -15,13 +15,15 @@ export const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 export const flutter = process.platform === 'win32' ? 'flutter.bat' : 'flutter';
 export const python = process.env.RAYKIT_PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
 export const tar = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
-export const nodeArchive = `raykit-node-${version}.tgz`;
+export const npmPackageName = name => `@vetigen/raykit-${name}`;
+export const npmArchive = name => `${npmPackageName(name).slice(1).replace('/', '-')}-${version}.tgz`;
+export const nodeArchive = npmArchive('node');
 export const flutterArchive = `raykit-flutter-${version}.tar.gz`;
 export const pythonSdist = `raykit_dicom-${version}.tar.gz`;
 export const cliArchive = target => `raykit-${version}-${target}.tar.gz`;
 export const cArchive = target => `raykit-c-sdk-${version}-${target}.tar.gz`;
 export const desktopArchive = target => `raykit-desktop-${version}-${target}.tar.gz`;
-export const addonArchive = target => `raykit-${target.nodePackage}-${version}.tgz`;
+export const addonArchive = target => npmArchive(target.nodePackage);
 export const wheelArchive = target => `raykit_dicom-${version}-py3-none-${target.wheel}.whl`;
 
 export function nativeTarget() {

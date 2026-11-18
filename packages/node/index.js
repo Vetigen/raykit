@@ -29,13 +29,13 @@ function loadBinding() {
   const { platform, arch } = process;
   const libc = platform !== 'linux' ? ''
     : (process.report.getReport().header.glibcVersionRuntime ? '-gnu' : '-musl');
-  const target = `@raykit/node-${platform}-${arch}${platform === 'win32' ? '-msvc' : libc}`;
+  const target = `@vetigen/raykit-node-${platform}-${arch}${platform === 'win32' ? '-msvc' : libc}`;
   if (!['x64', 'arm64'].includes(arch) || !['linux', 'darwin', 'win32'].includes(platform) || libc === '-musl') {
     throw new RaykitError('unsupported', `No RayKit native addon for ${platform}/${arch}${libc}`);
   }
   try { return require(target); }
   catch (error) {
-    throw new RaykitError('unsupported', `Cannot load ${target}. Install @raykit/node with optional dependencies enabled.`,
+    throw new RaykitError('unsupported', `Cannot load ${target}. Install @vetigen/raykit-node with optional dependencies enabled.`,
       { cause: error });
   }
 }

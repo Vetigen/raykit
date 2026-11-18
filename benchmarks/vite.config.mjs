@@ -10,9 +10,9 @@ const installed = process.env.RAYKIT_WEB_DIST;
 
 export default defineConfig({
   publicDir: fileURLToPath(new URL('../fixtures/generated/', import.meta.url)),
-  optimizeDeps: { exclude: ['@raykit/web', '@cornerstonejs/dicom-image-loader'] },
+  optimizeDeps: { exclude: ['@vetigen/raykit-web', '@cornerstonejs/dicom-image-loader'] },
   resolve: { alias: { events: require.resolve('events/'), url: require.resolve('url/'),
-    ...(installed ? { '@raykit/web': resolve(installed, 'index.js') } : {}),
+    ...(installed ? { '@vetigen/raykit-web': resolve(installed, 'index.js') } : {}),
   } },
   worker: { format: 'es' },
   plugins: [{

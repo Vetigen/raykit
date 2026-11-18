@@ -1,4 +1,4 @@
-import { open } from '@raykit/web';
+import { open } from '@vetigen/raykit-web';
 import { originalPixel } from './presentation.js';
 
 const shaders = `

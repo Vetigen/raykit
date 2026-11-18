@@ -1,5 +1,5 @@
-import { RaykitError, RaykitSession, RaykitViewport } from '@raykit/web';
-import type { Measurement, MeasurementRequest, OpenOptions, PatientPlane, PixelPoint, PresentedFrame, RenderOptions, ScreenPoint, SegmentationOverlay, Source, SourceSample, Triple } from '@raykit/web';
+import { RaykitError, RaykitSession, RaykitViewport } from '@vetigen/raykit-web';
+import type { Measurement, MeasurementRequest, OpenOptions, PatientPlane, PixelPoint, PresentedFrame, RenderOptions, ScreenPoint, SegmentationOverlay, Source, SourceSample, Triple } from '@vetigen/raykit-web';
 
 const styles = `
 :host{display:block;min-height:30rem;font:14px/1.5 system-ui,sans-serif;color:#e9edf4;background:#11151c;color-scheme:dark}

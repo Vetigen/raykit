@@ -1,5 +1,5 @@
 {
-  "name": "@raykit/web-component",
+  "name": "@vetigen/raykit-web-component",
   "version": "0.1.0",
   "description": "RayKit DICOM viewer web component",
   "license": "Apache-2.0",
@@ -8,6 +8,6 @@
   "type": "module",
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
   "files": ["dist"],
-  "dependencies": { "@raykit/web": "0.1.0" },
+  "dependencies": { "@vetigen/raykit-web": "0.1.0" },
   "scripts": { "build": "tsc -p tsconfig.json" }
 }

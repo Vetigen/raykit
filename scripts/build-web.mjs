@@ -60,8 +60,8 @@ else {
   for (const suffix of ['js', 'd.ts']) writeFileSync(join(advanced, 'raykit_wasm.' + suffix),
     "export { default } from '../raykit_wasm.js';\nexport * from '../raykit_wasm.js';\n");
 }
-run(npm, ['run', 'build', '-w', '@raykit/web']);
+run(npm, ['run', 'build', '-w', '@vetigen/raykit-web']);
 cpSync(new URL(`../${generated}/`, import.meta.url), new URL('../packages/web/dist/generated/', import.meta.url), { recursive: true });
 writeNotices(fileURLToPath(new URL('../packages/web/dist/notices/', import.meta.url)), 'raykit-wasm', 'wasm32-unknown-unknown', baseline);
-run(npm, ['run', 'build', '-w', '@raykit/web-component']);
+run(npm, ['run', 'build', '-w', '@vetigen/raykit-web-component']);
 for (const name of ['web', 'web-component']) cpSync(join(root, 'LICENSE'), join(root, 'packages', name, 'dist/LICENSE'));

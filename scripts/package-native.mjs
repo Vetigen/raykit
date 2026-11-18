@@ -3,7 +3,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { writeNotices } from './notices.mjs';
 import {
-  addonArchive, artifacts, cArchive, cliArchive, library, nativeTarget, npm, python,
+  addonArchive, artifacts, cArchive, cliArchive, library, nativeTarget, npm, npmPackageName, python,
   requireFresh, root, run, rustVersion, tar, version, wheelArchive,
 } from './release-lib.mjs';
 
@@ -81,7 +81,7 @@ try {
   cpSync(join(output, addon), join(node, 'raykit.node'));
   writeNotices(join(node, 'notices'), 'raykit-node', target.rust);
   writeFileSync(join(node, 'package.json'), JSON.stringify({
-    name: '@raykit/' + target.nodePackage, version,
+    name: npmPackageName(target.nodePackage), version,
     description: 'RayKit native Node-API addon for ' + target.rust,
     license: 'Apache-2.0', repository: { type: 'git', url: 'git+https://github.com/Vetigen/raykit.git' },
     publishConfig: { access: 'public' }, engines: { node: '>=22.14.0' },

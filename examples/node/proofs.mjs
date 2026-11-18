@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { open } from '@raykit/node';
+import { open } from '@vetigen/raykit-node';
 
 const [source, directory, revision, expectedSha256] = process.argv.slice(2);
 if (!source || !directory || !revision || !expectedSha256) {
