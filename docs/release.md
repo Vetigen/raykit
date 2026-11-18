@@ -33,9 +33,9 @@ Firefox and Playwright WebKit. It runs the source cancellation, verified index,
 independent pixels and panel revocation checks against the installed packages.
 The Flutter SDK test installs the source archive outside the checkout, compiles
 its native asset, draws the CT and exercises source replacement and revocation.
-Android checks the compiled
-ARM64 APK, native library and assets. iOS checks an unsigned device link and
-runs the packaged SDK against the CT on an iPhone simulator. Physical device
+Android checks the compiled ARM64 APK, native library and assets. iOS checks
+an unsigned device link and launches a standalone app that writes its verified
+CT sample and ruler result after drawing the original frame. Physical device
 and Safari acceptance are tracked in the [support matrix](support.md).
 
 ## First publication

@@ -499,7 +499,7 @@ jobs:
           path: fixtures/generated
       - run: |
           node scripts/prepare-examples.mjs --assets-only
-          RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node scripts/prepare-flutter-consumer.mjs "$RUNNER_TEMP/consumer" --integration
+          RAYKIT_ARTIFACTS="$RUNNER_TEMP/portable/files" node scripts/prepare-flutter-consumer.mjs "$RUNNER_TEMP/consumer" --simulator
       - working-directory: ${{ runner.temp }}/consumer/examples/flutter
         run: flutter build ios --release --no-codesign --no-pub
       - name: Boot an available iPhone simulator
@@ -518,9 +518,27 @@ jobs:
         env:
           SIMULATOR: ${{ steps.simulator.outputs.device }}
         run: |
-          flutter test --no-pub -d "$SIMULATOR" --reporter expanded integration_test/release_test.dart
-          jq -n --arg xcode "$(xcodebuild -version)" --arg simulator "$SIMULATOR" \
-            '{device_link:"passed",simulator_runtime:"passed",physical_device:"not run",xcode:$xcode,simulator:$simulator}' > "$RUNNER_TEMP/ios.json"
+          flutter build ios --simulator --debug --no-pub --target lib/ios_smoke.dart
+          app="build/ios/iphonesimulator/Runner.app"
+          id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")
+          xcrun simctl install "$SIMULATOR" "$app"
+          data=$(xcrun simctl get_app_container "$SIMULATOR" "$id" data)
+          output="$data/tmp/raykit-ios-smoke.json"
+          SIMCTL_CHILD_RAYKIT_IOS_SMOKE_OUTPUT="$output" xcrun simctl launch "$SIMULATOR" "$id"
+          trap 'xcrun simctl terminate "$SIMULATOR" "$id" || true' EXIT
+          for attempt in {1..60}; do
+            if [[ -f "$output" ]]; then break; fi
+            sleep 1
+          done
+          test -f "$output" || { echo "No original-frame report from the simulator app"; exit 1; }
+          jq -e --slurpfile ref assets/raykit/comparison-reference.json \
+            --arg xcode "$(xcodebuild -version)" --arg simulator "$SIMULATOR" '
+            select(.presented.content_sha256 == $ref[0].sha256 and .presented.frame == $ref[0].frame
+              and .sample.source == .presented and .sample.sample.stored == $ref[0].stored
+              and .sample.sample.modality == $ref[0].modality and .sample.modality_unit == $ref[0].unit
+              and .measurement == [{"name":"length","unit":"millimeter","value":7}]) +
+              {device_link:"passed",simulator_runtime:"passed",physical_device:"not run",xcode:$xcode,simulator:$simulator}
+            ' "$output" > "$RUNNER_TEMP/ios.json"
       - run: python3 scripts/release.py shard "$SHARD" ios "$COMMIT" --evidence "$RUNNER_TEMP/ios.json"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:

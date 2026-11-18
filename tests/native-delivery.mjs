@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import {
@@ -11,7 +11,6 @@ import {
 } from '../scripts/release-lib.mjs';
 import { installFromTarballs } from './npm-registry.mjs';
 
-const work = mkdtempSync(join(tmpdir(), 'raykit-delivery-'));
 const fixtures = join(root, 'fixtures/generated');
 const path = name => join(fixtures, name + '.dcm');
 const refFile = join(root, 'benchmarks/evidence/comparison-reference.json');
@@ -21,11 +20,11 @@ const platform = target.rust;
 const cliName = cliArchive(platform).replace(/\.tar\.gz$/, '');
 const output = process.env.RAYKIT_NATIVE_EVIDENCE_DIR ? resolve(process.env.RAYKIT_NATIVE_EVIDENCE_DIR) : null;
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
-const run = (cmd, args) => execFileSync(cmd, args, { cwd: work, encoding: 'utf8' });
 const source = path('comparison-ct');
 const published = process.argv.includes('--published');
 
-try {
+async function verifyDelivery(work) {
+  const run = (cmd, args) => execFileSync(cmd, args, { cwd: work, encoding: 'utf8' });
   const node = join(artifacts, nodeArchive);
   const addon = join(artifacts, addonArchive(target));
   const cliFile = join(artifacts, cliArchive(platform));
@@ -162,4 +161,16 @@ try {
     writeFileSync(join(output, 'acceptance.json'), JSON.stringify(evidence, null, 2) + '\n');
   }
   console.log(JSON.stringify(evidence, null, 2));
-} finally { rmSync(work, { recursive: true, force: true }); }
+}
+
+if (process.argv[2] === '--consumer-process') {
+  await verifyDelivery(process.argv[3]);
+} else {
+  const work = mkdtempSync(join(tmpdir(), 'raykit-delivery-'));
+  try {
+    // Windows keeps a loaded Node addon open until its process exits.
+    runTool(process.execPath, [fileURLToPath(import.meta.url), '--consumer-process', work, ...process.argv.slice(2)]);
+  } finally {
+    rmSync(work, { recursive: true, force: true, maxRetries: 5 });
+  }
+}

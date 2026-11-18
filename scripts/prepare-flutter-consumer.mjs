@@ -4,7 +4,7 @@ import { artifacts, flutter, flutterArchive, root, run, tar, version } from './r
 
 const work = resolve(process.argv[2]);
 const registry = process.argv.includes('--registry');
-const integration = process.argv.includes('--integration');
+const simulator = process.argv.includes('--simulator');
 const acceptance = process.argv.includes('--acceptance');
 const example = join(root, 'examples/flutter');
 const app = join(work, 'examples/flutter');
@@ -29,11 +29,7 @@ if (registry) {
   run(tar, ['-xzf', join(artifacts, flutterArchive)], { cwd: packages });
   pubspec = pubspec.replace('path: ../../packages/flutter', 'path: ../../packages/raykit');
 }
-if (integration) {
-  pubspec = pubspec.replace('dev_dependencies:\n', 'dev_dependencies:\n  integration_test:\n    sdk: flutter\n');
-  mkdirSync(join(app, 'integration_test'));
-  cpSync(join(root, 'tests/flutter-consumer/integration_test.dart'), join(app, 'integration_test/release_test.dart'));
-}
+if (simulator) cpSync(join(root, 'tests/flutter-consumer/ios_smoke.dart'), join(app, 'lib/ios_smoke.dart'));
 if (acceptance) {
   pubspec = pubspec.replace('dev_dependencies:\n', 'dev_dependencies:\n  ffi: ^2.1.5\n');
   for (const file of ['native_workflow_test.dart', 'imaging_quality_test.dart']) {
