@@ -450,8 +450,9 @@ class _AcceptanceState extends State<_Acceptance> {
 
   Future<Json> _startup(String name) async {
     const coldFixtures = ['benchmark-signed12.dcm', 'cine-350.dcm'];
-    if (!coldFixtures.contains(name))
+    if (!coldFixtures.contains(name)) {
       throw StateError('Unknown startup fixture');
+    }
     final directory = Platform.environment['RAYKIT_STARTUP_SOURCE_DIR'];
     if (directory == null) throw StateError('Set RAYKIT_STARTUP_SOURCE_DIR');
     _assets[name] = File('$directory/$name');
